@@ -31,3 +31,4 @@ groups.json
 faz_targets.json
 
 graphify-out
+.worktrees/
