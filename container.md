@@ -66,5 +66,5 @@ terminates at `nginx`, so `app` never sees a cert on disk itself, and
 `auto` would silently leave session cookies insecure. Same reasoning as
 the RHEL/Nginx path in `docs/deployment.md` §5.
 
-The app is reachable at `https://localhost:8443` (HTTP on `8080` redirects
+The app is reachable at `https://localhost:8300` (HTTP on `8301` redirects
 to HTTPS).
