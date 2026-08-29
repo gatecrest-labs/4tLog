@@ -402,3 +402,78 @@ def test_summarize_connection_error_connection_refused():
 
     exc = requests.exceptions.ConnectionError("... Connection refused ...")
     assert summarize_connection_error(exc) == "Connection refused"
+
+
+def test_get_log_stats_folds_vdoms_to_one_record_per_device(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "data": {
+                        "devs": [
+                            {
+                                "devid": "FGT001",
+                                "devname": "FGT-branch1",
+                                "vdoms": [
+                                    {"vdom": "root", "last-log-timestamp": 1000, "lograte": 5.0},
+                                    {"vdom": "traffic", "last-log-timestamp": 1200, "lograte": 3.5},
+                                ],
+                            },
+                            {
+                                "devid": "FGT002",
+                                "devname": "FGT-branch2",
+                                "vdoms": [
+                                    {"vdom": "root", "last-log-timestamp": 900, "lograte": 0.0},
+                                ],
+                            },
+                        ]
+                    }
+                },
+            }
+        ],
+    )
+    stats = client.get_log_stats()
+    assert stats == [
+        {"devid": "FGT001", "devname": "FGT-branch1", "last_log_timestamp": 1200, "lograte": 8.5},
+        {"devid": "FGT002", "devname": "FGT-branch2", "last_log_timestamp": 900, "lograte": 0.0},
+    ]
+    assert calls[0]["json"]["params"][0]["url"] == "/logview/adom/root/logstats"
+
+
+def test_get_log_stats_empty_vdoms_yields_none_timestamp(monkeypatch):
+    client, _ = _client(
+        monkeypatch,
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "data": {"devs": [{"devid": "FGT003", "devname": "FGT-branch3", "vdoms": []}]}
+                },
+            }
+        ],
+    )
+    stats = client.get_log_stats()
+    assert stats == [
+        {"devid": "FGT003", "devname": "FGT-branch3", "last_log_timestamp": None, "lograte": 0.0}
+    ]
+
+
+def test_get_log_stats_uses_explicit_adom_override(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [{"jsonrpc": "2.0", "id": 1, "result": {"data": {"devs": []}}}],
+    )
+    client.get_log_stats(adom="corp")
+    assert calls[0]["json"]["params"][0]["url"] == "/logview/adom/corp/logstats"
+
+
+def test_get_log_stats_empty_devs_list(monkeypatch):
+    client, _ = _client(
+        monkeypatch,
+        [{"jsonrpc": "2.0", "id": 1, "result": {"data": {"devs": []}}}],
+    )
+    assert client.get_log_stats() == []
