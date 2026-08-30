@@ -28,19 +28,25 @@ Project documentation:
 ## Current features
 
 - **Authentication**: bcrypt-secured local user accounts
-- **Admin Tab**: view users (read-only — accounts are managed via the
-  `manage_users.py` CLI) and manage groups/tab permissions, view system logs
+- **Admin Tab**: a tabbed page — Groups & Permissions, Users (read-only,
+  managed via the `manage_users.py` CLI), Logs, FAZ Targets, Host Metrics,
+  and External API (see below for each)
 - **Admin → FAZ Targets**: CRUD for the FortiAnalyzer appliances the
   Dashboard polls (label, host, ADOM, bearer token, optional per-target SNMP
   credential overrides) — backed by `faz_targets.json`, edits take effect on
   the next poll cycle without an app restart
+- **Admin → Host Metrics**: this server's own CPU/Memory/Disk utilization,
+  charted over a selectable time range (1 hour up to 14 days). This is about
+  the 4tlog host itself, not any FortiAnalyzer appliance — useful for
+  confirming the app has the headroom to keep up with polling.
 - **Dashboard Tab**: live FortiAnalyzer health cards — status/hostname/
   version/serial/HA mode/HA role/disk usage from FAZ's JSON-RPC status API,
   plus CPU/mem gauges from SNMPv3 when `SNMP_ENABLED=true` — refreshed by a
   background poller so page loads never block on a live FAZ/SNMP call.
   Group membership can restrict which targets a user's cards show, reusing
   the same `adom_restrict`/`allowed_adoms` group fields as ADOM access
-  control.
+  control. See "Reading the health cards" below for what each card's color
+  means.
 - **Log Search Tab**: targeted FAZ log search — source/destination IP
   (required, no ANY/ANY; either side may be `ANY`/`ALL` or left blank to mean
   "no filter on this field"), optional port/service and advanced field
@@ -48,17 +54,40 @@ Project documentation:
   (client-side, page size 10/25/50/100, Source/Destination IP columns pinned
   first, up to the configured result cap), CSV/JSON export of the
   currently-loaded results
-- **External API**: read-only `GET /external/api/executive/summary` for 4tExecutive, gated by a
-  bearer token (`manage_api_tokens.py create <name>`) and an enable flag
-  (`manage_api_tokens.py enable`/`disable`). Reports FAZ fleet health/disk, silent-device counts
-  (from FortiAnalyzer `logview/logstats`, polled independently of the SNMP health cycle — see
-  `SILENT_DEVICE_THRESHOLD_MINUTES`/`LOG_STATS_POLL_INTERVAL` in `.env.example`), and fleet log
-  volume.
+- **External API**: read-only `GET /external/api/executive/summary` for
+  4tExecutive, gated by a bearer token and an enable flag — both now
+  manageable from **Admin → External API** (toggle the enable checkbox,
+  generate/revoke tokens from a table; a token's value is shown once, at
+  creation, and never stored in plaintext). The same `manage_api_tokens.py`
+  CLI still works if you'd rather script it. Reports FAZ fleet health/disk,
+  silent-device counts (from FortiAnalyzer `logview/logstats`, polled
+  independently of the SNMP health cycle — see
+  `SILENT_DEVICE_THRESHOLD_MINUTES`/`LOG_STATS_POLL_INTERVAL` in
+  `.env.example`), and fleet log volume.
 - **Inline Help**: a "?" button in the nav opens a help panel with
   Dashboard/Log Search/Admin guidance, filtered to the logged-in user's
   permitted tabs
 - **Deployment**: Docker (with TLS via an Nginx reverse-proxy sidecar
   container) and RHEL bare-metal (Gunicorn/Nginx/systemd)
+
+## Reading the health cards
+
+Each Dashboard card for a FortiAnalyzer appliance has a colored stripe down
+its left edge:
+
+| Color | Meaning |
+|---|---|
+| 🟢 Green | Reachable and healthy — CPU and memory are both under the warning threshold (`CPU_WARN`/`MEM_WARN` in `.env.example`, default 70%). |
+| 🟡 Yellow | Reachable, but CPU or memory is at or above the warning threshold and below critical. |
+| 🔴 Red | Reachable, but CPU or memory is at or above the critical threshold (`CPU_CRIT`/`MEM_CRIT`, default 90%). |
+| ⚪ Gray | Not polled yet — the appliance was just added, or the app just started. |
+| ⚫ Dark gray ("offline") | The last poll couldn't reach or authenticate to the appliance at all (network/auth failure) — see the card's error line for detail. |
+
+CPU/memory gauges — and the yellow/red states, which are driven entirely by
+those numbers — only apply when `SNMP_ENABLED=true` and SNMP credentials are
+configured. Without SNMP, a card is green whenever it's reachable (no
+CPU/mem numbers to flag a warning), gray before the first poll, or offline
+if the appliance can't be reached at all.
 
 ## Quick start (development)
 
