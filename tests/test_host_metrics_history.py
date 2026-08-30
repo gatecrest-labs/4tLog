@@ -34,8 +34,18 @@ def test_write_and_read_history_in_range(history_db):
     rows = get_history("2026-08-29T09:00:00Z")
 
     assert rows == [
-        {"collected_at": "2026-08-29T09:00:00Z", "cpu_percent": 10.0, "memory_percent": 40.0, "disk_percent": 55.0},
-        {"collected_at": "2026-08-29T09:05:00Z", "cpu_percent": 12.5, "memory_percent": 41.0, "disk_percent": 55.5},
+        {
+            "collected_at": "2026-08-29T09:00:00Z",
+            "cpu_percent": 10.0,
+            "memory_percent": 40.0,
+            "disk_percent": 55.0,
+        },
+        {
+            "collected_at": "2026-08-29T09:05:00Z",
+            "cpu_percent": 12.5,
+            "memory_percent": 41.0,
+            "disk_percent": 55.5,
+        },
     ]
 
 
@@ -54,7 +64,12 @@ def test_get_history_excludes_rows_before_since(history_db):
     rows = get_history("2026-08-29T09:00:00Z")
 
     assert rows == [
-        {"collected_at": "2026-08-29T09:05:00Z", "cpu_percent": 12.5, "memory_percent": 41.0, "disk_percent": 55.5},
+        {
+            "collected_at": "2026-08-29T09:05:00Z",
+            "cpu_percent": 12.5,
+            "memory_percent": 41.0,
+            "disk_percent": 55.5,
+        },
     ]
 
 

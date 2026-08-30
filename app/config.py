@@ -82,4 +82,6 @@ class Config:
 
     # Set by tests/conftest.py to skip starting the background host-metrics
     # poller during the test suite.
-    HOST_METRICS_POLL_DISABLED = os.environ.get("HOST_METRICS_POLL_DISABLED", "false").lower() == "true"
+    HOST_METRICS_POLL_DISABLED = (
+        os.environ.get("HOST_METRICS_POLL_DISABLED", "false").lower() == "true"
+    )

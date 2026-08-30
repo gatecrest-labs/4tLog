@@ -309,7 +309,9 @@ def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
 
     assert resp.status_code == 200
     body = resp.get_json()
-    assert body["cpu"] == [{"ts": int(datetime.datetime.fromisoformat(recent_ts).timestamp()), "v": 5.0}]
+    assert body["cpu"] == [
+        {"ts": int(datetime.datetime.fromisoformat(recent_ts).timestamp()), "v": 5.0}
+    ]
 
 
 def test_faz_targets_update_without_token_preserves_existing_token(client, faz_targets_file):
