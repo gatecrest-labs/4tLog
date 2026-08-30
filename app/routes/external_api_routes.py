@@ -40,7 +40,7 @@ def _gate():
         return jsonify({"error": "External API is disabled"}), 503
     if _authenticate() is None:
         app_log(
-            "WARNING",
+            "WARN",
             "external_api",
             "Unauthorized executive/summary request",
             remote=request.remote_addr,

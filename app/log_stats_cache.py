@@ -72,11 +72,11 @@ def poll_all_targets() -> None:
             ) as client:
                 stats = client.get_log_stats()
         except FAZError as exc:
-            app_log("WARNING", "log_stats_cache", f"logstats poll failed for {label}: {exc}")
+            app_log("WARN", "log_stats_cache", f"logstats poll failed for {label}: {exc}")
             continue
         except Exception as exc:
             app_log(
-                "WARNING",
+                "WARN",
                 "log_stats_cache",
                 f"logstats poll failed for {label} ({host}): {summarize_connection_error(exc)}",
             )
