@@ -53,6 +53,24 @@ def test_returns_401_when_invalid_token(client):
     assert resp.status_code == 401
 
 
+def test_401_logs_unauthorized_attempt(client):
+    from app.app_logger import clear_log_entries, get_log_entries, set_log_level
+    from app.app_settings import set_setting
+
+    set_setting("external_api_enabled", True)
+    clear_log_entries()
+    set_log_level("TRACE")
+
+    resp = client.get(
+        "/external/api/executive/summary", headers={"Authorization": "Bearer wrong"}
+    )
+    assert resp.status_code == 401
+
+    entries = get_log_entries(component="external_api")
+    assert len(entries) == 1
+    assert "Unauthorized" in entries[0]["message"]
+
+
 def test_happy_path_shape(client, monkeypatch):
     raw = _enable_and_token()
 

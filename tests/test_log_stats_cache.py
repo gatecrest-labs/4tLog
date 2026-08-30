@@ -84,6 +84,30 @@ def test_poll_all_targets_skips_unreachable_target_without_aborting(
     assert cached["silent_devices"] == []
 
 
+def test_poll_all_targets_leaves_cache_unchanged_when_every_target_unreachable(
+    targets_file, history_db, monkeypatch
+):
+    import app.log_stats_cache as cache_mod
+    from app.faz_client import FAZError
+
+    seeded = {
+        "logging_devices": [{"devid": "X", "devname": "x", "lograte": 2.0}],
+        "silent_devices": [{"devid": "Y", "devname": "y", "lograte": 0.0}],
+        "collected_at": "2026-08-29T12:00:00+00:00",
+    }
+    cache_mod._cache = dict(seeded)
+
+    def fake_get_log_stats(self, adom=None):
+        raise FAZError("boom")
+
+    monkeypatch.setattr("app.faz_client.FAZClient.get_log_stats", fake_get_log_stats)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+
+    cache_mod.poll_all_targets()  # must not raise
+
+    assert cache_mod.get_cached() == seeded
+
+
 def test_poll_all_targets_dedupes_devices_seen_across_multiple_targets(
     tmp_path, monkeypatch, history_db
 ):

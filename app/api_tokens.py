@@ -6,6 +6,7 @@ established in app/faz_targets.py (this repo has no atomic-write helper)."""
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import secrets
 import threading
@@ -77,6 +78,6 @@ def validate_token(raw: str) -> dict | None:
     with _lock:
         tokens = _load()
     for t in tokens:
-        if t.get("token_hash") == h and t.get("enabled", True):
+        if hmac.compare_digest(t.get("token_hash", ""), h) and t.get("enabled", True):
             return {k: v for k, v in t.items() if k != "token_hash"}
     return None

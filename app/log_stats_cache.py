@@ -55,6 +55,7 @@ def poll_all_targets() -> None:
 
     now = time.time()
     devices_by_id: dict[str, dict] = {}
+    polled_ok = False
     for target in list_targets():
         label = target.get("label")
         host = target.get("host")
@@ -80,8 +81,16 @@ def poll_all_targets() -> None:
                 f"logstats poll failed for {label} ({host}): {summarize_connection_error(exc)}",
             )
             continue
+        polled_ok = True
         for dev in stats:
             devices_by_id[dev["devid"]] = dev  # last target seen for a devid wins
+
+    if not polled_ok:
+        # Every target was unreachable this cycle. Leave the cache and
+        # persisted history untouched (stale-but-honest) rather than
+        # overwriting with a fabricated "zero silent devices" reading that
+        # would look identical to a genuinely healthy, empty fleet.
+        return
 
     logging_devices, silent_devices = classify_devices(
         list(devices_by_id.values()), now, Config.SILENT_DEVICE_THRESHOLD_MINUTES

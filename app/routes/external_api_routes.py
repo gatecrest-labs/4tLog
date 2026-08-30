@@ -16,6 +16,7 @@ import re
 from flask import Blueprint, jsonify, request
 
 from app.api_tokens import validate_token
+from app.app_logger import app_log
 from app.app_settings import get_setting
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
@@ -38,6 +39,12 @@ def _gate():
     if not _feature_enabled():
         return jsonify({"error": "External API is disabled"}), 503
     if _authenticate() is None:
+        app_log(
+            "WARNING",
+            "external_api",
+            "Unauthorized executive/summary request",
+            remote=request.remote_addr,
+        )
         return jsonify({"error": "Unauthorized — valid Bearer token required"}), 401
     return None
 
