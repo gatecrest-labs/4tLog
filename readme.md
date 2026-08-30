@@ -3,8 +3,6 @@
   <img alt="4tLog logo" src="logo.svg" width="240">
 </picture>
 
-# 4tLog
-
 A Flask web application for interacting with FortiAnalyzer. Phase 1 provides
 a working dashboard frame with bcrypt login, group-based access control, and
 an admin interface for managing users, groups, and targets. Phase 2 makes the
