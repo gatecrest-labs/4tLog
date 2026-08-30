@@ -8,6 +8,7 @@
   <button class="admin-tab" data-panel="panel-users">Users</button>
   <button class="admin-tab" data-panel="panel-logs">Logs</button>
   <button class="admin-tab" data-panel="panel-faz-targets">FAZ Targets</button>
+  <button class="admin-tab" data-panel="panel-host-metrics">Host Metrics</button>
 </div>
 
 <div class="admin-panel active" id="panel-groups">
@@ -66,6 +67,36 @@
       </thead>
       <tbody id="fazTargetsTbody"></tbody>
     </table>
+  </div>
+</div>
+
+<div class="admin-panel" id="panel-host-metrics">
+  <div class="admin-panel-header">
+    <h2>Host Metrics</h2>
+  </div>
+  <div class="hm-header">
+    <div class="hm-range-row">
+      <button type="button" class="btn btn-sm hm-range-btn active" data-range="1h">1 hour</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="4h">4 hours</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="12h">12 hours</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="1d">1 day</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="7d">7 days</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="14d">14 days</button>
+    </div>
+    <div class="hm-cards">
+      <div class="hm-card">
+        <div class="hm-card-title">CPU</div>
+        <div id="hmCpuChart" class="hm-chart"></div>
+      </div>
+      <div class="hm-card">
+        <div class="hm-card-title">Memory</div>
+        <div id="hmMemChart" class="hm-chart"></div>
+      </div>
+      <div class="hm-card">
+        <div class="hm-card-title">Disk</div>
+        <div id="hmDiskChart" class="hm-chart"></div>
+      </div>
+    </div>
   </div>
 </div>
 

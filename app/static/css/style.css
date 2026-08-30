@@ -2604,3 +2604,85 @@ a:hover { text-decoration: underline; }
   .pc-layout { flex-direction:column; }
   .pc-layout-left { flex:none; width:100%; max-width:none; }
 }
+
+/* ── Host resource graphs (Admin) ────────────────────────────────────── */
+.hm-header { margin-bottom: 1.25rem; }
+.hm-range-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: .75rem;
+}
+.hm-range-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.hm-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 900px) {
+  .hm-cards { grid-template-columns: 1fr; }
+}
+.hm-card {
+  padding: .75rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.hm-card-title {
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.hm-chart {
+  display: flex;
+  flex-direction: column;
+}
+.hm-svg-wrap { height: 100px; }
+.hm-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.hm-area {
+  fill: var(--primary);
+  opacity: .12;
+}
+.hm-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.hm-dot {
+  fill: var(--primary);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.hm-svg:hover .hm-dot { opacity: 1; }
+.hm-axis {
+  display: flex;
+  gap: 2px;
+  margin-top: .3rem;
+  border-top: 1px solid var(--border);
+  padding-top: .25rem;
+}
+.hm-tick {
+  flex: 1;
+  min-width: 2px;
+  font-size: .65rem;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
