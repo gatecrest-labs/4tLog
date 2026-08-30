@@ -29,6 +29,14 @@ Logs API (JSON):
 
 Host Metrics API (JSON):
   GET    /admin/api/host-metrics?range=1h   {"cpu": [...], "mem": [...], "disk": [...]}
+
+External API settings and tokens (JSON):
+  GET    /admin/api/settings         {"external_api_enabled": bool}
+  PUT    /admin/api/settings         {"external_api_enabled": bool}
+  GET    /admin/api/tokens           list of {id, name, enabled}
+  POST   /admin/api/tokens           {"name": str} -> {"token": str, id, name, enabled}
+                                      (token plaintext shown once, at creation)
+  DELETE /admin/api/tokens/<id>
 """
 
 import datetime
@@ -300,3 +308,59 @@ def api_host_metrics():
         result["mem"].append({"ts": ts, "v": row["memory_percent"]})
         result["disk"].append({"ts": ts, "v": row["disk_percent"]})
     return jsonify(result)
+
+
+# ── External API settings and tokens ────────────────────────────────────────────
+
+
+@bp.route("/api/settings")
+@_admin_required
+def api_settings_get():
+    from app.app_settings import get_setting
+
+    return jsonify({"external_api_enabled": get_setting("external_api_enabled", False)})
+
+
+@bp.route("/api/settings", methods=["PUT"])
+@_admin_required
+def api_settings_update():
+    from app.app_settings import set_setting
+
+    data = request.get_json(silent=True) or {}
+    if "external_api_enabled" in data:
+        set_setting("external_api_enabled", bool(data["external_api_enabled"]))
+    app_log("INFO", "admin", "Settings updated", by=session["user"])
+    return jsonify({"external_api_enabled": data.get("external_api_enabled")})
+
+
+@bp.route("/api/tokens")
+@_admin_required
+def api_tokens_list():
+    from app.api_tokens import list_tokens
+
+    return jsonify(list_tokens())
+
+
+@bp.route("/api/tokens", methods=["POST"])
+@_admin_required
+def api_tokens_create():
+    from app.api_tokens import create_token
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    raw, record = create_token(name)
+    app_log("INFO", "admin", "API token created", by=session["user"], token_name=name)
+    return jsonify({**record, "token": raw}), 201
+
+
+@bp.route("/api/tokens/<token_id>", methods=["DELETE"])
+@_admin_required
+def api_tokens_revoke(token_id: str):
+    from app.api_tokens import revoke_token
+
+    if not revoke_token(token_id):
+        return jsonify({"error": f"Token '{token_id}' not found"}), 404
+    app_log("INFO", "admin", "API token revoked", by=session["user"], token_id=token_id)
+    return jsonify({"revoked": token_id})

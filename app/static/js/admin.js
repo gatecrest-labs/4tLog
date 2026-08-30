@@ -25,6 +25,7 @@
       if (btn.dataset.panel === 'panel-host-metrics' && !_hostMetricsLoaded) {
         loadHostMetrics('1h').then((ok) => { _hostMetricsLoaded = ok; });
       }
+      if (btn.dataset.panel === 'panel-external-api' && !_extApiLoaded) loadExtApi();
     });
   });
 
@@ -404,6 +405,110 @@
 
   document.querySelectorAll('.hm-range-btn').forEach((btn) => {
     btn.addEventListener('click', () => loadHostMetrics(btn.dataset.range));
+  });
+
+  // ── External API ───────────────────────────────────────────────────────────
+  let _extApiLoaded = false;
+
+  async function loadExtApi() {
+    const [settingsRes, tokensRes] = await Promise.all([
+      fetch('/admin/api/settings'),
+      fetch('/admin/api/tokens'),
+    ]);
+    if (settingsRes.ok) {
+      const settings = await settingsRes.json();
+      document.getElementById('extApiEnabled').checked = !!settings.external_api_enabled;
+    }
+    if (tokensRes.ok) renderTokens(await tokensRes.json());
+    _extApiLoaded = true;
+  }
+
+  function renderTokens(tokens) {
+    const tbody = document.getElementById('tokensTbody');
+    tbody.innerHTML = '';
+    tokens.forEach((t) => {
+      const tr = el('tr', {});
+      tr.appendChild(el('td', { text: t.name }));
+      tr.appendChild(el('td', { text: t.enabled ? 'Yes' : 'No' }));
+      const actions = el('td', {});
+      const revokeBtn = el('button', { class: 'btn btn-sm', text: 'Revoke' });
+      revokeBtn.addEventListener('click', () => revokeToken(t.id));
+      actions.appendChild(revokeBtn);
+      tr.appendChild(actions);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function reloadTokens() {
+    const res = await fetch('/admin/api/tokens');
+    if (res.ok) renderTokens(await res.json());
+  }
+
+  async function revokeToken(tokenId) {
+    if (!confirm('Revoke this token? Any program using it will lose access immediately.')) return;
+    await fetch(`/admin/api/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' });
+    await reloadTokens();
+  }
+
+  document.getElementById('btnSaveExtApiToggle').addEventListener('click', async () => {
+    const enabled = document.getElementById('extApiEnabled').checked;
+    const msgEl = document.getElementById('extApiToggleMsg');
+    const res = await fetch('/admin/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ external_api_enabled: enabled }),
+    });
+    msgEl.textContent = res.ok ? (enabled ? 'External API enabled.' : 'External API disabled.') : 'Failed to save.';
+    setTimeout(() => { msgEl.textContent = ''; }, 3000);
+  });
+
+  function openNewTokenModal() {
+    document.getElementById('newTokenName').value = '';
+    document.getElementById('newTokenError').classList.add('hidden');
+    document.getElementById('newTokenModal').classList.remove('hidden');
+    document.getElementById('newTokenName').focus();
+  }
+  function closeNewTokenModal() {
+    document.getElementById('newTokenModal').classList.add('hidden');
+  }
+
+  document.getElementById('btnNewToken').addEventListener('click', openNewTokenModal);
+  document.getElementById('newTokenModalClose').addEventListener('click', closeNewTokenModal);
+  document.getElementById('newTokenCancel').addEventListener('click', closeNewTokenModal);
+
+  document.getElementById('newTokenSave').addEventListener('click', async () => {
+    const name = document.getElementById('newTokenName').value.trim();
+    const errEl = document.getElementById('newTokenError');
+    errEl.classList.add('hidden');
+    if (!name) {
+      errEl.textContent = 'Name is required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const res = await fetch('/admin/api/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errEl.textContent = d.error || 'Failed to create token.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const data = await res.json();
+    closeNewTokenModal();
+    await reloadTokens();
+    document.getElementById('tokenRevealValue').textContent = data.token;
+    document.getElementById('tokenRevealModal').classList.remove('hidden');
+  });
+
+  document.getElementById('tokenRevealClose').addEventListener('click', () => {
+    document.getElementById('tokenRevealModal').classList.add('hidden');
+  });
+  document.getElementById('tokenRevealDone').addEventListener('click', () => {
+    document.getElementById('tokenRevealModal').classList.add('hidden');
   });
 
   // ── Init ───────────────────────────────────────────────────────────────────
