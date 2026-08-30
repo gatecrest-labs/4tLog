@@ -26,7 +26,12 @@ Logs API (JSON):
   GET    /admin/api/logs?level=INFO&component=auth&limit=500
   POST   /admin/api/logs/level       {"level": "DEBUG"}
   DELETE /admin/api/logs             clears the buffer
+
+Host Metrics API (JSON):
+  GET    /admin/api/host-metrics?range=1h   {"cpu": [...], "mem": [...], "disk": [...]}
 """
+
+import datetime
 
 from flask import Blueprint, jsonify, render_template, request, session
 
@@ -261,3 +266,28 @@ def api_logs_clear():
     clear_log_entries()
     app_log("INFO", "admin", "Log buffer cleared", by=session["user"])
     return jsonify({"cleared": True})
+
+
+# ── Host Metrics API ──────────────────────────────────────────────────────────
+
+
+@bp.route("/api/host-metrics")
+@_admin_required
+def api_host_metrics():
+    import app.host_metrics_history as history
+
+    range_key = request.args.get("range", history.DEFAULT_RANGE)
+    if range_key not in history.RANGES:
+        range_key = history.DEFAULT_RANGE
+
+    since_dt = datetime.datetime.now(datetime.timezone.utc) - history.RANGES[range_key]
+    since = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = history.get_history(since)
+
+    result = {"cpu": [], "mem": [], "disk": []}
+    for row in rows:
+        ts = int(datetime.datetime.fromisoformat(row["collected_at"]).timestamp())
+        result["cpu"].append({"ts": ts, "v": row["cpu_percent"]})
+        result["mem"].append({"ts": ts, "v": row["memory_percent"]})
+        result["disk"].append({"ts": ts, "v": row["disk_percent"]})
+    return jsonify(result)

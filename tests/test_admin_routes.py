@@ -259,6 +259,59 @@ def test_faz_targets_responses_do_not_leak_raw_token(client, faz_targets_file):
     assert body["token_set"] is True
 
 
+def test_host_metrics_api_blocked_for_viewer(client):
+    _login(client, "viewer1")
+    resp = client.get("/admin/api/host-metrics")
+    assert resp.status_code == 403
+
+
+def test_host_metrics_api_returns_shape(client, tmp_path, monkeypatch):
+    import datetime
+
+    import app.host_metrics_history as history_mod
+
+    monkeypatch.setattr(history_mod, "DB_PATH", tmp_path / "hostmetrics.db")
+    history_mod.init_db()
+    # A relative-to-now timestamp, not a fixed literal — the endpoint under
+    # test filters by "since = now - range", so a hardcoded past date would
+    # silently fall outside the window once real time moves past it (see
+    # this plan's Global Constraints section).
+    recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    history_mod.write_snapshot(
+        cpu_percent=12.5, memory_percent=40.0, disk_percent=55.0, collected_at=recent_ts,
+    )
+    expected_epoch = int(datetime.datetime.fromisoformat(recent_ts).timestamp())
+
+    _login(client, "admin1")
+    resp = client.get("/admin/api/host-metrics?range=1d")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["cpu"] == [{"ts": expected_epoch, "v": 12.5}]
+    assert body["mem"] == [{"ts": expected_epoch, "v": 40.0}]
+    assert body["disk"] == [{"ts": expected_epoch, "v": 55.0}]
+
+
+def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
+    import datetime
+
+    import app.host_metrics_history as history_mod
+
+    monkeypatch.setattr(history_mod, "DB_PATH", tmp_path / "hostmetrics.db")
+    history_mod.init_db()
+    recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    history_mod.write_snapshot(
+        cpu_percent=5.0, memory_percent=10.0, disk_percent=15.0, collected_at=recent_ts,
+    )
+
+    _login(client, "admin1")
+    resp = client.get("/admin/api/host-metrics?range=not-a-real-range")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["cpu"] == [{"ts": int(datetime.datetime.fromisoformat(recent_ts).timestamp()), "v": 5.0}]
+
+
 def test_faz_targets_update_without_token_preserves_existing_token(client, faz_targets_file):
     # The edit modal leaves the token field blank; omitting it from the PUT
     # body must not clobber the previously stored token.
