@@ -383,3 +383,113 @@ def test_faz_targets_update_missing_returns_404(client, faz_targets_file):
         headers={"X-CSRF-Token": csrf},
     )
     assert resp.status_code == 404
+
+
+@pytest.fixture
+def settings_file(tmp_path, monkeypatch):
+    path = tmp_path / "app_settings.json"
+    import app.app_settings as settings_mod
+
+    monkeypatch.setattr(settings_mod, "_SETTINGS_PATH", path)
+    yield path
+
+
+@pytest.fixture
+def tokens_file(tmp_path, monkeypatch):
+    path = tmp_path / "api_tokens.json"
+    import app.api_tokens as tokens_mod
+
+    monkeypatch.setattr(tokens_mod, "_TOKENS_PATH", path)
+    yield path
+
+
+def test_settings_api_blocked_for_viewer(client, settings_file):
+    _login(client, "viewer1")
+    resp = client.get("/admin/api/settings")
+    assert resp.status_code == 403
+
+
+def test_get_settings_api_returns_current_state(client, settings_file):
+    _login(client, "admin1")
+    resp = client.get("/admin/api/settings")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"external_api_enabled": False}
+
+
+def test_put_settings_api_enables_external_api(client, settings_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    resp = client.put(
+        "/admin/api/settings",
+        json={"external_api_enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert resp.status_code == 200
+    from app.app_settings import get_setting
+
+    assert get_setting("external_api_enabled") is True
+
+
+def test_tokens_api_blocked_for_viewer(client, tokens_file):
+    _login(client, "viewer1")
+    resp = client.get("/admin/api/tokens")
+    assert resp.status_code == 403
+
+
+def test_tokens_api_create_list_and_revoke(client, tokens_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    create_resp = client.post(
+        "/admin/api/tokens",
+        json={"name": "4texecutive"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert create_resp.status_code == 201
+    created = create_resp.get_json()
+    assert created["name"] == "4texecutive"
+    assert created["token"].startswith("4tl_")
+    assert "token_hash" not in created
+
+    list_resp = client.get("/admin/api/tokens")
+    assert list_resp.status_code == 200
+    tokens = list_resp.get_json()
+    assert len(tokens) == 1
+    assert tokens[0]["name"] == "4texecutive"
+    assert "token" not in tokens[0]
+    assert "token_hash" not in tokens[0]
+
+    revoke_resp = client.delete(
+        f"/admin/api/tokens/{tokens[0]['id']}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert revoke_resp.status_code == 200
+
+    assert client.get("/admin/api/tokens").get_json() == []
+
+
+def test_tokens_api_create_requires_name(client, tokens_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    resp = client.post(
+        "/admin/api/tokens",
+        json={"name": ""},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_tokens_api_revoke_missing_returns_404(client, tokens_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    resp = client.delete(
+        "/admin/api/tokens/not-a-real-id",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert resp.status_code == 404
