@@ -178,7 +178,7 @@ def _poll_target(target: dict) -> dict:
         return entry
     except Exception as exc:  # network errors, timeouts, DNS failures, etc.
         entry["error"] = summarize_connection_error(exc)
-        app_log("WARNING", "faz_health_cache", f"Poll failed for {label} ({host}): {exc}")
+        app_log("WARN", "faz_health_cache", f"Poll failed for {label} ({host}): {exc}")
         return entry
 
     # Field names confirmed live against 192.168.64.4 (FAZVM64-KVM v7.6.7-build3737):

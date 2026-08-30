@@ -125,6 +125,31 @@ def test_poll_all_targets_summarizes_raw_network_error(targets_file, monkeypatch
     assert entry["error"] == "Connection refused"
 
 
+def test_poll_all_targets_logs_failure_at_a_real_level(targets_file, monkeypatch):
+    # Regression test: app_log("WARNING", ...) is silently dropped by
+    # app_logger's _LEVEL_RANK (which only recognizes WARN, not WARNING),
+    # since an unrecognized level ranks as low as TRACE and falls below the
+    # default INFO filter. Confirm the poll-failure log entry survives a
+    # WARN-level filter, i.e. it was logged at a level app_logger actually
+    # recognizes.
+    from app.app_logger import clear_log_entries, get_log_entries
+
+    clear_log_entries()
+
+    def raising_preflight(self):
+        raise ConnectionError("boom")
+
+    monkeypatch.setattr("app.faz_client.FAZClient.preflight", raising_preflight)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+
+    import app.faz_health_cache as cache_mod
+
+    cache_mod.poll_all_targets()
+
+    entries = get_log_entries(level="WARN", component="faz_health_cache")
+    assert any("Poll failed" in e["message"] for e in entries)
+
+
 def test_poll_all_targets_survives_malformed_target(targets_file, monkeypatch):
     # A malformed entry (e.g. missing "host") must not abort the whole poll
     # cycle and leave every OTHER valid target frozen at its last cache
