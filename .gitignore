@@ -29,5 +29,9 @@ certs/
 users.json
 groups.json
 faz_targets.json
+logstats.db
+api_tokens.json
+app_settings.json
 
 graphify-out
+.worktrees/

@@ -213,6 +213,40 @@ class FAZClient:
             if d.get("sn")
         ]
 
+    def get_log_stats(self, adom: str | None = None) -> list[dict]:
+        """Per-device log stats for the given ADOM (defaults to self.adom),
+        from /logview/adom/<adom>/logstats. Returns one record per device,
+        vdoms folded together: last_log_timestamp is the max (most recent)
+        across the device's vdoms, lograte is their sum. A device with no
+        vdoms (never logged) gets last_log_timestamp=None, lograte=0.0.
+
+        Request/response shape confirmed against the vendored spec
+        (api-info/.../logview.json, logview.logstats.get.{req,resp}) — not
+        yet confirmed live against real hardware."""
+        target_adom = adom or self.adom
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "get",
+            "params": [{"url": f"/logview/adom/{target_adom}/logstats", "apiver": 3}],
+            "session": None,
+        }
+        result = self._unwrap_result(self._post(body))
+        devs = (result.get("data") or {}).get("devs") or []
+        stats = []
+        for dev in devs:
+            vdoms = dev.get("vdoms") or []
+            timestamps = [v.get("last-log-timestamp") for v in vdoms if v.get("last-log-timestamp")]
+            stats.append(
+                {
+                    "devid": dev.get("devid", ""),
+                    "devname": dev.get("devname", ""),
+                    "last_log_timestamp": max(timestamps) if timestamps else None,
+                    "lograte": sum(v.get("lograte", 0.0) for v in vdoms),
+                }
+            )
+        return stats
+
     def local_time_range(self, start_iso: str, end_iso: str) -> tuple[str, str]:
         """Convert UTC ISO8601 start/end (what the browser sends) into the
         appliance's own configured timezone. FortiAnalyzer's logsearch

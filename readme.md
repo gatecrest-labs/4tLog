@@ -48,6 +48,12 @@ Project documentation:
   (client-side, page size 10/25/50/100, Source/Destination IP columns pinned
   first, up to the configured result cap), CSV/JSON export of the
   currently-loaded results
+- **External API**: read-only `GET /external/api/executive/summary` for 4tExecutive, gated by a
+  bearer token (`manage_api_tokens.py create <name>`) and an enable flag
+  (`manage_api_tokens.py enable`/`disable`). Reports FAZ fleet health/disk, silent-device counts
+  (from FortiAnalyzer `logview/logstats`, polled independently of the SNMP health cycle — see
+  `SILENT_DEVICE_THRESHOLD_MINUTES`/`LOG_STATS_POLL_INTERVAL` in `.env.example`), and fleet log
+  volume.
 - **Inline Help**: a "?" button in the nav opens a help panel with
   Dashboard/Log Search/Admin guidance, filtered to the logged-in user's
   permitted tabs
@@ -62,6 +68,8 @@ cp .env.example .env               # set SECRET_KEY (uv run python manage_users.
 cp users.example.json users.json
 cp groups.example.json groups.json
 cp faz_targets.example.json faz_targets.json
+cp api_tokens.example.json api_tokens.json
+cp app_settings.example.json app_settings.json
 uv run python manage_users.py add admin --role admin
 uv run python wsgi.py              # http://localhost:5443 (PORT defaults to 5443; add certs/ for HTTPS)
 ```

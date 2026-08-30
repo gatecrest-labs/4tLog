@@ -11,6 +11,7 @@ _BLUEPRINT_MODULES: list[str] = [
     "app.routes.dashboard_routes",
     "app.routes.log_search_routes",
     "app.routes.admin_routes",
+    "app.routes.external_api_routes",
 ]
 
 
@@ -87,5 +88,13 @@ def create_app() -> Flask:
         from app.faz_health_cache import init_scheduler as init_faz_health_scheduler
 
         init_faz_health_scheduler(app)
+
+    if not app.config.get("_LOG_STATS_STARTED"):
+        app.config["_LOG_STATS_STARTED"] = True
+        from app.log_stats_cache import init_scheduler as init_log_stats_scheduler
+        from app.log_stats_history import init_db as init_log_stats_db
+
+        init_log_stats_db()
+        init_log_stats_scheduler(app)
 
     return app

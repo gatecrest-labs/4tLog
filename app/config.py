@@ -63,6 +63,18 @@ class Config:
     LOG_SEARCH_POLL_INTERVAL = float(os.environ.get("LOG_SEARCH_POLL_INTERVAL", "2.0"))
     LOG_SEARCH_TIMEOUT = float(os.environ.get("LOG_SEARCH_TIMEOUT", "60.0"))
 
+    # Log stats polling (app/log_stats_cache.py) — silent-device detection
+    # and log volume, independent cadence from the SNMP health poll since
+    # logstats is a cheap JSON-RPC call with no SNMP round-trip.
+    SILENT_DEVICE_THRESHOLD_MINUTES = int(os.environ.get("SILENT_DEVICE_THRESHOLD_MINUTES", "60"))
+    LOG_STATS_POLL_INTERVAL = int(os.environ.get("LOG_STATS_POLL_INTERVAL", "300"))
+
+    # Set by tests/conftest.py to skip starting the background log-stats
+    # poller (real network calls) during the test suite.
+    LOG_STATS_POLL_DISABLED = (
+        os.environ.get("LOG_STATS_POLL_DISABLED", "false").lower() == "true"
+    )
+
     # Set by tests/conftest.py to skip starting the background health
     # poller (real network/SNMP calls) during the test suite.
     FAZ_HEALTH_POLL_DISABLED = (
