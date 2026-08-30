@@ -74,3 +74,14 @@ class Config:
     # Set by tests/conftest.py to skip starting the background health
     # poller (real network/SNMP calls) during the test suite.
     FAZ_HEALTH_POLL_DISABLED = os.environ.get("FAZ_HEALTH_POLL_DISABLED", "false").lower() == "true"
+
+    # Host CPU/Memory/Disk polling (app/host_metrics_cache.py) — local
+    # psutil reads, independent cadence from the FAZ-facing pollers since
+    # there's no network round-trip to amortize.
+    HOST_METRICS_POLL_INTERVAL = int(os.environ.get("HOST_METRICS_POLL_INTERVAL", "60"))
+
+    # Set by tests/conftest.py to skip starting the background host-metrics
+    # poller during the test suite.
+    HOST_METRICS_POLL_DISABLED = (
+        os.environ.get("HOST_METRICS_POLL_DISABLED", "false").lower() == "true"
+    )
