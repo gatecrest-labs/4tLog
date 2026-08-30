@@ -29,6 +29,7 @@ certs/
 users.json
 groups.json
 faz_targets.json
+logstats.db
 
 graphify-out
 .worktrees/
