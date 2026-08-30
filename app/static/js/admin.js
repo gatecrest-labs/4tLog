@@ -23,8 +23,7 @@
       document.getElementById(btn.dataset.panel).classList.add('active');
       if (btn.dataset.panel === 'panel-logs') loadLogs();
       if (btn.dataset.panel === 'panel-host-metrics' && !_hostMetricsLoaded) {
-        _hostMetricsLoaded = true;
-        loadHostMetrics('1h');
+        loadHostMetrics('1h').then((ok) => { _hostMetricsLoaded = ok; });
       }
     });
   });
@@ -388,12 +387,19 @@
     document.querySelectorAll('.hm-range-btn').forEach((b) => b.classList.toggle('active', b.dataset.range === range));
 
     const resp = await fetch('/admin/api/host-metrics?range=' + encodeURIComponent(range));
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      HM_CHARTS.forEach(({ el: elId }) => {
+        const chartEl = document.getElementById(elId);
+        if (chartEl) chartEl.innerHTML = '<div class="text-muted" style="padding:1rem 0">Failed to load — try again.</div>';
+      });
+      return false;
+    }
     const data = await resp.json();
     const showDate = range === '7d' || range === '14d';
     HM_CHARTS.forEach(({ key, el: elId }) => {
       renderHmChart(document.getElementById(elId), data[key] || [], showDate);
     });
+    return true;
   }
 
   document.querySelectorAll('.hm-range-btn').forEach((btn) => {

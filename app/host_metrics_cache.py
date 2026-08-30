@@ -23,10 +23,17 @@ def _now() -> str:
 
 def poll_host_metrics() -> None:
     import app.host_metrics_history as history
+    from app.app_logger import app_log
 
-    cpu_percent = psutil.cpu_percent()
-    memory_percent = psutil.virtual_memory().percent
-    disk_percent = psutil.disk_usage("/").percent
+    try:
+        cpu_percent = psutil.cpu_percent()
+        memory_percent = psutil.virtual_memory().percent
+        disk_percent = psutil.disk_usage("/").percent
+    except Exception as exc:
+        app_log("WARN", "host_metrics_cache", f"psutil read failed: {exc}")
+        return
+
+    history.init_db()
     history.write_snapshot(
         cpu_percent=cpu_percent,
         memory_percent=memory_percent,

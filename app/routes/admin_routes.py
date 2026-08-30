@@ -271,6 +271,14 @@ def api_logs_clear():
 # ── Host Metrics API ──────────────────────────────────────────────────────────
 
 
+def _downsample_rows(rows: list[dict], max_points: int = 150) -> list[dict]:
+    n = len(rows)
+    if n <= max_points:
+        return rows
+    step = n / max_points
+    return [rows[int(i * step)] for i in range(max_points)]
+
+
 @bp.route("/api/host-metrics")
 @_admin_required
 def api_host_metrics():
@@ -283,6 +291,7 @@ def api_host_metrics():
     since_dt = datetime.datetime.now(datetime.timezone.utc) - history.RANGES[range_key]
     since = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     rows = history.get_history(since)
+    rows = _downsample_rows(rows)
 
     result = {"cpu": [], "mem": [], "disk": []}
     for row in rows:

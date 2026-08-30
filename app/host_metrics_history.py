@@ -42,6 +42,10 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_host_metrics_collected_at "
+            "ON host_metrics_history (collected_at)"
+        )
 
 
 def write_snapshot(

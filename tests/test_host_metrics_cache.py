@@ -34,6 +34,22 @@ def test_poll_host_metrics_writes_snapshot(history_db, monkeypatch):
     assert rows[0]["disk_percent"] == 55.0
 
 
+def test_poll_host_metrics_handles_psutil_failure(history_db, monkeypatch):
+    import psutil
+
+    import app.host_metrics_cache as cache_mod
+    from app.host_metrics_history import get_history
+
+    def _raise():
+        raise RuntimeError("psutil boom")
+
+    monkeypatch.setattr(psutil, "cpu_percent", _raise)
+
+    cache_mod.poll_host_metrics()  # should not raise
+
+    assert get_history("1970-01-01T00:00:00Z") == []
+
+
 def test_init_scheduler_noop_when_disabled(monkeypatch):
     import app.host_metrics_cache as cache_mod
     from app.config import Config

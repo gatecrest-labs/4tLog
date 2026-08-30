@@ -314,6 +314,32 @@ def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
     ]
 
 
+def test_host_metrics_api_downsamples_large_history(client, tmp_path, monkeypatch):
+    import datetime
+
+    import app.host_metrics_history as history_mod
+
+    monkeypatch.setattr(history_mod, "DB_PATH", tmp_path / "hostmetrics.db")
+    history_mod.init_db()
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for i in range(300):
+        ts = (now - datetime.timedelta(minutes=3 * i)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        history_mod.write_snapshot(
+            cpu_percent=float(i), memory_percent=float(i), disk_percent=float(i),
+            collected_at=ts,
+        )
+
+    _login(client, "admin1")
+    resp = client.get("/admin/api/host-metrics?range=1d")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert len(body["cpu"]) <= 150
+    assert len(body["mem"]) <= 150
+    assert len(body["disk"]) <= 150
+
+
 def test_faz_targets_update_without_token_preserves_existing_token(client, faz_targets_file):
     # The edit modal leaves the token field blank; omitting it from the PUT
     # body must not clobber the previously stored token.
