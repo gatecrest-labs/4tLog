@@ -125,7 +125,5 @@ def check_adom_access(adom: str) -> "tuple | None":
 
     ad_groups = flask_session.get("ad_groups", [])
     if not user_can_access_adom(flask_session.get("user", ""), adom, ad_groups=ad_groups):
-        return jsonify(
-            {"error": f"Access to ADOM '{adom}' is not permitted for your account"}
-        ), 403
+        return jsonify({"error": f"Access to ADOM '{adom}' is not permitted for your account"}), 403
     return None

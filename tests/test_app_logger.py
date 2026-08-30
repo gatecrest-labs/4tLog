@@ -43,6 +43,7 @@ def test_get_log_entries_filters_by_component():
 
 def test_invalid_level_raises():
     import pytest
+
     with pytest.raises(ValueError):
         set_log_level("BOGUS")
 

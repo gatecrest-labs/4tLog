@@ -22,12 +22,10 @@ class Config:
     SECRET_KEY = _require_secret_key()
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    _ssl_active = os.path.exists(
-        os.environ.get("SSL_CERT", "certs/cert.pem")
-    ) and os.path.exists(os.environ.get("SSL_KEY", "certs/key.pem"))
-    SESSION_COOKIE_SECURE = os.environ.get(
-        "COOKIE_SECURE", "auto"
-    ).lower() == "true" or (
+    _ssl_active = os.path.exists(os.environ.get("SSL_CERT", "certs/cert.pem")) and os.path.exists(
+        os.environ.get("SSL_KEY", "certs/key.pem")
+    )
+    SESSION_COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower() == "true" or (
         os.environ.get("COOKIE_SECURE", "auto").lower() == "auto" and _ssl_active
     )
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
@@ -71,12 +69,8 @@ class Config:
 
     # Set by tests/conftest.py to skip starting the background log-stats
     # poller (real network calls) during the test suite.
-    LOG_STATS_POLL_DISABLED = (
-        os.environ.get("LOG_STATS_POLL_DISABLED", "false").lower() == "true"
-    )
+    LOG_STATS_POLL_DISABLED = os.environ.get("LOG_STATS_POLL_DISABLED", "false").lower() == "true"
 
     # Set by tests/conftest.py to skip starting the background health
     # poller (real network/SNMP calls) during the test suite.
-    FAZ_HEALTH_POLL_DISABLED = (
-        os.environ.get("FAZ_HEALTH_POLL_DISABLED", "false").lower() == "true"
-    )
+    FAZ_HEALTH_POLL_DISABLED = os.environ.get("FAZ_HEALTH_POLL_DISABLED", "false").lower() == "true"

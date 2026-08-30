@@ -50,7 +50,7 @@ def _gate():
 
 
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
-    """"Free 40GB, Total 100GB" -> 60.0 (used percent). None if unparseable."""
+    """ "Free 40GB, Total 100GB" -> 60.0 (used percent). None if unparseable."""
     if not disk_used:
         return None
     match = _DISK_USAGE_RE.search(disk_used)
@@ -84,9 +84,7 @@ def executive_summary():
     if log_cache.get("collected_at") is not None:
         devices_logging = len(log_cache["logging_devices"])
         devices_silent = len(log_cache["silent_devices"])
-        log_volume_events_per_sec = sum(
-            d.get("lograte", 0.0) for d in log_cache["logging_devices"]
-        )
+        log_volume_events_per_sec = sum(d.get("lograte", 0.0) for d in log_cache["logging_devices"])
         log_stats_collected_at = log_cache["collected_at"]
     else:
         rollup = get_latest_rollup()

@@ -1,4 +1,5 @@
 """Smoke tests — verify the app can be imported and instantiated."""
+
 import os
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 def app():
     os.environ.setdefault("SECRET_KEY", "test-secret")
     from app import create_app
+
     return create_app()
 
 

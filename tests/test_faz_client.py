@@ -187,9 +187,7 @@ def test_build_filter_expression_rejects_quote_injection_in_value():
             source_clauses=["srcip==10.1.1.5"],
             destination_clauses=[],
             port_clauses=[],
-            extra_filters=[
-                {"field": "srcip", "op": "==", "value": '0.0.0.0" or dstip>="0.0.0.0'}
-            ],
+            extra_filters=[{"field": "srcip", "op": "==", "value": '0.0.0.0" or dstip>="0.0.0.0'}],
         )
 
 
@@ -318,9 +316,14 @@ def test_search_logs_marks_truncated_when_limit_reached(monkeypatch):
         ],
     )
     result = client.search_logs(
-        logtype="traffic", device="All_FortiGate", filter_expression="",
-        start_time="2026-07-25T00:00:00", end_time="2026-07-25T23:59:59",
-        limit=2, poll_interval=0.01, timeout=5,
+        logtype="traffic",
+        device="All_FortiGate",
+        filter_expression="",
+        start_time="2026-07-25T00:00:00",
+        end_time="2026-07-25T23:59:59",
+        limit=2,
+        poll_interval=0.01,
+        timeout=5,
     )
     assert result["truncated"] is True
 
@@ -334,8 +337,11 @@ def test_search_logs_raises_faz_error_on_submit_failure(monkeypatch):
     )
     with pytest.raises(FAZError, match="Bad filter"):
         client.search_logs(
-            logtype="traffic", device="All_FortiGate", filter_expression="garbage(",
-            start_time="2026-07-25T00:00:00", end_time="2026-07-25T23:59:59",
+            logtype="traffic",
+            device="All_FortiGate",
+            filter_expression="garbage(",
+            start_time="2026-07-25T00:00:00",
+            end_time="2026-07-25T23:59:59",
         )
 
 
@@ -355,9 +361,13 @@ def test_search_logs_raises_timeout_when_never_reaches_100(monkeypatch):
     monkeypatch.setattr("time.monotonic", lambda: next(times))
     with pytest.raises(FAZSearchTimeout):
         client.search_logs(
-            logtype="traffic", device="All_FortiGate", filter_expression="",
-            start_time="2026-07-25T00:00:00", end_time="2026-07-25T23:59:59",
-            poll_interval=0.01, timeout=5,
+            logtype="traffic",
+            device="All_FortiGate",
+            filter_expression="",
+            start_time="2026-07-25T00:00:00",
+            end_time="2026-07-25T23:59:59",
+            poll_interval=0.01,
+            timeout=5,
         )
 
 

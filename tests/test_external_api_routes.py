@@ -47,9 +47,7 @@ def test_returns_401_when_invalid_token(client):
     from app.app_settings import set_setting
 
     set_setting("external_api_enabled", True)
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": "Bearer wrong"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": "Bearer wrong"})
     assert resp.status_code == 401
 
 
@@ -61,9 +59,7 @@ def test_401_logs_unauthorized_attempt(client):
     clear_log_entries()
     set_log_level("TRACE")
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": "Bearer wrong"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": "Bearer wrong"})
     assert resp.status_code == 401
 
     entries = get_log_entries(component="external_api")
@@ -95,9 +91,7 @@ def test_happy_path_shape(client, monkeypatch):
         },
     )
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["schema_version"] == 1
@@ -128,9 +122,7 @@ def test_falls_back_to_persisted_rollup_when_cache_empty(client, monkeypatch):
         devices_logging=7, devices_silent=1, total_lograte=12.5, collected_at="2026-08-29T17:00:00Z"
     )
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     body = resp.get_json()
     assert body["devices_logging"] == 7
     assert body["devices_silent"] == 1

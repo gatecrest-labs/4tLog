@@ -24,9 +24,7 @@ def set_log_level(level: str) -> None:
     global _current_level
     level = level.upper()
     if level not in _LEVEL_RANK:
-        raise ValueError(
-            f"Invalid log level '{level}'. Choose from: {', '.join(_LEVELS)}"
-        )
+        raise ValueError(f"Invalid log level '{level}'. Choose from: {', '.join(_LEVELS)}")
     _current_level = level
 
 

@@ -104,15 +104,21 @@ def api_search():
     err = check_adom_access(target_label)
     if err is not None:
         app_log(
-            "WARN", "log_search", "Search denied: ADOM access not permitted",
-            by=user, target=target_label,
+            "WARN",
+            "log_search",
+            "Search denied: ADOM access not permitted",
+            by=user,
+            target=target_label,
         )
         return err
     target = get_target(target_label)
     if target is None:
         app_log(
-            "WARN", "log_search", "Search failed: target not found",
-            by=user, target=target_label,
+            "WARN",
+            "log_search",
+            "Search failed: target not found",
+            by=user,
+            target=target_label,
         )
         return jsonify({"error": f"Target '{target_label}' not found"}), 404
 
@@ -123,8 +129,11 @@ def api_search():
     end_time = data.get("end_time", "")
     if not start_time or not end_time:
         app_log(
-            "WARN", "log_search", "Search rejected: missing start_time/end_time",
-            by=user, target=target_label,
+            "WARN",
+            "log_search",
+            "Search rejected: missing start_time/end_time",
+            by=user,
+            target=target_label,
         )
         return jsonify({"error": "start_time and end_time are required"}), 400
 
@@ -134,8 +143,12 @@ def api_search():
         port_clauses = parse_port_entries(data.get("ports", "") or "")
     except FilterValidationError as exc:
         app_log(
-            "WARN", "log_search", "Search rejected: invalid filter input",
-            by=user, target=target_label, error=str(exc),
+            "WARN",
+            "log_search",
+            "Search rejected: invalid filter input",
+            by=user,
+            target=target_label,
+            error=str(exc),
         )
         return jsonify({"error": str(exc)}), 400
 
@@ -144,8 +157,11 @@ def api_search():
     # the raw strings) is what actually enforces "no ANY/ANY searches".
     if not source_clauses and not dest_clauses:
         app_log(
-            "WARN", "log_search", "Search rejected: no source or destination IP",
-            by=user, target=target_label,
+            "WARN",
+            "log_search",
+            "Search rejected: no source or destination IP",
+            by=user,
+            target=target_label,
         )
         return jsonify({"error": "At least one of source or destination IP is required"}), 400
 
@@ -155,8 +171,12 @@ def api_search():
         )
     except FilterValidationError as exc:
         app_log(
-            "WARN", "log_search", "Search rejected: invalid filter input",
-            by=user, target=target_label, error=str(exc),
+            "WARN",
+            "log_search",
+            "Search rejected: invalid filter input",
+            by=user,
+            target=target_label,
+            error=str(exc),
         )
         return jsonify({"error": str(exc)}), 400
 
@@ -176,8 +196,13 @@ def api_search():
             )
     except FAZSearchTimeout as exc:
         app_log(
-            "WARN", "log_search", "Search timed out",
-            by=user, target=target_label, filter_expression=filter_expression, error=str(exc),
+            "WARN",
+            "log_search",
+            "Search timed out",
+            by=user,
+            target=target_label,
+            filter_expression=filter_expression,
+            error=str(exc),
             appliance_local=f"{local_start}..{local_end}",
         )
         return jsonify(
@@ -185,23 +210,36 @@ def api_search():
         ), 504
     except FAZError as exc:
         app_log(
-            "WARN", "log_search", "Search failed: FortiAnalyzer error",
-            by=user, target=target_label, filter_expression=filter_expression, error=str(exc),
+            "WARN",
+            "log_search",
+            "Search failed: FortiAnalyzer error",
+            by=user,
+            target=target_label,
+            filter_expression=filter_expression,
+            error=str(exc),
             appliance_local=f"{local_start}..{local_end}",
         )
         return jsonify({"error": str(exc)}), 502
     except Exception as exc:
         app_log(
-            "WARN", "log_search", "Search failed: connection error",
-            by=user, target=target_label, filter_expression=filter_expression,
+            "WARN",
+            "log_search",
+            "Search failed: connection error",
+            by=user,
+            target=target_label,
+            filter_expression=filter_expression,
             error=summarize_connection_error(exc),
             appliance_local=f"{local_start}..{local_end}",
         )
         return jsonify({"error": summarize_connection_error(exc)}), 502
 
     app_log(
-        "INFO", "log_search", "Search completed",
-        by=user, target=target_label, filter_expression=filter_expression,
+        "INFO",
+        "log_search",
+        "Search completed",
+        by=user,
+        target=target_label,
+        filter_expression=filter_expression,
         rows=len(result.get("rows", [])),
         requested_utc=f"{start_time}..{end_time}",
         appliance_local=f"{local_start}..{local_end}",

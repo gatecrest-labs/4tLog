@@ -20,14 +20,11 @@ def test_ensure_csrf_token_persists_in_session(app):
 
 
 def test_validate_csrf_request_accepts_matching_header(app):
-    with app.test_request_context(
-        "/", headers={}, method="POST"
-    ):
+    with app.test_request_context("/", headers={}, method="POST"):
         token = ensure_csrf_token()
-    with app.test_request_context(
-        "/", method="POST", headers={"X-CSRF-Token": token}
-    ):
+    with app.test_request_context("/", method="POST", headers={"X-CSRF-Token": token}):
         from flask import session
+
         session["_csrf_token"] = token
         assert validate_csrf_request() is True
 

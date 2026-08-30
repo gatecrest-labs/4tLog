@@ -9,12 +9,14 @@ def app(tmp_path, monkeypatch):
     os.environ.setdefault("SECRET_KEY", "test-secret")
     import app.auth as auth_mod
     import app.groups as groups_mod
+
     monkeypatch.setattr(auth_mod, "USERS_FILE", tmp_path / "users.json")
     monkeypatch.setattr(groups_mod, "GROUPS_FILE", tmp_path / "groups.json")
     auth_mod.add_user("alice", "Str0ng!Passw0rd", role="viewer")
     groups_mod.create_group("g1", members=["alice"], allowed_tabs=["dashboard"])
 
     from app import create_app
+
     return create_app()
 
 

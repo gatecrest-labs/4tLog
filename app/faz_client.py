@@ -388,8 +388,7 @@ class FAZClient:
                 )
             if not _EXTRA_FILTER_FIELD_RE.match(field):
                 raise FilterValidationError(
-                    f"Invalid filter field '{field}': only letters, digits, "
-                    f"'_' and '-' are allowed"
+                    f"Invalid filter field '{field}': only letters, digits, '_' and '-' are allowed"
                 )
             if '"' in value:
                 raise FilterValidationError(
