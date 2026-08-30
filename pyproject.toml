@@ -13,6 +13,7 @@ dependencies = [
     "apscheduler>=3.11.2",
     "pysnmp>=7.1.27",
     "cryptography>=49.0.0",
+    "psutil>=6.0",
 ]
 
 [project.optional-dependencies]
