@@ -7,6 +7,7 @@ import app.config  # noqa: F401 - pre-cache module in sys.modules for test isola
 def test_config_requires_secret_key(monkeypatch):
     monkeypatch.delenv("SECRET_KEY", raising=False)
     import app.config as config_mod
+
     with __import__("pytest").raises(RuntimeError):
         importlib.reload(config_mod)
     # restore for subsequent tests in the same process
@@ -17,6 +18,7 @@ def test_config_requires_secret_key(monkeypatch):
 def test_config_loads_defaults(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "a-real-secret")
     import app.config as config_mod
+
     importlib.reload(config_mod)
     assert config_mod.Config.SECRET_KEY == "a-real-secret"
     assert config_mod.Config.SESSION_COOKIE_HTTPONLY is True
@@ -28,6 +30,7 @@ def test_log_search_defaults(monkeypatch):
     monkeypatch.delenv("LOG_SEARCH_POLL_INTERVAL", raising=False)
     monkeypatch.delenv("LOG_SEARCH_TIMEOUT", raising=False)
     import app.config as config_mod
+
     importlib.reload(config_mod)
     assert config_mod.Config.LOG_SEARCH_MAX_RESULTS == 1000
     assert config_mod.Config.LOG_SEARCH_POLL_INTERVAL == 2.0

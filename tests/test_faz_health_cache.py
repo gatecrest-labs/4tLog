@@ -6,6 +6,7 @@ def clear_faz_health_cache():
     """Clear the faz_health_cache module-level cache before each test in this file."""
     try:
         import app.faz_health_cache as cache_mod
+
         cache_mod._cache.clear()
     except ImportError:
         pass
@@ -13,6 +14,7 @@ def clear_faz_health_cache():
     # Also clear after test to be safe
     try:
         import app.faz_health_cache as cache_mod
+
         cache_mod._cache.clear()
     except ImportError:
         pass
@@ -113,7 +115,7 @@ def test_poll_all_targets_summarizes_raw_network_error(targets_file, monkeypatch
             "HTTPSConnectionPool(host='192.168.64.4', port=443): Max retries exceeded "
             "with url: /jsonrpc (Caused by NewConnectionError("
             "\"HTTPSConnection(host='192.168.64.4', port=443): Failed to establish a "
-            "new connection: [Errno 111] Connection refused\"))"
+            'new connection: [Errno 111] Connection refused"))'
         )
 
     monkeypatch.setattr("app.faz_client.FAZClient.preflight", raising_preflight)

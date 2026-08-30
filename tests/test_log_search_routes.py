@@ -20,6 +20,7 @@ def app(tmp_path, monkeypatch):
     faz_targets_mod.create_target("Secondary", host="192.168.64.5", adom="root", token="tok2")
 
     from app import create_app
+
     return create_app()
 
 
@@ -62,8 +63,11 @@ def test_targets_filters_by_group_restriction(client, app):
     import app.groups as groups_mod
 
     groups_mod.update_group(
-        "g1", members=["alice"], allowed_tabs=["log_search"],
-        adom_restrict=True, allowed_adoms=["Primary"],
+        "g1",
+        members=["alice"],
+        allowed_tabs=["log_search"],
+        adom_restrict=True,
+        allowed_adoms=["Primary"],
     )
     _login(client)
     resp = client.get("/api/log-search/targets")
@@ -77,9 +81,14 @@ def test_search_rejects_both_ips_blank(client):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "",
+            "destination_ips": "",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -93,9 +102,14 @@ def test_search_rejects_both_ips_any(client):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "ANY", "destination_ips": "ALL", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "ANY",
+            "destination_ips": "ALL",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -118,9 +132,14 @@ def test_search_allows_one_side_any(client, monkeypatch):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "ANY", "destination_ips": "8.8.8.8", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "ANY",
+            "destination_ips": "8.8.8.8",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -133,9 +152,14 @@ def test_search_rejects_invalid_ip(client):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "not-an-ip", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "not-an-ip",
+            "destination_ips": "",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -147,17 +171,25 @@ def test_search_rejects_disallowed_target(client, app):
     import app.groups as groups_mod
 
     groups_mod.update_group(
-        "g1", members=["alice"], allowed_tabs=["log_search"],
-        adom_restrict=True, allowed_adoms=["Secondary"],
+        "g1",
+        members=["alice"],
+        allowed_tabs=["log_search"],
+        adom_restrict=True,
+        allowed_adoms=["Secondary"],
     )
     _login(client)
     csrf = _csrf(client)
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "10.1.1.5", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "10.1.1.5",
+            "destination_ips": "",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -181,9 +213,14 @@ def test_search_happy_path(client, monkeypatch):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "10.1.1.5", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "10.1.1.5",
+            "destination_ips": "",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -205,9 +242,14 @@ def test_search_rejects_extra_filter_injection(client):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "10.1.1.5", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "10.1.1.5",
+            "destination_ips": "",
+            "ports": "",
             "extra_filters": [
                 {"field": "srcip", "op": "==", "value": '0.0.0.0" or dstip>="0.0.0.0'}
             ],
@@ -233,9 +275,14 @@ def test_search_returns_502_on_faz_error(client, monkeypatch):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "10.1.1.5", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "10.1.1.5",
+            "destination_ips": "",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -258,9 +305,14 @@ def test_search_returns_504_on_timeout(client, monkeypatch):
     resp = client.post(
         "/api/log-search",
         json={
-            "target": "Primary", "logtype": "traffic", "device": "All_FortiGate",
-            "start_time": "2026-07-25T00:00:00", "end_time": "2026-07-25T23:59:59",
-            "source_ips": "10.1.1.5", "destination_ips": "", "ports": "",
+            "target": "Primary",
+            "logtype": "traffic",
+            "device": "All_FortiGate",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "10.1.1.5",
+            "destination_ips": "",
+            "ports": "",
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -302,8 +354,11 @@ def test_devices_endpoint_rejects_disallowed_target(client, app):
     import app.groups as groups_mod
 
     groups_mod.update_group(
-        "g1", members=["alice"], allowed_tabs=["log_search"],
-        adom_restrict=True, allowed_adoms=["Secondary"],
+        "g1",
+        members=["alice"],
+        allowed_tabs=["log_search"],
+        adom_restrict=True,
+        allowed_adoms=["Secondary"],
     )
     _login(client)
     resp = client.get("/api/log-search/devices?target=Primary")

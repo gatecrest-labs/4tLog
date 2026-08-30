@@ -32,9 +32,7 @@ def clear_log_stats_cache():
     cache_mod._cache = {"logging_devices": [], "silent_devices": [], "collected_at": None}
 
 
-def test_poll_all_targets_populates_cache_and_writes_rollup(
-    targets_file, history_db, monkeypatch
-):
+def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, history_db, monkeypatch):
     import app.log_stats_cache as cache_mod
     from app.log_stats_history import get_latest_rollup
 

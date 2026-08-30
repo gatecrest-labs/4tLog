@@ -204,9 +204,7 @@ def get_allowed_adoms(
     return sorted(allowed)
 
 
-def user_can_access_adom(
-    username: str, adom: str, ad_groups: list[str] | None = None
-) -> bool:
+def user_can_access_adom(username: str, adom: str, ad_groups: list[str] | None = None) -> bool:
     allowed = get_allowed_adoms(username, ad_groups=ad_groups)
     if allowed is None:
         return True

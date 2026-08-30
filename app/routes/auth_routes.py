@@ -57,10 +57,7 @@ def _clear_failures(ip: str, username: str) -> None:
 def _safe_redirect(url: str) -> bool:
     parsed = urlparse(url)
     return (
-        not parsed.scheme
-        and not parsed.netloc
-        and parsed.path.startswith("/")
-        and url != "/login"
+        not parsed.scheme and not parsed.netloc and parsed.path.startswith("/") and url != "/login"
     )
 
 

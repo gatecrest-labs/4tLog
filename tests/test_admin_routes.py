@@ -8,12 +8,14 @@ def app(tmp_path, monkeypatch):
     os.environ.setdefault("SECRET_KEY", "test-secret")
     import app.auth as auth_mod
     import app.groups as groups_mod
+
     monkeypatch.setattr(auth_mod, "USERS_FILE", tmp_path / "users.json")
     monkeypatch.setattr(groups_mod, "GROUPS_FILE", tmp_path / "groups.json")
     auth_mod.add_user("admin1", "Str0ng!Passw0rd", role="admin")
     auth_mod.add_user("viewer1", "Str0ng!Passw0rd", role="viewer")
 
     from app import create_app
+
     return create_app()
 
 

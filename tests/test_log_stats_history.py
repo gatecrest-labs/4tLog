@@ -23,11 +23,15 @@ def test_write_and_read_latest_rollup(history_db):
     from app.log_stats_history import get_latest_rollup, write_rollup
 
     write_rollup(
-        devices_logging=10, devices_silent=1, total_lograte=42.5,
+        devices_logging=10,
+        devices_silent=1,
+        total_lograte=42.5,
         collected_at="2026-08-29T09:00:00Z",
     )
     write_rollup(
-        devices_logging=11, devices_silent=0, total_lograte=50.0,
+        devices_logging=11,
+        devices_silent=0,
+        total_lograte=50.0,
         collected_at="2026-08-29T09:05:00Z",
     )
 
@@ -43,9 +47,9 @@ def test_write_and_read_latest_rollup(history_db):
 def test_prune_old_rows_removes_rows_past_retention(history_db):
     from app.log_stats_history import prune_old_rows, write_rollup
 
-    old_ts = (
-        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=40)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    old_ts = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=40)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     write_rollup(devices_logging=1, devices_silent=0, total_lograte=1.0, collected_at=old_ts)
     write_rollup(devices_logging=2, devices_silent=0, total_lograte=2.0, collected_at=recent_ts)
