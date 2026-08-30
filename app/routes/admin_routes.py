@@ -26,7 +26,20 @@ Logs API (JSON):
   GET    /admin/api/logs?level=INFO&component=auth&limit=500
   POST   /admin/api/logs/level       {"level": "DEBUG"}
   DELETE /admin/api/logs             clears the buffer
+
+Host Metrics API (JSON):
+  GET    /admin/api/host-metrics?range=1h   {"cpu": [...], "mem": [...], "disk": [...]}
+
+External API settings and tokens (JSON):
+  GET    /admin/api/settings         {"external_api_enabled": bool}
+  PUT    /admin/api/settings         {"external_api_enabled": bool}
+  GET    /admin/api/tokens           list of {id, name, enabled}
+  POST   /admin/api/tokens           {"name": str} -> {"token": str, id, name, enabled}
+                                      (token plaintext shown once, at creation)
+  DELETE /admin/api/tokens/<id>
 """
+
+import datetime
 
 from flask import Blueprint, jsonify, render_template, request, session
 
@@ -261,3 +274,93 @@ def api_logs_clear():
     clear_log_entries()
     app_log("INFO", "admin", "Log buffer cleared", by=session["user"])
     return jsonify({"cleared": True})
+
+
+# ── Host Metrics API ──────────────────────────────────────────────────────────
+
+
+def _downsample_rows(rows: list[dict], max_points: int = 150) -> list[dict]:
+    n = len(rows)
+    if n <= max_points:
+        return rows
+    step = n / max_points
+    return [rows[int(i * step)] for i in range(max_points)]
+
+
+@bp.route("/api/host-metrics")
+@_admin_required
+def api_host_metrics():
+    import app.host_metrics_history as history
+
+    range_key = request.args.get("range", history.DEFAULT_RANGE)
+    if range_key not in history.RANGES:
+        range_key = history.DEFAULT_RANGE
+
+    since_dt = datetime.datetime.now(datetime.timezone.utc) - history.RANGES[range_key]
+    since = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = history.get_history(since)
+    rows = _downsample_rows(rows)
+
+    result = {"cpu": [], "mem": [], "disk": []}
+    for row in rows:
+        ts = int(datetime.datetime.fromisoformat(row["collected_at"]).timestamp())
+        result["cpu"].append({"ts": ts, "v": row["cpu_percent"]})
+        result["mem"].append({"ts": ts, "v": row["memory_percent"]})
+        result["disk"].append({"ts": ts, "v": row["disk_percent"]})
+    return jsonify(result)
+
+
+# ── External API settings and tokens ────────────────────────────────────────────
+
+
+@bp.route("/api/settings")
+@_admin_required
+def api_settings_get():
+    from app.app_settings import get_setting
+
+    return jsonify({"external_api_enabled": get_setting("external_api_enabled", False)})
+
+
+@bp.route("/api/settings", methods=["PUT"])
+@_admin_required
+def api_settings_update():
+    from app.app_settings import set_setting
+
+    data = request.get_json(silent=True) or {}
+    if "external_api_enabled" in data:
+        set_setting("external_api_enabled", bool(data["external_api_enabled"]))
+    app_log("INFO", "admin", "Settings updated", by=session["user"])
+    return jsonify({"external_api_enabled": data.get("external_api_enabled")})
+
+
+@bp.route("/api/tokens")
+@_admin_required
+def api_tokens_list():
+    from app.api_tokens import list_tokens
+
+    return jsonify(list_tokens())
+
+
+@bp.route("/api/tokens", methods=["POST"])
+@_admin_required
+def api_tokens_create():
+    from app.api_tokens import create_token
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    raw, record = create_token(name)
+    app_log("INFO", "admin", "API token created", by=session["user"], token_name=name)
+    return jsonify({**record, "token": raw}), 201
+
+
+@bp.route("/api/tokens/<token_id>", methods=["DELETE"])
+@_admin_required
+def api_tokens_revoke(token_id: str):
+    from app.api_tokens import revoke_token
+
+    if not revoke_token(token_id):
+        return jsonify({"error": f"Token '{token_id}' not found"}), 404
+    app_log("INFO", "admin", "API token revoked", by=session["user"], token_id=token_id)
+    return jsonify({"revoked": token_id})

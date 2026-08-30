@@ -259,6 +259,95 @@ def test_faz_targets_responses_do_not_leak_raw_token(client, faz_targets_file):
     assert body["token_set"] is True
 
 
+def test_host_metrics_api_blocked_for_viewer(client):
+    _login(client, "viewer1")
+    resp = client.get("/admin/api/host-metrics")
+    assert resp.status_code == 403
+
+
+def test_host_metrics_api_returns_shape(client, tmp_path, monkeypatch):
+    import datetime
+
+    import app.host_metrics_history as history_mod
+
+    monkeypatch.setattr(history_mod, "DB_PATH", tmp_path / "hostmetrics.db")
+    history_mod.init_db()
+    # A relative-to-now timestamp, not a fixed literal — the endpoint under
+    # test filters by "since = now - range", so a hardcoded past date would
+    # silently fall outside the window once real time moves past it (see
+    # this plan's Global Constraints section).
+    recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    history_mod.write_snapshot(
+        cpu_percent=12.5,
+        memory_percent=40.0,
+        disk_percent=55.0,
+        collected_at=recent_ts,
+    )
+    expected_epoch = int(datetime.datetime.fromisoformat(recent_ts).timestamp())
+
+    _login(client, "admin1")
+    resp = client.get("/admin/api/host-metrics?range=1d")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["cpu"] == [{"ts": expected_epoch, "v": 12.5}]
+    assert body["mem"] == [{"ts": expected_epoch, "v": 40.0}]
+    assert body["disk"] == [{"ts": expected_epoch, "v": 55.0}]
+
+
+def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
+    import datetime
+
+    import app.host_metrics_history as history_mod
+
+    monkeypatch.setattr(history_mod, "DB_PATH", tmp_path / "hostmetrics.db")
+    history_mod.init_db()
+    recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    history_mod.write_snapshot(
+        cpu_percent=5.0,
+        memory_percent=10.0,
+        disk_percent=15.0,
+        collected_at=recent_ts,
+    )
+
+    _login(client, "admin1")
+    resp = client.get("/admin/api/host-metrics?range=not-a-real-range")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["cpu"] == [
+        {"ts": int(datetime.datetime.fromisoformat(recent_ts).timestamp()), "v": 5.0}
+    ]
+
+
+def test_host_metrics_api_downsamples_large_history(client, tmp_path, monkeypatch):
+    import datetime
+
+    import app.host_metrics_history as history_mod
+
+    monkeypatch.setattr(history_mod, "DB_PATH", tmp_path / "hostmetrics.db")
+    history_mod.init_db()
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for i in range(300):
+        ts = (now - datetime.timedelta(minutes=3 * i)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        history_mod.write_snapshot(
+            cpu_percent=float(i),
+            memory_percent=float(i),
+            disk_percent=float(i),
+            collected_at=ts,
+        )
+
+    _login(client, "admin1")
+    resp = client.get("/admin/api/host-metrics?range=1d")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert len(body["cpu"]) <= 150
+    assert len(body["mem"]) <= 150
+    assert len(body["disk"]) <= 150
+
+
 def test_faz_targets_update_without_token_preserves_existing_token(client, faz_targets_file):
     # The edit modal leaves the token field blank; omitting it from the PUT
     # body must not clobber the previously stored token.
@@ -293,4 +382,114 @@ def test_faz_targets_update_missing_returns_404(client, faz_targets_file):
         json={"host": "10.0.0.9", "adom": "root", "token": "x"},
         headers={"X-CSRF-Token": csrf},
     )
+    assert resp.status_code == 404
+
+
+@pytest.fixture
+def settings_file(tmp_path, monkeypatch):
+    path = tmp_path / "app_settings.json"
+    import app.app_settings as settings_mod
+
+    monkeypatch.setattr(settings_mod, "_SETTINGS_PATH", path)
+    yield path
+
+
+@pytest.fixture
+def tokens_file(tmp_path, monkeypatch):
+    path = tmp_path / "api_tokens.json"
+    import app.api_tokens as tokens_mod
+
+    monkeypatch.setattr(tokens_mod, "_TOKENS_PATH", path)
+    yield path
+
+
+def test_settings_api_blocked_for_viewer(client, settings_file):
+    _login(client, "viewer1")
+    resp = client.get("/admin/api/settings")
+    assert resp.status_code == 403
+
+
+def test_get_settings_api_returns_current_state(client, settings_file):
+    _login(client, "admin1")
+    resp = client.get("/admin/api/settings")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"external_api_enabled": False}
+
+
+def test_put_settings_api_enables_external_api(client, settings_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    resp = client.put(
+        "/admin/api/settings",
+        json={"external_api_enabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert resp.status_code == 200
+    from app.app_settings import get_setting
+
+    assert get_setting("external_api_enabled") is True
+
+
+def test_tokens_api_blocked_for_viewer(client, tokens_file):
+    _login(client, "viewer1")
+    resp = client.get("/admin/api/tokens")
+    assert resp.status_code == 403
+
+
+def test_tokens_api_create_list_and_revoke(client, tokens_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    create_resp = client.post(
+        "/admin/api/tokens",
+        json={"name": "4texecutive"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert create_resp.status_code == 201
+    created = create_resp.get_json()
+    assert created["name"] == "4texecutive"
+    assert created["token"].startswith("4tl_")
+    assert "token_hash" not in created
+
+    list_resp = client.get("/admin/api/tokens")
+    assert list_resp.status_code == 200
+    tokens = list_resp.get_json()
+    assert len(tokens) == 1
+    assert tokens[0]["name"] == "4texecutive"
+    assert "token" not in tokens[0]
+    assert "token_hash" not in tokens[0]
+
+    revoke_resp = client.delete(
+        f"/admin/api/tokens/{tokens[0]['id']}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert revoke_resp.status_code == 200
+
+    assert client.get("/admin/api/tokens").get_json() == []
+
+
+def test_tokens_api_create_requires_name(client, tokens_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    resp = client.post(
+        "/admin/api/tokens",
+        json={"name": ""},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_tokens_api_revoke_missing_returns_404(client, tokens_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+
+    resp = client.delete(
+        "/admin/api/tokens/not-a-real-id",
+        headers={"X-CSRF-Token": csrf},
+    )
+
     assert resp.status_code == 404

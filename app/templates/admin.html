@@ -4,15 +4,17 @@
 <h1>Admin</h1>
 
 <div class="admin-tabs" id="adminTabs">
-  <button class="admin-tab-btn active" data-panel="panel-groups">Groups &amp; Permissions</button>
-  <button class="admin-tab-btn" data-panel="panel-users">Users</button>
-  <button class="admin-tab-btn" data-panel="panel-logs">Logs</button>
-  <button class="admin-tab-btn" data-panel="panel-faz-targets">FAZ Targets</button>
+  <button class="admin-tab active" data-panel="panel-groups">Groups &amp; Permissions</button>
+  <button class="admin-tab" data-panel="panel-users">Users</button>
+  <button class="admin-tab" data-panel="panel-logs">Logs</button>
+  <button class="admin-tab" data-panel="panel-faz-targets">FAZ Targets</button>
+  <button class="admin-tab" data-panel="panel-host-metrics">Host Metrics</button>
+  <button class="admin-tab" data-panel="panel-external-api">External API</button>
 </div>
 
 <div class="admin-panel active" id="panel-groups">
-  <div class="panel-header">
-    <h2>Groups &amp; Permissions</h2>
+  <div class="admin-panel-header">
+    <h3>Groups &amp; Permissions</h3>
     <button class="btn btn-primary" id="btnNewGroup">+ New Group</button>
   </div>
   <div class="table-wrapper">
@@ -26,8 +28,8 @@
 </div>
 
 <div class="admin-panel" id="panel-users">
-  <div class="panel-header">
-    <h2>Users</h2>
+  <div class="admin-panel-header">
+    <h3>Users</h3>
     <p class="text-muted">Accounts are managed with the CLI: <code>uv run python manage_users.py add &lt;username&gt; --role admin|viewer</code></p>
   </div>
   <div class="table-wrapper">
@@ -39,8 +41,8 @@
 </div>
 
 <div class="admin-panel" id="panel-logs">
-  <div class="panel-header">
-    <h2>Logs</h2>
+  <div class="admin-panel-header">
+    <h3>Logs</h3>
     <div>
       <select class="form-select-sm" id="logLevelSelect"></select>
       <button class="btn btn-primary btn-sm" id="btnSetLevel">Set</button>
@@ -55,8 +57,8 @@
 </div>
 
 <div class="admin-panel" id="panel-faz-targets">
-  <div class="panel-header">
-    <h2>FAZ Targets</h2>
+  <div class="admin-panel-header">
+    <h3>FAZ Targets</h3>
     <button class="btn btn-primary" id="btnNewFazTarget">+ New Target</button>
   </div>
   <div class="table-wrapper">
@@ -66,6 +68,118 @@
       </thead>
       <tbody id="fazTargetsTbody"></tbody>
     </table>
+  </div>
+</div>
+
+<div class="admin-panel" id="panel-host-metrics">
+  <div class="admin-panel-header">
+    <h3>Host Metrics</h3>
+  </div>
+  <div class="hm-header">
+    <div class="hm-range-row">
+      <button type="button" class="btn btn-sm hm-range-btn active" data-range="1h">1 hour</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="4h">4 hours</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="12h">12 hours</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="1d">1 day</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="7d">7 days</button>
+      <button type="button" class="btn btn-sm hm-range-btn" data-range="14d">14 days</button>
+    </div>
+    <div class="hm-cards">
+      <div class="hm-card">
+        <div class="hm-card-title">CPU</div>
+        <div id="hmCpuChart" class="hm-chart"></div>
+      </div>
+      <div class="hm-card">
+        <div class="hm-card-title">Memory</div>
+        <div id="hmMemChart" class="hm-chart"></div>
+      </div>
+      <div class="hm-card">
+        <div class="hm-card-title">Disk</div>
+        <div id="hmDiskChart" class="hm-chart"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-panel" id="panel-external-api">
+  <div class="admin-panel-header">
+    <div>
+      <h3>External API</h3>
+      <p class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        Enable bearer-token access to <code>/external/api/executive/summary</code> for
+        external programs (e.g. 4tExecutive). When enabled, callers can query it
+        without a browser session.
+      </p>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;padding:.75rem 1rem;background:var(--surface-alt);border:1px solid var(--border);border-radius:6px">
+    <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-weight:500">
+      <input type="checkbox" id="extApiEnabled" style="width:1.1rem;height:1.1rem" />
+      External API enabled
+    </label>
+    <button class="btn btn-primary btn-sm" id="btnSaveExtApiToggle">Save</button>
+    <span id="extApiToggleMsg" style="font-size:.83rem"></span>
+  </div>
+
+  <div class="admin-panel-header" style="margin-top:1rem">
+    <div>
+      <h3 style="margin:0">Bearer Tokens</h3>
+      <p class="text-muted" style="font-size:.82rem;margin-top:.2rem">
+        A token's value is shown <strong>once</strong> at creation time — store it securely.
+      </p>
+    </div>
+    <button class="btn btn-primary" id="btnNewToken">+ New Token</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="data-table" id="tokensTable">
+      <thead>
+        <tr><th>Name</th><th>Enabled</th><th style="width:110px">Actions</th></tr>
+      </thead>
+      <tbody id="tokensTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="newTokenModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>New API Token</h3>
+      <button class="modal-close" id="newTokenModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Token Name</label>
+        <input type="text" class="form-control" id="newTokenName" placeholder="e.g. 4tExecutive-Prod" />
+      </div>
+      <div id="newTokenError" class="alert alert-danger hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="newTokenCancel">Cancel</button>
+      <button class="btn btn-primary" id="newTokenSave">Generate Token</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="tokenRevealModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Token Created</h3>
+      <button class="modal-close" id="tokenRevealClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--warning);font-weight:500;margin-bottom:.75rem">
+        &#9888; Copy this token now — it will not be shown again.
+      </p>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <code id="tokenRevealValue"
+              style="flex:1;background:var(--surface-alt);border:1px solid var(--border);border-radius:4px;padding:.5rem .75rem;font-size:.82rem;word-break:break-all;user-select:all"></code>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="tokenRevealDone">Done</button>
+    </div>
   </div>
 </div>
 

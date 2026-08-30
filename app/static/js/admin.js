@@ -2,6 +2,7 @@
   'use strict';
 
   const state = { groups: [], users: [], tabs: [], fazTargets: [] };
+  let _hostMetricsLoaded = false;
 
   function el(tag, attrs, children) {
     const e = document.createElement(tag);
@@ -14,13 +15,17 @@
   }
 
   // ── Admin sub-tab switching ────────────────────────────────────────────────
-  document.querySelectorAll('.admin-tab-btn').forEach((btn) => {
+  document.querySelectorAll('.admin-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.admin-tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
       document.querySelectorAll('.admin-panel').forEach((p) => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(btn.dataset.panel).classList.add('active');
       if (btn.dataset.panel === 'panel-logs') loadLogs();
+      if (btn.dataset.panel === 'panel-host-metrics' && !_hostMetricsLoaded) {
+        loadHostMetrics('1h').then((ok) => { _hostMetricsLoaded = ok; });
+      }
+      if (btn.dataset.panel === 'panel-external-api' && !_extApiLoaded) loadExtApi();
     });
   });
 
@@ -316,6 +321,194 @@
     if (!confirm('Clear the log buffer?')) return;
     await fetch('/admin/api/logs', { method: 'DELETE' });
     await loadLogs();
+  });
+
+  // ── Host Metrics ───────────────────────────────────────────────────────────
+  const HM_CHARTS = [
+    { key: 'cpu', el: 'hmCpuChart' },
+    { key: 'mem', el: 'hmMemChart' },
+    { key: 'disk', el: 'hmDiskChart' },
+  ];
+
+  function hmEsc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function hmAxisLabel(ts, showDate) {
+    const d = new Date(ts * 1000);
+    return showDate
+      ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const HM_VB_W = 300;
+  const HM_VB_H = 100;
+
+  function renderHmChart(chartEl, series, showDate) {
+    if (!series.length) {
+      chartEl.innerHTML = '<div class="text-muted" style="padding:1rem 0">No data yet.</div>';
+      return;
+    }
+    const n = series.length;
+    const vals = series.map((p) => (p.v == null ? null : Math.max(0, Math.min(100, p.v))));
+    const xAt = (i) => (n === 1 ? HM_VB_W / 2 : (i / (n - 1)) * HM_VB_W);
+    const yAt = (v) => HM_VB_H - (v / 100) * HM_VB_H;
+
+    const pts = vals.map((v, i) => (v == null ? null : `${xAt(i).toFixed(2)},${yAt(v).toFixed(2)}`));
+    const linePts = pts.filter((p) => p !== null).join(' ');
+    const areaPts = linePts ? `0,${HM_VB_H} ${linePts} ${HM_VB_W},${HM_VB_H}` : '';
+
+    const dots = vals
+      .map((v, i) => {
+        if (v == null) return '';
+        const title = `${hmAxisLabel(series[i].ts, true)}: ${v.toFixed(1)}%`;
+        return `<circle class="hm-dot" cx="${xAt(i).toFixed(2)}" cy="${yAt(v).toFixed(2)}" r="1.6"><title>${hmEsc(title)}</title></circle>`;
+      })
+      .join('');
+
+    const svg = `<svg class="hm-svg" viewBox="0 0 ${HM_VB_W} ${HM_VB_H}" preserveAspectRatio="none">
+      ${areaPts ? `<polygon class="hm-area" points="${areaPts}"></polygon>` : ''}
+      ${linePts ? `<polyline class="hm-line" points="${linePts}"></polyline>` : ''}
+      ${dots}
+    </svg>`;
+
+    const tickIdxs = [...new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.min(n - 1, Math.round(f * (n - 1)))))];
+    const axis = series
+      .map((p, i) => `<div class="hm-tick">${tickIdxs.includes(i) ? hmEsc(hmAxisLabel(p.ts, showDate)) : ''}</div>`)
+      .join('');
+
+    chartEl.innerHTML = `<div class="hm-svg-wrap">${svg}</div><div class="hm-axis">${axis}</div>`;
+  }
+
+  async function loadHostMetrics(range) {
+    document.querySelectorAll('.hm-range-btn').forEach((b) => b.classList.toggle('active', b.dataset.range === range));
+
+    const resp = await fetch('/admin/api/host-metrics?range=' + encodeURIComponent(range));
+    if (!resp.ok) {
+      HM_CHARTS.forEach(({ el: elId }) => {
+        const chartEl = document.getElementById(elId);
+        if (chartEl) chartEl.innerHTML = '<div class="text-muted" style="padding:1rem 0">Failed to load — try again.</div>';
+      });
+      return false;
+    }
+    const data = await resp.json();
+    const showDate = range === '7d' || range === '14d';
+    HM_CHARTS.forEach(({ key, el: elId }) => {
+      renderHmChart(document.getElementById(elId), data[key] || [], showDate);
+    });
+    return true;
+  }
+
+  document.querySelectorAll('.hm-range-btn').forEach((btn) => {
+    btn.addEventListener('click', () => loadHostMetrics(btn.dataset.range));
+  });
+
+  // ── External API ───────────────────────────────────────────────────────────
+  let _extApiLoaded = false;
+
+  async function loadExtApi() {
+    const [settingsRes, tokensRes] = await Promise.all([
+      fetch('/admin/api/settings'),
+      fetch('/admin/api/tokens'),
+    ]);
+    if (settingsRes.ok) {
+      const settings = await settingsRes.json();
+      document.getElementById('extApiEnabled').checked = !!settings.external_api_enabled;
+    }
+    if (tokensRes.ok) renderTokens(await tokensRes.json());
+    _extApiLoaded = true;
+  }
+
+  function renderTokens(tokens) {
+    const tbody = document.getElementById('tokensTbody');
+    tbody.innerHTML = '';
+    tokens.forEach((t) => {
+      const tr = el('tr', {});
+      tr.appendChild(el('td', { text: t.name }));
+      tr.appendChild(el('td', { text: t.enabled ? 'Yes' : 'No' }));
+      const actions = el('td', {});
+      const revokeBtn = el('button', { class: 'btn btn-sm', text: 'Revoke' });
+      revokeBtn.addEventListener('click', () => revokeToken(t.id));
+      actions.appendChild(revokeBtn);
+      tr.appendChild(actions);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function reloadTokens() {
+    const res = await fetch('/admin/api/tokens');
+    if (res.ok) renderTokens(await res.json());
+  }
+
+  async function revokeToken(tokenId) {
+    if (!confirm('Revoke this token? Any program using it will lose access immediately.')) return;
+    await fetch(`/admin/api/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' });
+    await reloadTokens();
+  }
+
+  document.getElementById('btnSaveExtApiToggle').addEventListener('click', async () => {
+    const enabled = document.getElementById('extApiEnabled').checked;
+    const msgEl = document.getElementById('extApiToggleMsg');
+    const res = await fetch('/admin/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ external_api_enabled: enabled }),
+    });
+    msgEl.textContent = res.ok ? (enabled ? 'External API enabled.' : 'External API disabled.') : 'Failed to save.';
+    setTimeout(() => { msgEl.textContent = ''; }, 3000);
+  });
+
+  function openNewTokenModal() {
+    document.getElementById('newTokenName').value = '';
+    document.getElementById('newTokenError').classList.add('hidden');
+    document.getElementById('newTokenModal').classList.remove('hidden');
+    document.getElementById('newTokenName').focus();
+  }
+  function closeNewTokenModal() {
+    document.getElementById('newTokenModal').classList.add('hidden');
+  }
+
+  document.getElementById('btnNewToken').addEventListener('click', openNewTokenModal);
+  document.getElementById('newTokenModalClose').addEventListener('click', closeNewTokenModal);
+  document.getElementById('newTokenCancel').addEventListener('click', closeNewTokenModal);
+
+  document.getElementById('newTokenSave').addEventListener('click', async () => {
+    const name = document.getElementById('newTokenName').value.trim();
+    const errEl = document.getElementById('newTokenError');
+    errEl.classList.add('hidden');
+    if (!name) {
+      errEl.textContent = 'Name is required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const res = await fetch('/admin/api/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errEl.textContent = d.error || 'Failed to create token.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const data = await res.json();
+    closeNewTokenModal();
+    await reloadTokens();
+    document.getElementById('tokenRevealValue').textContent = data.token;
+    document.getElementById('tokenRevealModal').classList.remove('hidden');
+  });
+
+  document.getElementById('tokenRevealClose').addEventListener('click', () => {
+    document.getElementById('tokenRevealModal').classList.add('hidden');
+  });
+  document.getElementById('tokenRevealDone').addEventListener('click', () => {
+    document.getElementById('tokenRevealModal').classList.add('hidden');
   });
 
   // ── Init ───────────────────────────────────────────────────────────────────

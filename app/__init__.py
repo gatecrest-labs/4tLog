@@ -97,4 +97,12 @@ def create_app() -> Flask:
         init_log_stats_db()
         init_log_stats_scheduler(app)
 
+    if not app.config.get("_HOST_METRICS_STARTED"):
+        app.config["_HOST_METRICS_STARTED"] = True
+        from app.host_metrics_cache import init_scheduler as init_host_metrics_scheduler
+        from app.host_metrics_history import init_db as init_host_metrics_db
+
+        init_host_metrics_db()
+        init_host_metrics_scheduler(app)
+
     return app

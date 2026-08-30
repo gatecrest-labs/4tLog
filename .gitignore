@@ -30,6 +30,7 @@ users.json
 groups.json
 faz_targets.json
 logstats.db
+hostmetrics.db
 api_tokens.json
 app_settings.json
 
