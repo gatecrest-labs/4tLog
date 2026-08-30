@@ -79,6 +79,8 @@ a:hover { text-decoration: underline; }
 }
 
 .topbar-brand {
+  display: flex;
+  align-items: center;
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: .5px;
@@ -86,7 +88,13 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 
-.brand-icon { margin-right: .3rem; }
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  margin-right: .4rem;
+  vertical-align: middle;
+}
 
 .topbar-nav { display: flex; gap: .25rem; flex: 1; }
 

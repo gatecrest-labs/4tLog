@@ -14,9 +14,9 @@
   }
 
   // ── Admin sub-tab switching ────────────────────────────────────────────────
-  document.querySelectorAll('.admin-tab-btn').forEach((btn) => {
+  document.querySelectorAll('.admin-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.admin-tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
       document.querySelectorAll('.admin-panel').forEach((p) => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(btn.dataset.panel).classList.add('active');

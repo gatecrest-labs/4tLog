@@ -4,14 +4,14 @@
 <h1>Admin</h1>
 
 <div class="admin-tabs" id="adminTabs">
-  <button class="admin-tab-btn active" data-panel="panel-groups">Groups &amp; Permissions</button>
-  <button class="admin-tab-btn" data-panel="panel-users">Users</button>
-  <button class="admin-tab-btn" data-panel="panel-logs">Logs</button>
-  <button class="admin-tab-btn" data-panel="panel-faz-targets">FAZ Targets</button>
+  <button class="admin-tab active" data-panel="panel-groups">Groups &amp; Permissions</button>
+  <button class="admin-tab" data-panel="panel-users">Users</button>
+  <button class="admin-tab" data-panel="panel-logs">Logs</button>
+  <button class="admin-tab" data-panel="panel-faz-targets">FAZ Targets</button>
 </div>
 
 <div class="admin-panel active" id="panel-groups">
-  <div class="panel-header">
+  <div class="admin-panel-header">
     <h2>Groups &amp; Permissions</h2>
     <button class="btn btn-primary" id="btnNewGroup">+ New Group</button>
   </div>
@@ -26,7 +26,7 @@
 </div>
 
 <div class="admin-panel" id="panel-users">
-  <div class="panel-header">
+  <div class="admin-panel-header">
     <h2>Users</h2>
     <p class="text-muted">Accounts are managed with the CLI: <code>uv run python manage_users.py add &lt;username&gt; --role admin|viewer</code></p>
   </div>
@@ -39,7 +39,7 @@
 </div>
 
 <div class="admin-panel" id="panel-logs">
-  <div class="panel-header">
+  <div class="admin-panel-header">
     <h2>Logs</h2>
     <div>
       <select class="form-select-sm" id="logLevelSelect"></select>
@@ -55,7 +55,7 @@
 </div>
 
 <div class="admin-panel" id="panel-faz-targets">
-  <div class="panel-header">
+  <div class="admin-panel-header">
     <h2>FAZ Targets</h2>
     <button class="btn btn-primary" id="btnNewFazTarget">+ New Target</button>
   </div>
