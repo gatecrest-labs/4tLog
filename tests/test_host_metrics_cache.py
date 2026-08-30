@@ -18,12 +18,8 @@ def test_poll_host_metrics_writes_snapshot(history_db, monkeypatch):
     from app.host_metrics_history import get_history
 
     monkeypatch.setattr(psutil, "cpu_percent", lambda: 12.5)
-    monkeypatch.setattr(
-        psutil, "virtual_memory", lambda: type("_VM", (), {"percent": 40.0})()
-    )
-    monkeypatch.setattr(
-        psutil, "disk_usage", lambda path: type("_DU", (), {"percent": 55.0})()
-    )
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: type("_VM", (), {"percent": 40.0})())
+    monkeypatch.setattr(psutil, "disk_usage", lambda path: type("_DU", (), {"percent": 55.0})())
 
     cache_mod.poll_host_metrics()
 

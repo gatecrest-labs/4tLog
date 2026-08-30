@@ -23,11 +23,15 @@ def test_write_and_read_history_in_range(history_db):
     from app.host_metrics_history import get_history, write_snapshot
 
     write_snapshot(
-        cpu_percent=10.0, memory_percent=40.0, disk_percent=55.0,
+        cpu_percent=10.0,
+        memory_percent=40.0,
+        disk_percent=55.0,
         collected_at="2026-08-29T09:00:00Z",
     )
     write_snapshot(
-        cpu_percent=12.5, memory_percent=41.0, disk_percent=55.5,
+        cpu_percent=12.5,
+        memory_percent=41.0,
+        disk_percent=55.5,
         collected_at="2026-08-29T09:05:00Z",
     )
 
@@ -53,11 +57,15 @@ def test_get_history_excludes_rows_before_since(history_db):
     from app.host_metrics_history import get_history, write_snapshot
 
     write_snapshot(
-        cpu_percent=10.0, memory_percent=40.0, disk_percent=55.0,
+        cpu_percent=10.0,
+        memory_percent=40.0,
+        disk_percent=55.0,
         collected_at="2026-08-29T08:00:00Z",
     )
     write_snapshot(
-        cpu_percent=12.5, memory_percent=41.0, disk_percent=55.5,
+        cpu_percent=12.5,
+        memory_percent=41.0,
+        disk_percent=55.5,
         collected_at="2026-08-29T09:05:00Z",
     )
 
@@ -76,9 +84,9 @@ def test_get_history_excludes_rows_before_since(history_db):
 def test_prune_old_rows_removes_rows_past_retention(history_db):
     from app.host_metrics_history import prune_old_rows, write_snapshot
 
-    old_ts = (
-        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=40)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    old_ts = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=40)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     write_snapshot(cpu_percent=1.0, memory_percent=1.0, disk_percent=1.0, collected_at=old_ts)
     write_snapshot(cpu_percent=2.0, memory_percent=2.0, disk_percent=2.0, collected_at=recent_ts)

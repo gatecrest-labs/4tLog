@@ -278,7 +278,10 @@ def test_host_metrics_api_returns_shape(client, tmp_path, monkeypatch):
     # this plan's Global Constraints section).
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     history_mod.write_snapshot(
-        cpu_percent=12.5, memory_percent=40.0, disk_percent=55.0, collected_at=recent_ts,
+        cpu_percent=12.5,
+        memory_percent=40.0,
+        disk_percent=55.0,
+        collected_at=recent_ts,
     )
     expected_epoch = int(datetime.datetime.fromisoformat(recent_ts).timestamp())
 
@@ -301,7 +304,10 @@ def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
     history_mod.init_db()
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     history_mod.write_snapshot(
-        cpu_percent=5.0, memory_percent=10.0, disk_percent=15.0, collected_at=recent_ts,
+        cpu_percent=5.0,
+        memory_percent=10.0,
+        disk_percent=15.0,
+        collected_at=recent_ts,
     )
 
     _login(client, "admin1")
@@ -326,7 +332,9 @@ def test_host_metrics_api_downsamples_large_history(client, tmp_path, monkeypatc
     for i in range(300):
         ts = (now - datetime.timedelta(minutes=3 * i)).strftime("%Y-%m-%dT%H:%M:%SZ")
         history_mod.write_snapshot(
-            cpu_percent=float(i), memory_percent=float(i), disk_percent=float(i),
+            cpu_percent=float(i),
+            memory_percent=float(i),
+            disk_percent=float(i),
             collected_at=ts,
         )
 
