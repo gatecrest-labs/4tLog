@@ -32,13 +32,20 @@ def clear_log_stats_cache():
     cache_mod._cache = {"logging_devices": [], "silent_devices": [], "collected_at": None}
 
 
-def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, history_db, monkeypatch):
+def test_poll_all_targets_populates_cache_and_writes_rollup(
+    targets_file, history_db, monkeypatch
+):
     import app.log_stats_cache as cache_mod
     from app.log_stats_history import get_latest_rollup
 
     def fake_get_log_stats(self, adom=None):
         return [
-            {"devid": "A", "devname": "a", "last_log_timestamp": int(__import__("time").time()), "lograte": 4.0},
+            {
+                "devid": "A",
+                "devname": "a",
+                "last_log_timestamp": int(__import__("time").time()),
+                "lograte": 4.0,
+            },
             {"devid": "B", "devname": "b", "last_log_timestamp": 1, "lograte": 0.0},
         ]
 
@@ -58,7 +65,9 @@ def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, histor
     assert rollup["total_lograte"] == 4.0
 
 
-def test_poll_all_targets_skips_unreachable_target_without_aborting(targets_file, history_db, monkeypatch):
+def test_poll_all_targets_skips_unreachable_target_without_aborting(
+    targets_file, history_db, monkeypatch
+):
     import app.log_stats_cache as cache_mod
     from app.faz_client import FAZError
 
@@ -75,7 +84,9 @@ def test_poll_all_targets_skips_unreachable_target_without_aborting(targets_file
     assert cached["silent_devices"] == []
 
 
-def test_poll_all_targets_dedupes_devices_seen_across_multiple_targets(tmp_path, monkeypatch, history_db):
+def test_poll_all_targets_dedupes_devices_seen_across_multiple_targets(
+    tmp_path, monkeypatch, history_db
+):
     import app.faz_targets as faz_targets_mod
     import app.log_stats_cache as cache_mod
 
