@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-10
+
+### Added
+
+- External API: `GET /external/api/executive/summary` gains an `"infra"`
+  list — one entry per configured FortiAnalyzer target
+  (`{role, label, hostname, version, cpu, mem, disk_used_pct, ha_role,
+  status, last_updated}`), sourced from the existing `faz_health_cache`
+  poll cache with no extra network calls. Never includes a target's
+  host/IP or bearer token. Shaped to match 4thealth-plus's own `"infra"`
+  key so 4tExecutive can merge management-plane health from every source
+  into one Infrastructure card.
+
 ## 2026-07-26
 
 ### Added

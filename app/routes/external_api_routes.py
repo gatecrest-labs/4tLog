@@ -62,6 +62,40 @@ def _parse_disk_used_pct(disk_used: str | None) -> float | None:
     return round((total - free) / total * 100, 1)
 
 
+def _normalize_str(value) -> str | None:
+    """faz_health_cache uses the sentinel string "n/a" for a field that
+    couldn't be read from the target; normalize it to None here so
+    consumers (4tExecutive) see the same "no data" shape this repo's
+    sibling, 4thealth-plus, uses for its own "infra" key."""
+    if value in (None, "n/a"):
+        return None
+    return value
+
+
+def _build_infra_list(targets: list[dict]) -> list[dict]:
+    """Per-target FortiAnalyzer management-plane health, in the same shape
+    as 4thealth-plus's "infra" executive-summary key (see that repo's
+    app/executive_summary_cache.py) so 4tExecutive can merge infra health
+    from every source into one list. Sourced entirely from
+    faz_health_cache's existing poll cache — no extra network calls.
+    Never includes "host" (an IP) or any credential field."""
+    return [
+        {
+            "role": "fortianalyzer",
+            "label": t.get("label", ""),
+            "hostname": _normalize_str(t.get("hostname")),
+            "version": _normalize_str(t.get("version")),
+            "cpu": t.get("cpu"),
+            "mem": t.get("mem"),
+            "disk_used_pct": _parse_disk_used_pct(t.get("disk_used")),
+            "ha_role": _normalize_str(t.get("ha_role")),
+            "status": t.get("status"),
+            "last_updated": t.get("last_updated"),
+        }
+        for t in targets
+    ]
+
+
 @bp.route("/executive/summary")
 def executive_summary():
     gate_error = _gate()
@@ -110,5 +144,6 @@ def executive_summary():
             "silent_device_threshold_minutes": Config.SILENT_DEVICE_THRESHOLD_MINUTES,
             "log_volume_events_per_sec": log_volume_events_per_sec,
             "log_stats_collected_at": log_stats_collected_at,
+            "infra": _build_infra_list(targets),
         }
     )
