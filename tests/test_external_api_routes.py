@@ -432,3 +432,72 @@ def test_admin_access_all_zero_when_no_cache_and_no_history(client, monkeypatch)
     assert admin_access["top_failed_sources"] == []
     assert admin_access["admin_logins_outside_hours_24h"] == 0
     assert admin_access["collected_at"] is None
+
+
+def test_vpn_key_shape_from_cache(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(
+        threat_mod,
+        "get_cached",
+        lambda: {
+            "alerts_unacked_total": 0,
+            "alerts_unacked_by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+            "ips_detections_24h": 0,
+            "ips_blocked_24h": 0,
+            "ips_blocked_pct": 0.0,
+            "top_signatures": [],
+            "top_source_countries": [],
+            "failed_admin_logins_24h": 0,
+            "devices_with_failed_logins": 0,
+            "top_failed_sources": [],
+            "admin_logins_outside_hours_24h": 0,
+            "ipsec_tunnels_total": 6,
+            "ipsec_tunnels_down": 1,
+            "ssl_vpn_users_now": 12,
+            "collected_at": "2026-09-11T12:00:00+00:00",
+        },
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    assert resp.status_code == 200
+    vpn = resp.get_json()["vpn"]
+    assert vpn["ipsec_tunnels_total"] == 6
+    assert vpn["ipsec_tunnels_down"] == 1
+    assert vpn["ssl_vpn_users_now"] == 12
+    assert vpn["collected_at"] == "2026-09-11T12:00:00+00:00"
+
+
+def test_vpn_key_all_zero_when_no_cache_and_no_history(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+    import app.threat_stats_history as threat_history_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
+    monkeypatch.setattr(threat_history_mod, "get_latest_rollup", lambda: None)
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    vpn = resp.get_json()["vpn"]
+    assert vpn["ipsec_tunnels_total"] == 0
+    assert vpn["ipsec_tunnels_down"] == 0
+    assert vpn["ssl_vpn_users_now"] == 0
+    assert vpn["collected_at"] is None
