@@ -38,8 +38,15 @@ def _stub_client(
     def fake_get_alert_counts(self, adom, filter):
         return alert_counts_by_filter[filter]
 
+    call_counts: dict[str, int] = {}
+
     def fake_run_fortiview(self, adom, view, time_range, limit=1000, filter=None, **_kw):
-        return fortiview_rows_by_view[view]
+        entry = fortiview_rows_by_view[view]
+        if entry and isinstance(entry[0], list):
+            idx = call_counts.get(view, 0)
+            call_counts[view] = idx + 1
+            return entry[idx]
+        return entry
 
     monkeypatch.setattr("app.faz_client.FAZClient.get_alert_counts", fake_get_alert_counts)
     monkeypatch.setattr("app.faz_client.FAZClient.run_fortiview", fake_run_fortiview)
