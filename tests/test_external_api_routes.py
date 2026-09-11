@@ -341,3 +341,94 @@ def test_threats_key_all_zero_when_no_cache_and_no_history(client, monkeypatch):
     assert threats["top_signatures"] == []
     assert threats["top_source_countries"] == []
     assert threats["collected_at"] is None
+
+
+def test_admin_access_key_shape_from_cache(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(
+        threat_mod,
+        "get_cached",
+        lambda: {
+            "alerts_unacked_total": 0,
+            "alerts_unacked_by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+            "ips_detections_24h": 0,
+            "ips_blocked_24h": 0,
+            "ips_blocked_pct": 0.0,
+            "top_signatures": [],
+            "top_source_countries": [],
+            "failed_admin_logins_24h": 4,
+            "devices_with_failed_logins": 1,
+            "top_failed_sources": [{"source": "203.0.113.5", "count": 4}],
+            "admin_logins_outside_hours_24h": 2,
+            "collected_at": "2026-09-11T12:00:00+00:00",
+        },
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    assert resp.status_code == 200
+    admin_access = resp.get_json()["admin_access"]
+    assert admin_access["failed_admin_logins_24h"] == 4
+    assert admin_access["devices_with_failed_logins"] == 1
+    assert admin_access["top_failed_sources"] == [{"source": "203.0.113.5", "count": 4}]
+    assert admin_access["admin_logins_outside_hours_24h"] == 2
+    assert admin_access["business_hours"] == "08:00-18:00 America/Chicago"
+    assert admin_access["collected_at"] == "2026-09-11T12:00:00+00:00"
+
+
+def test_admin_access_business_hours_reflects_config_override(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+    from app.config import Config
+
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_BUSINESS_HOURS", "09:00-17:00")
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_TIMEZONE", "UTC")
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    assert resp.get_json()["admin_access"]["business_hours"] == "09:00-17:00 UTC"
+
+
+def test_admin_access_all_zero_when_no_cache_and_no_history(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+    import app.threat_stats_history as threat_history_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
+    monkeypatch.setattr(threat_history_mod, "get_latest_rollup", lambda: None)
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    admin_access = resp.get_json()["admin_access"]
+    assert admin_access["failed_admin_logins_24h"] == 0
+    assert admin_access["devices_with_failed_logins"] == 0
+    assert admin_access["top_failed_sources"] == []
+    assert admin_access["admin_logins_outside_hours_24h"] == 0
+    assert admin_access["collected_at"] is None

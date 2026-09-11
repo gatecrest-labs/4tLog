@@ -14,6 +14,16 @@
   persist in `logstats.db` alongside the existing log-volume history.
 - Admin → FAZ Targets: a per-target "Threat Polling" checkbox (default on)
   controls whether a target is included in the new threat-activity poller.
+- External API: `GET /external/api/executive/summary` gains an
+  `"admin_access"` key — failed admin login counts, devices with failed
+  logins, top 5 failed-login source IPs, and an outside-business-hours
+  admin-login count — from the existing threat-activity poller
+  (`app/threat_stats_cache.py`), now also querying FortiView's
+  `admin-logins` and `failed-authentication-attempts` reports. Business
+  hours are configurable via `ADMIN_ACCESS_BUSINESS_HOURS`/
+  `ADMIN_ACCESS_TIMEZONE` in `.env.example` (default `08:00-18:00
+  America/Chicago`). Rollups persist in `logstats.db` alongside the
+  existing threat-activity history (migration-safe column addition).
 
 ## 2026-09-10
 
