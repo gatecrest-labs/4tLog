@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime
 import threading
+from zoneinfo import ZoneInfo
 
 from app.config import Config
 
@@ -48,6 +49,47 @@ def _last_24h_range(now: datetime.datetime) -> tuple[str, str]:
     convert correctly)."""
     start = now - datetime.timedelta(hours=24)
     return start.isoformat(), now.isoformat()
+
+
+def _parse_business_hours() -> tuple[datetime.time, datetime.time]:
+    """Parse Config.ADMIN_ACCESS_BUSINESS_HOURS ("HH:MM-HH:MM") into
+    (start, end) datetime.time objects."""
+    start_str, _, end_str = Config.ADMIN_ACCESS_BUSINESS_HOURS.partition("-")
+    start_h, start_m = (int(x) for x in start_str.split(":"))
+    end_h, end_m = (int(x) for x in end_str.split(":"))
+    return datetime.time(start_h, start_m), datetime.time(end_h, end_m)
+
+
+def _business_hours_range(client, now_utc: datetime.datetime) -> tuple[str, str] | None:
+    """Today's business-hours window "so far" (per Config.ADMIN_ACCESS_TIMEZONE
+    and Config.ADMIN_ACCESS_BUSINESS_HOURS), converted to the FAZ appliance's
+    local time via client.local_time_range, as (start, end) strings suitable
+    for run_fortiview's time_range. Returns None if business hours haven't
+    started yet today in ADMIN_ACCESS_TIMEZONE (nothing to count).
+
+    Known limitation: only considers TODAY's business window intersected
+    with "now", not a rolling 24h lookback — if the poll runs shortly after
+    local midnight, yesterday's business window (which may still partly
+    fall within the trailing 24h admin-logins query) is not counted as
+    "business hours", so admin_logins_outside_hours_24h can be a slight
+    overestimate in the few hours after midnight. Acceptable for an
+    informational executive-summary metric; not exact-audit-grade.
+    """
+    start_time, end_time = _parse_business_hours()
+    tz = ZoneInfo(Config.ADMIN_ACCESS_TIMEZONE)
+    now_local = now_utc.astimezone(tz)
+    business_start_local = now_local.replace(
+        hour=start_time.hour, minute=start_time.minute, second=0, microsecond=0
+    )
+    business_end_local = now_local.replace(
+        hour=end_time.hour, minute=end_time.minute, second=0, microsecond=0
+    )
+    business_end_local = min(business_end_local, now_local)
+    if business_start_local >= business_end_local:
+        return None
+    business_start_utc = business_start_local.astimezone(datetime.timezone.utc)
+    business_end_utc = business_end_local.astimezone(datetime.timezone.utc)
+    return client.local_time_range(business_start_utc.isoformat(), business_end_utc.isoformat())
 
 
 def _merge_top_lists(lists: list[list[dict]], key: str, limit: int = 5) -> list[dict]:

@@ -175,6 +175,62 @@ def test_poll_all_targets_uses_local_time_range_for_fortiview(
     assert captured_time_ranges == [sentinel, sentinel, sentinel]
 
 
+def test_parse_business_hours_default():
+    from app.threat_stats_cache import _parse_business_hours
+
+    start, end = _parse_business_hours()
+    assert start.hour == 8 and start.minute == 0
+    assert end.hour == 18 and end.minute == 0
+
+
+def test_parse_business_hours_respects_config(monkeypatch):
+    from app.config import Config
+    from app.threat_stats_cache import _parse_business_hours
+
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_BUSINESS_HOURS", "09:30-17:15")
+    start, end = _parse_business_hours()
+    assert (start.hour, start.minute) == (9, 30)
+    assert (end.hour, end.minute) == (17, 15)
+
+
+def test_business_hours_range_returns_todays_window_so_far(monkeypatch):
+    import datetime
+
+    from app.config import Config
+    from app.threat_stats_cache import _business_hours_range
+
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_BUSINESS_HOURS", "08:00-18:00")
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_TIMEZONE", "UTC")
+
+    class FakeClient:
+        def local_time_range(self, start_iso, end_iso):
+            return (start_iso, end_iso)  # identity passthrough for this test
+
+    now_utc = datetime.datetime(2026, 9, 11, 14, 0, 0, tzinfo=datetime.timezone.utc)
+    result = _business_hours_range(FakeClient(), now_utc)
+    assert result is not None
+    start_iso, end_iso = result
+    assert start_iso.startswith("2026-09-11T08:00:00")
+    assert end_iso.startswith("2026-09-11T14:00:00")  # clamped to "now", not 18:00
+
+
+def test_business_hours_range_returns_none_before_business_hours_start(monkeypatch):
+    import datetime
+
+    from app.config import Config
+    from app.threat_stats_cache import _business_hours_range
+
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_BUSINESS_HOURS", "08:00-18:00")
+    monkeypatch.setattr(Config, "ADMIN_ACCESS_TIMEZONE", "UTC")
+
+    class FakeClient:
+        def local_time_range(self, start_iso, end_iso):
+            return (start_iso, end_iso)
+
+    now_utc = datetime.datetime(2026, 9, 11, 5, 0, 0, tzinfo=datetime.timezone.utc)
+    assert _business_hours_range(FakeClient(), now_utc) is None
+
+
 def test_poll_all_targets_zero_detections_gives_zero_blocked_pct(
     targets_file, history_db, monkeypatch
 ):

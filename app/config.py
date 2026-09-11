@@ -96,3 +96,10 @@ class Config:
     HOST_METRICS_POLL_DISABLED = (
         os.environ.get("HOST_METRICS_POLL_DISABLED", "false").lower() == "true"
     )
+
+    # Business-hours window for the admin-access anomaly detector
+    # (app/threat_stats_cache.py) — "outside hours" admin logins are
+    # flagged relative to this window. Format: "HH:MM-HH:MM" in
+    # ADMIN_ACCESS_TIMEZONE (an IANA zone name).
+    ADMIN_ACCESS_BUSINESS_HOURS = os.environ.get("ADMIN_ACCESS_BUSINESS_HOURS", "08:00-18:00")
+    ADMIN_ACCESS_TIMEZONE = os.environ.get("ADMIN_ACCESS_TIMEZONE", "America/Chicago")
