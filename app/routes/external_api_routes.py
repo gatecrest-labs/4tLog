@@ -113,6 +113,22 @@ def _build_threats(cache: dict, rollup: dict | None) -> dict:
     }
 
 
+def _build_admin_access(cache: dict, rollup: dict | None) -> dict:
+    """Admin access anomalies summary, preferring cache over history rollup.
+    Follows the same cache-first/history-fallback pattern as log stats."""
+    from app.config import Config
+
+    source = cache if cache.get("collected_at") is not None else (rollup or {})
+    return {
+        "failed_admin_logins_24h": source.get("failed_admin_logins_24h", 0),
+        "devices_with_failed_logins": source.get("devices_with_failed_logins", 0),
+        "top_failed_sources": source.get("top_failed_sources", []),
+        "admin_logins_outside_hours_24h": source.get("admin_logins_outside_hours_24h", 0),
+        "business_hours": f"{Config.ADMIN_ACCESS_BUSINESS_HOURS} {Config.ADMIN_ACCESS_TIMEZONE}",
+        "collected_at": source.get("collected_at"),
+    }
+
+
 @bp.route("/executive/summary")
 def executive_summary():
     gate_error = _gate()
@@ -156,6 +172,7 @@ def executive_summary():
         None if threat_cache.get("collected_at") is not None else get_latest_threat_rollup()
     )
     threats = _build_threats(threat_cache, threat_rollup)
+    admin_access = _build_admin_access(threat_cache, threat_rollup)
 
     return jsonify(
         {
@@ -170,5 +187,6 @@ def executive_summary():
             "log_stats_collected_at": log_stats_collected_at,
             "infra": _build_infra_list(targets),
             "threats": threats,
+            "admin_access": admin_access,
         }
     )
