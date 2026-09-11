@@ -363,6 +363,103 @@ class FAZClient:
         result = self._unwrap_result(self._post(body))
         return result.get("data", {})
 
+    def get_alert_counts(self, adom: str, filter: str) -> int:
+        """Unacknowledged/severity-filtered alert count from
+        /eventmgmt/adom/<adom>/alerts/count. Confirmed against the vendored
+        spec (api-info/.../eventmgmt.json, eventmgmt.alerts.count.get.req)
+        for the request shape; the response is NOT documented there
+        (eventmgmt.alerts.count.get.resp is null) and has not been
+        confirmed live. Parsed defensively: result["data"] may come back as
+        a one-item list ([{"count": N}]), a bare dict ({"count": N}), or a
+        bare number — anything else is treated as zero rather than raising,
+        since a count endpoint should never abort a poll cycle."""
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "get",
+            "params": [
+                {
+                    "url": f"/eventmgmt/adom/{adom}/alerts/count",
+                    "apiver": 3,
+                    "filter": filter,
+                }
+            ],
+            "session": None,
+        }
+        result = self._unwrap_result(self._post(body))
+        data = result.get("data")
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        if isinstance(data, dict):
+            return int(data.get("count", 0) or 0)
+        if isinstance(data, (int, float)):
+            return int(data)
+        return 0
+
+    def run_fortiview(
+        self,
+        adom: str,
+        view: str,
+        time_range: tuple[str, str],
+        limit: int = 1000,
+        filter: str | None = None,
+        poll_interval: float = 2.0,
+        timeout: float = 60.0,
+    ) -> list[dict]:
+        """Run a FortiView report and poll it to completion, returning its
+        result rows. Request/poll shape confirmed against the vendored spec
+        (api-info/.../fortiview.json: fortiview.view-name.run.add.{req,resp},
+        fortiview.view-name.run.tid.get.{req,resp}) — the exact column names
+        inside each returned row are NOT documented there (they vary by
+        view/report-by and the spec's row schema is a generic
+        {"field","value"} placeholder) and have not been confirmed live;
+        callers must treat row keys defensively. Same submit->poll->fetch
+        shape as search_logs(), ported to FortiView's /run and /run/<tid>
+        resources instead of /logsearch."""
+        start, end = time_range
+        submit_body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "add",
+            "params": [
+                {
+                    "url": f"/fortiview/adom/{adom}/{view}/run",
+                    "apiver": 3,
+                    "time-range": {"start": start, "end": end},
+                    "limit": limit,
+                    **({"filter": filter} if filter else {}),
+                }
+            ],
+            "session": None,
+        }
+        submit_result = self._unwrap_result(self._post(submit_body))
+        tid = submit_result.get("tid")
+        if tid is None:
+            raise FAZError(f"FortiView run submit returned no task ID: {submit_result!r}")
+
+        fetch_url = f"/fortiview/adom/{adom}/{view}/run/{tid}"
+        deadline = time.monotonic() + timeout
+        last_result: dict = {}
+        while True:
+            if time.monotonic() >= deadline:
+                raise FAZError(
+                    f"FortiView '{view}' run did not complete within {timeout}s "
+                    f"(last percentage={last_result.get('percentage', 0)})"
+                )
+            fetch_body = {
+                "jsonrpc": "2.0",
+                "id": self._next_id(),
+                "method": "get",
+                "params": [{"url": fetch_url, "apiver": 3, "limit": limit, "offset": 0}],
+                "session": None,
+            }
+            last_result = self._unwrap_result(self._post(fetch_body))
+            if last_result.get("percentage", 0) >= 100:
+                break
+            time.sleep(poll_interval)
+
+        return last_result.get("data", [])
+
     @staticmethod
     def build_filter_expression(
         source_clauses: list[str],
