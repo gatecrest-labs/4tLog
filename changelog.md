@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-11
+
+### Added
+
+- External API: `GET /external/api/executive/summary` gains a `"threats"`
+  key — unacknowledged FortiAnalyzer alert counts by severity, and 24h IPS
+  detection activity (count, blocked %, top 5 signatures, top 5 source
+  countries) — from a new background poller (`app/threat_stats_cache.py`,
+  `THREAT_STATS_POLL_INTERVAL`, default 900s) using
+  `/eventmgmt/adom/<adom>/alerts/count` and the FortiView run/poll pattern
+  (`top-type`, `top-threats`, `top-countries`, filtered to IPS). Rollups
+  persist in `logstats.db` alongside the existing log-volume history.
+- Admin → FAZ Targets: a per-target "Threat Polling" checkbox (default on)
+  controls whether a target is included in the new threat-activity poller.
+
 ## 2026-09-10
 
 ### Added

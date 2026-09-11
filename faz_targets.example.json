@@ -3,6 +3,7 @@
     "label": "FortiAnalyzer Primary",
     "host": "192.168.64.4",
     "adom": "root",
-    "token": "faz-primary-bearer-token"
+    "token": "faz-primary-bearer-token",
+    "threat_poll_enabled": true
   }
 ]
