@@ -132,7 +132,16 @@ def _build_admin_access(cache: dict, rollup: dict | None) -> dict:
 def _build_vpn(cache: dict, rollup: dict | None) -> dict:
     """VPN tunnel/SSL-VPN-user coverage summary, preferring cache over
     history rollup. Follows the same cache-first/history-fallback pattern
-    as threats/admin_access."""
+    as threats/admin_access.
+
+    Liveness here is inferred from log presence, not a live status query:
+    a session whose close event was never logged (e.g. a device reboot or
+    a logging gap) keeps a no-end-timestamp row in the 24h window and
+    counts as "up"/"connected now" for the full 24h even if the tunnel or
+    user actually disconnected hours ago — ssl_vpn_users_now in
+    particular reads like an instantaneous gauge but is really "distinct
+    users with an unterminated session logged in the last 24h."
+    """
     source = cache if cache.get("collected_at") is not None else (rollup or {})
     return {
         "ipsec_tunnels_total": source.get("ipsec_tunnels_total", 0),

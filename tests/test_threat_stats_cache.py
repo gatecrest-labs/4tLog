@@ -538,6 +538,55 @@ def test_poll_all_targets_populates_vpn_fields(targets_file, history_db, monkeyp
     assert rollup["ssl_vpn_users_now"] == 1
 
 
+def test_poll_all_targets_vpn_tunnel_identity_uses_device_and_name(
+    targets_file, history_db, monkeypatch
+):
+    """Two different devices (dvid) naming their tunnel the same
+    ("to-HQ") must be counted as two distinct tunnels, not collapsed into
+    one — a common deployment pattern that name-only keying would
+    undercount."""
+    import app.threat_stats_cache as cache_mod
+    from app.threat_stats_history import get_latest_rollup
+
+    _stub_client(
+        monkeypatch,
+        alert_counts_by_filter={
+            "ackflag=no": 0,
+            "ackflag=no and severity=critical": 0,
+            "ackflag=no and severity=high": 0,
+            "ackflag=no and severity=medium": 0,
+            "ackflag=no and severity=low": 0,
+        },
+        fortiview_rows_by_view={
+            "top-type": [],
+            "top-threats": [],
+            "top-countries": [],
+            "admin-logins": [],
+            "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [
+                # Branch 1's "to-HQ": open session -> up.
+                {"vpnname": "to-HQ", "dvid": "FGT-BRANCH-1", "e_time": 0},
+                # Branch 2's "to-HQ": same name, different device, all
+                # sessions closed -> down. Must NOT collapse into
+                # Branch 1's entry and be masked as "up".
+                {"vpnname": "to-HQ", "dvid": "FGT-BRANCH-2", "e_time": 1757600000},
+            ],
+            "ssl-dialup-ipsec": [],
+        },
+        local_time_range=("2026-09-10T08:00:00", "2026-09-11T08:00:00"),
+    )
+
+    cache_mod.poll_all_targets()
+
+    cached = cache_mod.get_cached()
+    assert cached["ipsec_tunnels_total"] == 2  # two distinct (dvid, name) tunnels
+    assert cached["ipsec_tunnels_down"] == 1  # Branch 2's to-HQ is down, Branch 1's is up
+
+    rollup = get_latest_rollup()
+    assert rollup["ipsec_tunnels_total"] == 2
+    assert rollup["ipsec_tunnels_down"] == 1
+
+
 def test_poll_all_targets_vpn_fields_zero_when_no_sessions(targets_file, history_db, monkeypatch):
     import app.threat_stats_cache as cache_mod
 
