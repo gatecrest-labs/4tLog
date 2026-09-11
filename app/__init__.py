@@ -97,6 +97,14 @@ def create_app() -> Flask:
         init_log_stats_db()
         init_log_stats_scheduler(app)
 
+    if not app.config.get("_THREAT_STATS_STARTED"):
+        app.config["_THREAT_STATS_STARTED"] = True
+        from app.threat_stats_cache import init_scheduler as init_threat_stats_scheduler
+        from app.threat_stats_history import init_db as init_threat_stats_db
+
+        init_threat_stats_db()
+        init_threat_stats_scheduler(app)
+
     if not app.config.get("_HOST_METRICS_STARTED"):
         app.config["_HOST_METRICS_STARTED"] = True
         from app.host_metrics_cache import init_scheduler as init_host_metrics_scheduler
