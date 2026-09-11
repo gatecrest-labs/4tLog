@@ -254,6 +254,44 @@ def test_business_hours_range_returns_none_before_business_hours_start(monkeypat
     assert _business_hours_range(FakeClient(), now_utc) is None
 
 
+def test_business_hours_range_returns_none_for_malformed_business_hours(monkeypatch):
+    import datetime
+
+    import app.threat_stats_cache as cache_mod
+    from app.threat_stats_cache import _business_hours_range
+
+    # See test_parse_business_hours_respects_config for why we monkeypatch
+    # cache_mod.Config rather than app.config.Config.
+    monkeypatch.setattr(cache_mod.Config, "ADMIN_ACCESS_BUSINESS_HOURS", "garbage")
+    monkeypatch.setattr(cache_mod.Config, "ADMIN_ACCESS_TIMEZONE", "UTC")
+
+    class FakeClient:
+        def local_time_range(self, start_iso, end_iso):
+            return (start_iso, end_iso)
+
+    now_utc = datetime.datetime(2026, 9, 11, 14, 0, 0, tzinfo=datetime.timezone.utc)
+    assert _business_hours_range(FakeClient(), now_utc) is None  # must not raise
+
+
+def test_business_hours_range_returns_none_for_invalid_timezone(monkeypatch):
+    import datetime
+
+    import app.threat_stats_cache as cache_mod
+    from app.threat_stats_cache import _business_hours_range
+
+    # See test_parse_business_hours_respects_config for why we monkeypatch
+    # cache_mod.Config rather than app.config.Config.
+    monkeypatch.setattr(cache_mod.Config, "ADMIN_ACCESS_BUSINESS_HOURS", "08:00-18:00")
+    monkeypatch.setattr(cache_mod.Config, "ADMIN_ACCESS_TIMEZONE", "Not/AZone")
+
+    class FakeClient:
+        def local_time_range(self, start_iso, end_iso):
+            return (start_iso, end_iso)
+
+    now_utc = datetime.datetime(2026, 9, 11, 14, 0, 0, tzinfo=datetime.timezone.utc)
+    assert _business_hours_range(FakeClient(), now_utc) is None  # must not raise
+
+
 def test_poll_all_targets_zero_detections_gives_zero_blocked_pct(
     targets_file, history_db, monkeypatch
 ):
@@ -338,6 +376,62 @@ def test_poll_all_targets_populates_admin_access_fields(targets_file, history_db
     assert rollup["failed_admin_logins_24h"] == 3
     assert rollup["devices_with_failed_logins"] == 1
     assert rollup["admin_logins_outside_hours_24h"] == 6
+
+
+def test_poll_all_targets_admin_logins_business_hours_call_uses_different_time_range(
+    targets_file, history_db, monkeypatch
+):
+    """The second "admin-logins" call (business-hours window) must receive a
+    DIFFERENT time_range than the first "admin-logins" call (24h window) —
+    otherwise business_logins == total_logins_24h always and
+    admin_logins_outside_hours_24h is permanently 0."""
+    import app.threat_stats_cache as cache_mod
+
+    business_sentinel = ("2026-09-11T08:00:00", "2026-09-11T10:00:00")
+
+    def fake_get_alert_counts(self, adom, filter):
+        return 0
+
+    admin_logins_rows_by_call = [
+        [{"fortigate": "FGT-A", "f_user": "admin", "login_num": 10, "login_fail_num": 3}],
+        [{"fortigate": "FGT-A", "f_user": "admin", "login_num": 4, "login_fail_num": 1}],
+    ]
+    admin_logins_call_count = {"n": 0}
+    captured_admin_logins_time_ranges = []
+
+    def fake_run_fortiview(self, adom, view, time_range, limit=1000, filter=None, **_kw):
+        if view == "admin-logins":
+            idx = admin_logins_call_count["n"]
+            admin_logins_call_count["n"] = idx + 1
+            captured_admin_logins_time_ranges.append(time_range)
+            return admin_logins_rows_by_call[idx]
+        return []
+
+    monkeypatch.setattr("app.faz_client.FAZClient.get_alert_counts", fake_get_alert_counts)
+    monkeypatch.setattr("app.faz_client.FAZClient.run_fortiview", fake_run_fortiview)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+    # Identity passthrough so the 24h window and the business-hours window
+    # naturally produce different strings instead of colliding on one
+    # fixed sentinel tuple.
+    monkeypatch.setattr(
+        "app.faz_client.FAZClient.local_time_range",
+        lambda self, start_iso, end_iso: (start_iso, end_iso),
+    )
+    monkeypatch.setattr(
+        "app.threat_stats_cache._business_hours_range",
+        lambda client, now: business_sentinel,
+    )
+
+    cache_mod.poll_all_targets()
+
+    assert len(captured_admin_logins_time_ranges) == 2
+    first_call_time_range, second_call_time_range = captured_admin_logins_time_ranges
+    assert first_call_time_range != second_call_time_range
+    assert second_call_time_range == business_sentinel
+
+    # total login_num (24h) = 10; business-hours login_num = 4;
+    # outside_hours = max(10 - 4, 0) = 6
+    assert cache_mod.get_cached()["admin_logins_outside_hours_24h"] == 6
 
 
 def test_poll_all_targets_admin_access_zero_when_business_hours_havent_started(

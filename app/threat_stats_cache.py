@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import datetime
 import threading
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.config import Config
 
@@ -78,9 +78,26 @@ def _business_hours_range(client, now_utc: datetime.datetime) -> tuple[str, str]
     "business hours", so admin_logins_outside_hours_24h can be a slight
     overestimate in the few hours after midnight. Acceptable for an
     informational executive-summary metric; not exact-audit-grade.
+
+    Returns None (same as the "business hours haven't started yet" case)
+    if Config.ADMIN_ACCESS_BUSINESS_HOURS is malformed or
+    Config.ADMIN_ACCESS_TIMEZONE is not a valid IANA zone name, so a
+    single bad env var degrades this metric instead of taking down the
+    whole per-target poll (see app_log call below).
     """
-    start_time, end_time = _parse_business_hours()
-    tz = ZoneInfo(Config.ADMIN_ACCESS_TIMEZONE)
+    try:
+        start_time, end_time = _parse_business_hours()
+        tz = ZoneInfo(Config.ADMIN_ACCESS_TIMEZONE)
+    except (ValueError, ZoneInfoNotFoundError) as exc:
+        from app.app_logger import app_log
+
+        app_log(
+            "WARN",
+            "threat_stats_cache",
+            "Invalid ADMIN_ACCESS_BUSINESS_HOURS/ADMIN_ACCESS_TIMEZONE config "
+            f"({Config.ADMIN_ACCESS_BUSINESS_HOURS!r} / {Config.ADMIN_ACCESS_TIMEZONE!r}): {exc}",
+        )
+        return None
     now_local = now_utc.astimezone(tz)
     business_start_local = now_local.replace(
         hour=start_time.hour, minute=start_time.minute, second=0, microsecond=0
@@ -137,6 +154,15 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
     country_rows = client.run_fortiview(
         client.adom, "top-countries", time_range, limit=5, filter="type==ips"
     )
+
+    # NOTE: "failed-authentication-attempts" (used below for
+    # top_failed_sources) covers ALL failed authentication FAZ tracks
+    # (VPN, wireless captive portal, admin login, etc. — see the vendored
+    # spec's filterable fields "vpntunnel"/"xauthuser"/"ssid"/"stamac"),
+    # not admin-logins specifically. It is NOT scoped to admin access the
+    # way failed_admin_logins_24h (from the separate "admin-logins" view)
+    # is. A future task could scope it down with a logintype/ui filter
+    # once field values are confirmed live.
 
     # Admin access anomalies (P13): row field names ("fortigate", "f_user",
     # "login_num", "login_fail_num" for admin-logins; "fortigate", "src_ip",
