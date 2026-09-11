@@ -33,6 +33,9 @@ _EMPTY_CACHE: dict = {
     "devices_with_failed_logins": 0,
     "top_failed_sources": [],
     "admin_logins_outside_hours_24h": 0,
+    "ipsec_tunnels_total": 0,
+    "ipsec_tunnels_down": 0,
+    "ssl_vpn_users_now": 0,
     "collected_at": None,
 }
 _cache: dict = dict(_EMPTY_CACHE)
@@ -197,6 +200,36 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
         business_logins = 0
     admin_logins_outside_hours_24h = max(total_logins_24h - business_logins, 0)
 
+    # VPN coverage (P14): FortiView has no live "tunnel status" field —
+    # site-to-site-ipsec/ssl-dialup-ipsec are session-log views, so
+    # liveness is inferred from the trailing 24h window: a tunnel/user is
+    # "up"/"connected now" if at least one logged session has no end
+    # timestamp (e_time/end_time falsy means still open); a tunnel is
+    # "down" if it was seen at all in the last 24h but every session for
+    # it has since closed. Same "recent log presence = liveness"
+    # philosophy as log_stats_cache.py's silent-device detection — an
+    # approximation, not a live device-config query. Row field names
+    # ("vpnname", "e_time" for site-to-site-ipsec; "f_user", "end_time"
+    # for ssl-dialup-ipsec) trace to the vendored spec's Filterable/
+    # Sortable-field appendix table — not yet confirmed live.
+    site_to_site_rows = client.run_fortiview(
+        client.adom, "site-to-site-ipsec", time_range, limit=1000
+    )
+    ssl_dialup_rows = client.run_fortiview(client.adom, "ssl-dialup-ipsec", time_range, limit=1000)
+
+    tunnel_up: dict[str, bool] = {}
+    for row in site_to_site_rows:
+        name = row.get("vpnname") or row.get("tunnelid") or ""
+        if not name:
+            continue
+        is_open = not row.get("e_time")
+        tunnel_up[name] = tunnel_up.get(name, False) or is_open
+
+    ssl_users_now_names = {
+        row.get("f_user", "") for row in ssl_dialup_rows if not row.get("end_time")
+    }
+    ssl_users_now_names.discard("")
+
     return {
         "alerts_unacked_total": alerts_unacked_total,
         "alerts_unacked_by_severity": alerts_unacked_by_severity,
@@ -217,6 +250,9 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
             for r in failed_auth_rows
         ],
         "admin_logins_outside_hours_24h": admin_logins_outside_hours_24h,
+        "ipsec_tunnel_names": set(tunnel_up.keys()),
+        "ipsec_tunnel_up_names": {name for name, up in tunnel_up.items() if up},
+        "ssl_vpn_users_now_names": ssl_users_now_names,
     }
 
 
@@ -282,6 +318,18 @@ def poll_all_targets() -> None:
     )
     top_failed_sources = _merge_top_lists([r["top_failed_sources"] for r in results], "source")
 
+    all_tunnel_names: set = (
+        set().union(*(r["ipsec_tunnel_names"] for r in results)) if results else set()
+    )
+    all_up_tunnel_names: set = (
+        set().union(*(r["ipsec_tunnel_up_names"] for r in results)) if results else set()
+    )
+    ipsec_tunnels_total = len(all_tunnel_names)
+    ipsec_tunnels_down = len(all_tunnel_names - all_up_tunnel_names)
+    ssl_vpn_users_now = (
+        len(set().union(*(r["ssl_vpn_users_now_names"] for r in results))) if results else 0
+    )
+
     collected_at = _now()
     with _lock:
         _cache["alerts_unacked_total"] = alerts_unacked_total
@@ -295,6 +343,9 @@ def poll_all_targets() -> None:
         _cache["devices_with_failed_logins"] = devices_with_failed_logins
         _cache["top_failed_sources"] = top_failed_sources
         _cache["admin_logins_outside_hours_24h"] = admin_logins_outside_hours_24h
+        _cache["ipsec_tunnels_total"] = ipsec_tunnels_total
+        _cache["ipsec_tunnels_down"] = ipsec_tunnels_down
+        _cache["ssl_vpn_users_now"] = ssl_vpn_users_now
         _cache["collected_at"] = collected_at
 
     history.init_db()
@@ -310,9 +361,9 @@ def poll_all_targets() -> None:
         devices_with_failed_logins=devices_with_failed_logins,
         top_failed_sources=top_failed_sources,
         admin_logins_outside_hours_24h=admin_logins_outside_hours_24h,
-        ipsec_tunnels_total=0,
-        ipsec_tunnels_down=0,
-        ssl_vpn_users_now=0,
+        ipsec_tunnels_total=ipsec_tunnels_total,
+        ipsec_tunnels_down=ipsec_tunnels_down,
+        ssl_vpn_users_now=ssl_vpn_users_now,
         collected_at=collected_at,
     )
     history.prune_old_rows()

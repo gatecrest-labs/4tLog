@@ -77,6 +77,8 @@ def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, histor
             "top-countries": [{"srccountry": "China", "count": 60}],
             "admin-logins": [],
             "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [],
+            "ssl-dialup-ipsec": [],
         },
     )
 
@@ -184,8 +186,9 @@ def test_poll_all_targets_uses_local_time_range_for_fortiview(
 
     cache_mod.poll_all_targets()
 
-    # top-type, top-threats, top-countries, admin-logins, failed-authentication-attempts
-    assert captured_time_ranges == [sentinel] * 5
+    # top-type, top-threats, top-countries, admin-logins,
+    # failed-authentication-attempts, site-to-site-ipsec, ssl-dialup-ipsec
+    assert captured_time_ranges == [sentinel] * 7
 
 
 def test_parse_business_hours_default():
@@ -312,6 +315,8 @@ def test_poll_all_targets_zero_detections_gives_zero_blocked_pct(
             "top-countries": [],
             "admin-logins": [],
             "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [],
+            "ssl-dialup-ipsec": [],
         },
     )
 
@@ -354,6 +359,8 @@ def test_poll_all_targets_populates_admin_access_fields(targets_file, history_db
                 {"fortigate": "FGT-A", "src_ip": "203.0.113.5", "total_num": 3},
                 {"fortigate": "FGT-A", "src_ip": "203.0.113.9", "total_num": 1},
             ],
+            "site-to-site-ipsec": [],
+            "ssl-dialup-ipsec": [],
         },
         local_time_range=("2026-09-11T08:00:00", "2026-09-11T14:00:00"),
     )
@@ -459,6 +466,8 @@ def test_poll_all_targets_admin_access_zero_when_business_hours_havent_started(
                 {"fortigate": "FGT-A", "f_user": "admin", "login_num": 5, "login_fail_num": 0},
             ],
             "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [],
+            "ssl-dialup-ipsec": [],
         },
         local_time_range=("2026-09-11T00:00:00", "2026-09-11T05:00:00"),
     )
@@ -469,3 +478,93 @@ def test_poll_all_targets_admin_access_zero_when_business_hours_havent_started(
 
     cached = cache_mod.get_cached()
     assert cached["admin_logins_outside_hours_24h"] == 5
+
+
+def test_poll_all_targets_populates_vpn_fields(targets_file, history_db, monkeypatch):
+    import app.threat_stats_cache as cache_mod
+    from app.threat_stats_history import get_latest_rollup
+
+    _stub_client(
+        monkeypatch,
+        alert_counts_by_filter={
+            "ackflag=no": 0,
+            "ackflag=no and severity=critical": 0,
+            "ackflag=no and severity=high": 0,
+            "ackflag=no and severity=medium": 0,
+            "ackflag=no and severity=low": 0,
+        },
+        fortiview_rows_by_view={
+            "top-type": [],
+            "top-threats": [],
+            "top-countries": [],
+            "admin-logins": [],
+            "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [
+                # Tunnel A: one open session (no e_time) -> up.
+                {"vpnname": "Tunnel-A", "e_time": 0, "locip": "10.0.0.1", "remip": "203.0.113.1"},
+                # Tunnel B: one closed session (has e_time) -> down (seen, but not currently open).
+                {
+                    "vpnname": "Tunnel-B",
+                    "e_time": 1757600000,
+                    "locip": "10.0.0.2",
+                    "remip": "203.0.113.2",
+                },
+                # Tunnel B again, still closed in this row too.
+                {
+                    "vpnname": "Tunnel-B",
+                    "e_time": 1757600100,
+                    "locip": "10.0.0.2",
+                    "remip": "203.0.113.2",
+                },
+            ],
+            "ssl-dialup-ipsec": [
+                {"f_user": "alice", "end_time": 0, "remip": "198.51.100.1"},  # connected now
+                {"f_user": "bob", "end_time": 1757600200, "remip": "198.51.100.2"},  # disconnected
+            ],
+        },
+        local_time_range=("2026-09-10T08:00:00", "2026-09-11T08:00:00"),
+    )
+
+    cache_mod.poll_all_targets()
+
+    cached = cache_mod.get_cached()
+    assert cached["ipsec_tunnels_total"] == 2  # Tunnel-A, Tunnel-B
+    assert cached["ipsec_tunnels_down"] == 1  # only Tunnel-B has no open session
+    assert cached["ssl_vpn_users_now"] == 1  # only alice has an open session
+
+    rollup = get_latest_rollup()
+    assert rollup["ipsec_tunnels_total"] == 2
+    assert rollup["ipsec_tunnels_down"] == 1
+    assert rollup["ssl_vpn_users_now"] == 1
+
+
+def test_poll_all_targets_vpn_fields_zero_when_no_sessions(targets_file, history_db, monkeypatch):
+    import app.threat_stats_cache as cache_mod
+
+    _stub_client(
+        monkeypatch,
+        alert_counts_by_filter={
+            "ackflag=no": 0,
+            "ackflag=no and severity=critical": 0,
+            "ackflag=no and severity=high": 0,
+            "ackflag=no and severity=medium": 0,
+            "ackflag=no and severity=low": 0,
+        },
+        fortiview_rows_by_view={
+            "top-type": [],
+            "top-threats": [],
+            "top-countries": [],
+            "admin-logins": [],
+            "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [],
+            "ssl-dialup-ipsec": [],
+        },
+        local_time_range=("2026-09-10T08:00:00", "2026-09-11T08:00:00"),
+    )
+
+    cache_mod.poll_all_targets()
+
+    cached = cache_mod.get_cached()
+    assert cached["ipsec_tunnels_total"] == 0
+    assert cached["ipsec_tunnels_down"] == 0
+    assert cached["ssl_vpn_users_now"] == 0
