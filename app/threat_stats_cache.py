@@ -43,9 +43,11 @@ def _now() -> str:
 
 
 def _last_24h_range(now: datetime.datetime) -> tuple[str, str]:
+    """Return a UTC 24h window as offset-aware ISO8601 strings, suitable as
+    input to FAZClient.local_time_range (which needs a genuine UTC offset to
+    convert correctly)."""
     start = now - datetime.timedelta(hours=24)
-    fmt = "%Y-%m-%dT%H:%M:%S%z"
-    return start.strftime(fmt), now.strftime(fmt)
+    return start.isoformat(), now.isoformat()
 
 
 def _merge_top_lists(lists: list[list[dict]], key: str, limit: int = 5) -> list[dict]:
@@ -72,7 +74,12 @@ def _poll_one_target(client) -> dict:
     }
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    time_range = _last_24h_range(now)
+    utc_start, utc_end = _last_24h_range(now)
+    # FortiAnalyzer interprets FortiView's time-range in the appliance's own
+    # configured timezone, not UTC (see FAZClient.local_time_range's
+    # docstring for the live-confirmed finding) — convert before using it,
+    # same as app/routes/log_search_routes.py does for log searches.
+    time_range = client.local_time_range(utc_start, utc_end)
 
     type_rows = client.run_fortiview(client.adom, "top-type", time_range, limit=50)
     ips_row = next((r for r in type_rows if str(r.get("type", "")).strip().lower() == "ips"), None)

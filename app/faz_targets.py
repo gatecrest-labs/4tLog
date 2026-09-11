@@ -42,7 +42,10 @@ def _load() -> list[dict]:
         return []
     try:
         with FAZ_TARGETS_FILE.open() as f:
-            return json.load(f)
+            targets = json.load(f)
+        for t in targets:
+            t.setdefault("threat_poll_enabled", True)
+        return targets
     except (json.JSONDecodeError, OSError) as exc:
         message = f"Failed to load {FAZ_TARGETS_FILE}: {exc}"
         try:
@@ -72,7 +75,12 @@ def get_target(label: str) -> dict | None:
 
 
 def _build_entry(
-    label: str, host: str, adom: str, token: str, snmp_overrides: dict | None, threat_poll_enabled: bool
+    label: str,
+    host: str,
+    adom: str,
+    token: str,
+    snmp_overrides: dict | None,
+    threat_poll_enabled: bool,
 ) -> dict:
     entry = {
         "label": label,

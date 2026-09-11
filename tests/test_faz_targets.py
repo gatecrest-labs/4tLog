@@ -27,6 +27,27 @@ def test_create_list_get(targets_file):
     assert t["token"] == "abc123"
 
 
+def test_legacy_target_missing_threat_poll_enabled_defaults_true(targets_file):
+    """A pre-existing faz_targets.json entry written before threat_poll_enabled
+    existed has no such key. list_targets()/get_target() must still report it
+    as enabled (True), matching the poller's own default, so the Admin UI
+    doesn't render a false "Off" for legacy targets."""
+    import json
+
+    from app.faz_targets import get_target, list_targets
+
+    targets_file.write_text(
+        json.dumps([{"label": "Legacy", "host": "192.168.64.5", "adom": "root", "token": "tok"}])
+    )
+
+    listed = list_targets()
+    assert listed[0]["label"] == "Legacy"
+    assert listed[0]["threat_poll_enabled"] is True
+
+    t = get_target("Legacy")
+    assert t["threat_poll_enabled"] is True
+
+
 def test_create_duplicate_label_fails(targets_file):
     from app.faz_targets import create_target
 

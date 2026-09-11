@@ -153,9 +153,7 @@ def executive_summary():
 
     threat_cache = threat_stats_cache.get_cached()
     threat_rollup = (
-        None
-        if threat_cache.get("collected_at") is not None
-        else get_latest_threat_rollup()
+        None if threat_cache.get("collected_at") is not None else get_latest_threat_rollup()
     )
     threats = _build_threats(threat_cache, threat_rollup)
 

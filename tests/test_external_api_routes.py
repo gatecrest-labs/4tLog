@@ -265,9 +265,7 @@ def test_threats_key_shape_from_cache(client, monkeypatch):
         },
     )
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     assert resp.status_code == 200
     threats = resp.get_json()["threats"]
     assert threats["alerts_unacked_total"] == 5
@@ -333,9 +331,7 @@ def test_threats_key_all_zero_when_no_cache_and_no_history(client, monkeypatch):
     monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
     monkeypatch.setattr(threat_history_mod, "get_latest_rollup", lambda: None)
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     threats = resp.get_json()["threats"]
     assert threats["alerts_unacked_total"] == 0
     expected_severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}

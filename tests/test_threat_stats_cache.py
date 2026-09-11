@@ -32,7 +32,9 @@ def clear_threat_stats_cache():
     cache_mod._cache = dict(cache_mod._EMPTY_CACHE)
 
 
-def _stub_client(monkeypatch, alert_counts_by_filter, fortiview_rows_by_view):
+def _stub_client(
+    monkeypatch, alert_counts_by_filter, fortiview_rows_by_view, local_time_range=None
+):
     def fake_get_alert_counts(self, adom, filter):
         return alert_counts_by_filter[filter]
 
@@ -42,6 +44,11 @@ def _stub_client(monkeypatch, alert_counts_by_filter, fortiview_rows_by_view):
     monkeypatch.setattr("app.faz_client.FAZClient.get_alert_counts", fake_get_alert_counts)
     monkeypatch.setattr("app.faz_client.FAZClient.run_fortiview", fake_run_fortiview)
     monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+    if local_time_range is not None:
+        monkeypatch.setattr(
+            "app.faz_client.FAZClient.local_time_range",
+            lambda self, start_iso, end_iso: local_time_range,
+        )
 
 
 def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, history_db, monkeypatch):
@@ -134,6 +141,38 @@ def test_poll_all_targets_leaves_cache_unchanged_when_target_raises(
     cache_mod.poll_all_targets()  # must not raise
 
     assert cache_mod.get_cached() == seeded
+
+
+def test_poll_all_targets_uses_local_time_range_for_fortiview(
+    targets_file, history_db, monkeypatch
+):
+    """FortiView's time-range must go through client.local_time_range (which
+    converts to the appliance's configured timezone), not a raw UTC window —
+    see FAZClient.local_time_range's docstring for the live-confirmed FAZ
+    behavior."""
+    import app.threat_stats_cache as cache_mod
+
+    sentinel = ("2026-09-10T03:00:00", "2026-09-11T03:00:00")
+    captured_time_ranges = []
+
+    def fake_get_alert_counts(self, adom, filter):
+        return 0
+
+    def fake_run_fortiview(self, adom, view, time_range, limit=1000, filter=None, **_kw):
+        captured_time_ranges.append(time_range)
+        return []
+
+    monkeypatch.setattr("app.faz_client.FAZClient.get_alert_counts", fake_get_alert_counts)
+    monkeypatch.setattr("app.faz_client.FAZClient.run_fortiview", fake_run_fortiview)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+    monkeypatch.setattr(
+        "app.faz_client.FAZClient.local_time_range",
+        lambda self, start_iso, end_iso: sentinel,
+    )
+
+    cache_mod.poll_all_targets()
+
+    assert captured_time_ranges == [sentinel, sentinel, sentinel]
 
 
 def test_poll_all_targets_zero_detections_gives_zero_blocked_pct(
