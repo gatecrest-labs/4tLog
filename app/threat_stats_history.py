@@ -19,6 +19,9 @@ _NEW_COLUMNS: dict[str, str] = {
     "devices_with_failed_logins": "INTEGER NOT NULL DEFAULT 0",
     "top_failed_sources": "TEXT NOT NULL DEFAULT '[]'",
     "admin_logins_outside_hours_24h": "INTEGER NOT NULL DEFAULT 0",
+    "ipsec_tunnels_total": "INTEGER NOT NULL DEFAULT 0",
+    "ipsec_tunnels_down": "INTEGER NOT NULL DEFAULT 0",
+    "ssl_vpn_users_now": "INTEGER NOT NULL DEFAULT 0",
 }
 
 
@@ -61,6 +64,9 @@ def write_rollup(
     devices_with_failed_logins: int,
     top_failed_sources: list[dict],
     admin_logins_outside_hours_24h: int,
+    ipsec_tunnels_total: int,
+    ipsec_tunnels_down: int,
+    ssl_vpn_users_now: int,
     collected_at: str,
 ) -> None:
     with contextlib.closing(_connect()) as conn, conn:
@@ -69,8 +75,9 @@ def write_rollup(
             "(collected_at, alerts_unacked_total, alerts_unacked_by_severity, "
             "ips_detections_24h, ips_blocked_24h, ips_blocked_pct, "
             "top_signatures, top_source_countries, failed_admin_logins_24h, "
-            "devices_with_failed_logins, top_failed_sources, admin_logins_outside_hours_24h) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "devices_with_failed_logins, top_failed_sources, admin_logins_outside_hours_24h, "
+            "ipsec_tunnels_total, ipsec_tunnels_down, ssl_vpn_users_now) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 collected_at,
                 alerts_unacked_total,
@@ -84,6 +91,9 @@ def write_rollup(
                 devices_with_failed_logins,
                 json.dumps(top_failed_sources),
                 admin_logins_outside_hours_24h,
+                ipsec_tunnels_total,
+                ipsec_tunnels_down,
+                ssl_vpn_users_now,
             ),
         )
 
@@ -94,7 +104,8 @@ def get_latest_rollup() -> dict | None:
             "SELECT collected_at, alerts_unacked_total, alerts_unacked_by_severity, "
             "ips_detections_24h, ips_blocked_24h, ips_blocked_pct, "
             "top_signatures, top_source_countries, failed_admin_logins_24h, "
-            "devices_with_failed_logins, top_failed_sources, admin_logins_outside_hours_24h "
+            "devices_with_failed_logins, top_failed_sources, admin_logins_outside_hours_24h, "
+            "ipsec_tunnels_total, ipsec_tunnels_down, ssl_vpn_users_now "
             "FROM threat_stats_history ORDER BY collected_at DESC LIMIT 1"
         ).fetchone()
     if row is None:
@@ -112,6 +123,9 @@ def get_latest_rollup() -> dict | None:
         devices_with_failed_logins,
         top_failed_sources,
         admin_logins_outside_hours_24h,
+        ipsec_tunnels_total,
+        ipsec_tunnels_down,
+        ssl_vpn_users_now,
     ) = row
     return {
         "collected_at": collected_at,
@@ -126,6 +140,9 @@ def get_latest_rollup() -> dict | None:
         "devices_with_failed_logins": devices_with_failed_logins,
         "top_failed_sources": json.loads(top_failed_sources),
         "admin_logins_outside_hours_24h": admin_logins_outside_hours_24h,
+        "ipsec_tunnels_total": ipsec_tunnels_total,
+        "ipsec_tunnels_down": ipsec_tunnels_down,
+        "ssl_vpn_users_now": ssl_vpn_users_now,
     }
 
 

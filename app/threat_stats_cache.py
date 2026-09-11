@@ -310,6 +310,9 @@ def poll_all_targets() -> None:
         devices_with_failed_logins=devices_with_failed_logins,
         top_failed_sources=top_failed_sources,
         admin_logins_outside_hours_24h=admin_logins_outside_hours_24h,
+        ipsec_tunnels_total=0,
+        ipsec_tunnels_down=0,
+        ssl_vpn_users_now=0,
         collected_at=collected_at,
     )
     history.prune_old_rows()
