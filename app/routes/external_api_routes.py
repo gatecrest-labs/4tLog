@@ -96,15 +96,33 @@ def _build_infra_list(targets: list[dict]) -> list[dict]:
     ]
 
 
+def _build_threats(cache: dict, rollup: dict | None) -> dict:
+    """Threat activity summary, preferring cache over history rollup.
+    Follows the same cache-first/history-fallback pattern as log stats."""
+    source = cache if cache.get("collected_at") is not None else (rollup or {})
+    return {
+        "alerts_unacked_total": source.get("alerts_unacked_total", 0),
+        "alerts_unacked_by_severity": source.get(
+            "alerts_unacked_by_severity", {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        ),
+        "ips_detections_24h": source.get("ips_detections_24h", 0),
+        "ips_blocked_pct": source.get("ips_blocked_pct", 0.0),
+        "top_signatures": source.get("top_signatures", []),
+        "top_source_countries": source.get("top_source_countries", []),
+        "collected_at": source.get("collected_at"),
+    }
+
+
 @bp.route("/executive/summary")
 def executive_summary():
     gate_error = _gate()
     if gate_error is not None:
         return gate_error
 
-    from app import faz_health_cache, log_stats_cache
+    from app import faz_health_cache, log_stats_cache, threat_stats_cache
     from app.config import Config
     from app.log_stats_history import get_latest_rollup
+    from app.threat_stats_history import get_latest_rollup as get_latest_threat_rollup
 
     targets = faz_health_cache.get_all_cached()
     faz_targets_total = len(targets)
@@ -133,6 +151,14 @@ def executive_summary():
             log_volume_events_per_sec = 0.0
             log_stats_collected_at = None
 
+    threat_cache = threat_stats_cache.get_cached()
+    threat_rollup = (
+        None
+        if threat_cache.get("collected_at") is not None
+        else get_latest_threat_rollup()
+    )
+    threats = _build_threats(threat_cache, threat_rollup)
+
     return jsonify(
         {
             "schema_version": 1,
@@ -145,5 +171,6 @@ def executive_summary():
             "log_volume_events_per_sec": log_volume_events_per_sec,
             "log_stats_collected_at": log_stats_collected_at,
             "infra": _build_infra_list(targets),
+            "threats": threats,
         }
     )
