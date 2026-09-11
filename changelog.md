@@ -24,6 +24,14 @@
   `ADMIN_ACCESS_TIMEZONE` in `.env.example` (default `08:00-18:00
   America/Chicago`). Rollups persist in `logstats.db` alongside the
   existing threat-activity history (migration-safe column addition).
+- External API: `GET /external/api/executive/summary` gains a `"vpn"` key
+  — `ipsec_tunnels_total`, `ipsec_tunnels_down`, `ssl_vpn_users_now` — from
+  the existing threat-activity poller (`app/threat_stats_cache.py`), now
+  also querying FortiView's `site-to-site-ipsec` and `ssl-dialup-ipsec`
+  reports. Tunnel/user liveness is inferred from open (no end-timestamp)
+  sessions in the trailing 24h window, since FortiView has no live
+  tunnel-status field. Rollups persist in `logstats.db` alongside the
+  existing threat/admin-access history (migration-safe column addition).
 
 ## 2026-09-10
 
