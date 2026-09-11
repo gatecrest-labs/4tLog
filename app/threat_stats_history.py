@@ -14,6 +14,13 @@ from pathlib import Path
 
 DB_PATH = Path(__file__).parent.parent / "logstats.db"
 
+_NEW_COLUMNS: dict[str, str] = {
+    "failed_admin_logins_24h": "INTEGER NOT NULL DEFAULT 0",
+    "devices_with_failed_logins": "INTEGER NOT NULL DEFAULT 0",
+    "top_failed_sources": "TEXT NOT NULL DEFAULT '[]'",
+    "admin_logins_outside_hours_24h": "INTEGER NOT NULL DEFAULT 0",
+}
+
 
 def _connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -36,6 +43,10 @@ def init_db() -> None:
             )
             """
         )
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(threat_stats_history)")}
+        for column, ddl_type in _NEW_COLUMNS.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE threat_stats_history ADD COLUMN {column} {ddl_type}")
 
 
 def write_rollup(
@@ -46,6 +57,10 @@ def write_rollup(
     ips_blocked_pct: float,
     top_signatures: list[dict],
     top_source_countries: list[dict],
+    failed_admin_logins_24h: int,
+    devices_with_failed_logins: int,
+    top_failed_sources: list[dict],
+    admin_logins_outside_hours_24h: int,
     collected_at: str,
 ) -> None:
     with contextlib.closing(_connect()) as conn, conn:
@@ -53,7 +68,9 @@ def write_rollup(
             "INSERT INTO threat_stats_history "
             "(collected_at, alerts_unacked_total, alerts_unacked_by_severity, "
             "ips_detections_24h, ips_blocked_24h, ips_blocked_pct, "
-            "top_signatures, top_source_countries) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "top_signatures, top_source_countries, failed_admin_logins_24h, "
+            "devices_with_failed_logins, top_failed_sources, admin_logins_outside_hours_24h) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 collected_at,
                 alerts_unacked_total,
@@ -63,6 +80,10 @@ def write_rollup(
                 ips_blocked_pct,
                 json.dumps(top_signatures),
                 json.dumps(top_source_countries),
+                failed_admin_logins_24h,
+                devices_with_failed_logins,
+                json.dumps(top_failed_sources),
+                admin_logins_outside_hours_24h,
             ),
         )
 
@@ -72,7 +93,8 @@ def get_latest_rollup() -> dict | None:
         row = conn.execute(
             "SELECT collected_at, alerts_unacked_total, alerts_unacked_by_severity, "
             "ips_detections_24h, ips_blocked_24h, ips_blocked_pct, "
-            "top_signatures, top_source_countries "
+            "top_signatures, top_source_countries, failed_admin_logins_24h, "
+            "devices_with_failed_logins, top_failed_sources, admin_logins_outside_hours_24h "
             "FROM threat_stats_history ORDER BY collected_at DESC LIMIT 1"
         ).fetchone()
     if row is None:
@@ -86,6 +108,10 @@ def get_latest_rollup() -> dict | None:
         ips_blocked_pct,
         top_signatures,
         top_source_countries,
+        failed_admin_logins_24h,
+        devices_with_failed_logins,
+        top_failed_sources,
+        admin_logins_outside_hours_24h,
     ) = row
     return {
         "collected_at": collected_at,
@@ -96,6 +122,10 @@ def get_latest_rollup() -> dict | None:
         "ips_blocked_pct": ips_blocked_pct,
         "top_signatures": json.loads(top_signatures),
         "top_source_countries": json.loads(top_source_countries),
+        "failed_admin_logins_24h": failed_admin_logins_24h,
+        "devices_with_failed_logins": devices_with_failed_logins,
+        "top_failed_sources": json.loads(top_failed_sources),
+        "admin_logins_outside_hours_24h": admin_logins_outside_hours_24h,
     }
 
 

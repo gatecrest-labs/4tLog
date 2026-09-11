@@ -183,6 +183,10 @@ def poll_all_targets() -> None:
         ips_blocked_pct=ips_blocked_pct,
         top_signatures=top_signatures,
         top_source_countries=top_source_countries,
+        failed_admin_logins_24h=0,
+        devices_with_failed_logins=0,
+        top_failed_sources=[],
+        admin_logins_outside_hours_24h=0,
         collected_at=collected_at,
     )
     history.prune_old_rows()
