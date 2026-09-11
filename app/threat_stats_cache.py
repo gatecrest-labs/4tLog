@@ -29,6 +29,10 @@ _EMPTY_CACHE: dict = {
     "ips_blocked_pct": 0.0,
     "top_signatures": [],
     "top_source_countries": [],
+    "failed_admin_logins_24h": 0,
+    "devices_with_failed_logins": 0,
+    "top_failed_sources": [],
+    "admin_logins_outside_hours_24h": 0,
     "collected_at": None,
 }
 _cache: dict = dict(_EMPTY_CACHE)
@@ -106,7 +110,7 @@ def _merge_top_lists(lists: list[list[dict]], key: str, limit: int = 5) -> list[
     return [{key: name, "count": count} for name, count in ranked[:limit]]
 
 
-def _poll_one_target(client) -> dict:
+def _poll_one_target(client, now: datetime.datetime) -> dict:
     """Collect one target's threat stats. Raises FAZError/Exception on any
     failure — the caller decides whether to skip this target or abort."""
     alerts_unacked_total = client.get_alert_counts(client.adom, "ackflag=no")
@@ -115,7 +119,6 @@ def _poll_one_target(client) -> dict:
         for sev in SEVERITIES
     }
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     utc_start, utc_end = _last_24h_range(now)
     # FortiAnalyzer interprets FortiView's time-range in the appliance's own
     # configured timezone, not UTC (see FAZClient.local_time_range's
@@ -135,6 +138,39 @@ def _poll_one_target(client) -> dict:
         client.adom, "top-countries", time_range, limit=5, filter="type==ips"
     )
 
+    # Admin access anomalies (P13): row field names ("fortigate", "f_user",
+    # "login_num", "login_fail_num" for admin-logins; "fortigate", "src_ip",
+    # "total_num" for failed-authentication-attempts) trace to the vendored
+    # spec's Filterable/Sortable-field appendix table (see this plan's
+    # Global Constraints) — not yet confirmed live against real hardware.
+    admin_logins_24h_rows = client.run_fortiview(
+        client.adom, "admin-logins", time_range, limit=1000
+    )
+    failed_auth_rows = client.run_fortiview(
+        client.adom, "failed-authentication-attempts", time_range, limit=1000
+    )
+
+    failed_admin_logins_24h = sum(
+        int(r.get("login_fail_num", 0) or 0) for r in admin_logins_24h_rows
+    )
+    total_logins_24h = sum(int(r.get("login_num", 0) or 0) for r in admin_logins_24h_rows)
+    devices_with_failed_login_names = {
+        r.get("fortigate", "")
+        for r in admin_logins_24h_rows
+        if int(r.get("login_fail_num", 0) or 0) > 0
+    }
+    devices_with_failed_login_names.discard("")
+
+    business_range = _business_hours_range(client, now)
+    if business_range is not None:
+        business_rows = client.run_fortiview(
+            client.adom, "admin-logins", business_range, limit=1000
+        )
+        business_logins = sum(int(r.get("login_num", 0) or 0) for r in business_rows)
+    else:
+        business_logins = 0
+    admin_logins_outside_hours_24h = max(total_logins_24h - business_logins, 0)
+
     return {
         "alerts_unacked_total": alerts_unacked_total,
         "alerts_unacked_by_severity": alerts_unacked_by_severity,
@@ -148,6 +184,13 @@ def _poll_one_target(client) -> dict:
             {"country": r.get("srccountry", ""), "count": int(r.get("count", 0) or 0)}
             for r in country_rows
         ],
+        "failed_admin_logins_24h": failed_admin_logins_24h,
+        "devices_with_failed_login_names": devices_with_failed_login_names,
+        "top_failed_sources": [
+            {"source": r.get("src_ip", ""), "count": int(r.get("total_num", 0) or 0)}
+            for r in failed_auth_rows
+        ],
+        "admin_logins_outside_hours_24h": admin_logins_outside_hours_24h,
     }
 
 
@@ -157,6 +200,7 @@ def poll_all_targets() -> None:
     from app.faz_client import FAZClient, FAZError, summarize_connection_error
     from app.faz_targets import list_targets
 
+    now = datetime.datetime.now(datetime.timezone.utc)
     results: list[dict] = []
     polled_ok = False
     for target in list_targets():
@@ -173,7 +217,7 @@ def poll_all_targets() -> None:
                 verify_ssl=Config.FAZ_VERIFY_SSL,
                 timeout=Config.FAZ_REQUEST_TIMEOUT,
             ) as client:
-                results.append(_poll_one_target(client))
+                results.append(_poll_one_target(client, now))
         except FAZError as exc:
             app_log("WARN", "threat_stats_cache", f"threat-stats poll failed for {label}: {exc}")
             continue
@@ -205,6 +249,13 @@ def poll_all_targets() -> None:
     top_signatures = _merge_top_lists([r["top_signatures"] for r in results], "signature")
     top_source_countries = _merge_top_lists([r["top_source_countries"] for r in results], "country")
 
+    failed_admin_logins_24h = sum(r["failed_admin_logins_24h"] for r in results)
+    admin_logins_outside_hours_24h = sum(r["admin_logins_outside_hours_24h"] for r in results)
+    devices_with_failed_logins = (
+        len(set().union(*(r["devices_with_failed_login_names"] for r in results))) if results else 0
+    )
+    top_failed_sources = _merge_top_lists([r["top_failed_sources"] for r in results], "source")
+
     collected_at = _now()
     with _lock:
         _cache["alerts_unacked_total"] = alerts_unacked_total
@@ -214,6 +265,10 @@ def poll_all_targets() -> None:
         _cache["ips_blocked_pct"] = ips_blocked_pct
         _cache["top_signatures"] = top_signatures
         _cache["top_source_countries"] = top_source_countries
+        _cache["failed_admin_logins_24h"] = failed_admin_logins_24h
+        _cache["devices_with_failed_logins"] = devices_with_failed_logins
+        _cache["top_failed_sources"] = top_failed_sources
+        _cache["admin_logins_outside_hours_24h"] = admin_logins_outside_hours_24h
         _cache["collected_at"] = collected_at
 
     history.init_db()
@@ -225,10 +280,10 @@ def poll_all_targets() -> None:
         ips_blocked_pct=ips_blocked_pct,
         top_signatures=top_signatures,
         top_source_countries=top_source_countries,
-        failed_admin_logins_24h=0,
-        devices_with_failed_logins=0,
-        top_failed_sources=[],
-        admin_logins_outside_hours_24h=0,
+        failed_admin_logins_24h=failed_admin_logins_24h,
+        devices_with_failed_logins=devices_with_failed_logins,
+        top_failed_sources=top_failed_sources,
+        admin_logins_outside_hours_24h=admin_logins_outside_hours_24h,
         collected_at=collected_at,
     )
     history.prune_old_rows()
