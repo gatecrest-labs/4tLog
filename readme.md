@@ -66,7 +66,13 @@ Project documentation:
   silent-device counts (from FortiAnalyzer `logview/logstats`, polled
   independently of the SNMP health cycle — see
   `SILENT_DEVICE_THRESHOLD_MINUTES`/`LOG_STATS_POLL_INTERVAL` in
-  `.env.example`), and fleet log volume.
+  `.env.example`), and fleet log volume. Also includes a per-target `"infra"`
+  list — `{role: "fortianalyzer", label, hostname, version, cpu, mem,
+  disk_used_pct, ha_role, status, last_updated}` for every configured FAZ
+  target, sourced from `app/faz_health_cache.py`'s existing poll cache (no
+  extra network calls) — never includes a target's host/IP or token. Shaped
+  to match 4thealth-plus's own `"infra"` executive-summary key so
+  4tExecutive can merge management-plane health from every source.
 - **Inline Help**: a "?" button in the nav opens a help panel with
   Dashboard/Log Search/Admin guidance, filtered to the logged-in user's
   permitted tabs

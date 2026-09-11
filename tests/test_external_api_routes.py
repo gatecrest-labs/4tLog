@@ -105,6 +105,111 @@ def test_happy_path_shape(client, monkeypatch):
     assert body["log_stats_collected_at"] == "2026-08-29T18:00:00Z"
 
 
+def test_infra_key_shape_and_no_host_or_credentials(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+
+    monkeypatch.setattr(
+        health_mod,
+        "get_all_cached",
+        lambda: [
+            {
+                "label": "Primary",
+                "host": "10.0.0.5",
+                "token": "secret",
+                "status": "green",
+                "hostname": "faz1.local",
+                "version": "v7.4.5",
+                "ha_role": "master",
+                "cpu": 12.0,
+                "mem": 30.0,
+                "disk_used": "Free 40GB, Total 100GB",
+                "last_updated": "2026-09-10T00:00:00Z",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    body = resp.get_json()
+
+    assert body["infra"] == [{
+        "role": "fortianalyzer",
+        "label": "Primary",
+        "hostname": "faz1.local",
+        "version": "v7.4.5",
+        "cpu": 12.0,
+        "mem": 30.0,
+        "disk_used_pct": 60.0,
+        "ha_role": "master",
+        "status": "green",
+        "last_updated": "2026-09-10T00:00:00Z",
+    }]
+    assert "host" not in body["infra"][0]
+    assert "token" not in body["infra"][0]
+
+
+def test_infra_normalizes_na_sentinel_to_none(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+
+    monkeypatch.setattr(
+        health_mod,
+        "get_all_cached",
+        lambda: [
+            {
+                "label": "Primary",
+                "status": "gray",
+                "hostname": "n/a",
+                "version": "n/a",
+                "ha_role": "n/a",
+                "cpu": None,
+                "mem": None,
+                "disk_used": "n/a",
+                "last_updated": None,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    infra = resp.get_json()["infra"][0]
+
+    assert infra["hostname"] is None
+    assert infra["version"] is None
+    assert infra["ha_role"] is None
+    assert infra["disk_used_pct"] is None
+
+
+def test_infra_empty_list_when_no_targets(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    assert resp.get_json()["infra"] == []
+
+
 def test_falls_back_to_persisted_rollup_when_cache_empty(client, monkeypatch):
     raw = _enable_and_token()
 
