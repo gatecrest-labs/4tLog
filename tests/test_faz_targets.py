@@ -135,3 +135,25 @@ def test_delete_target(targets_file):
     assert delete_target("Primary") is True
     assert list_targets() == []
     assert delete_target("Primary") is False
+
+
+def test_create_target_defaults_threat_poll_enabled_true(targets_file):
+    from app.faz_targets import create_target, get_target
+
+    create_target("Primary", host="192.168.64.4")
+    assert get_target("Primary")["threat_poll_enabled"] is True
+
+
+def test_create_target_threat_poll_enabled_false(targets_file):
+    from app.faz_targets import create_target, get_target
+
+    create_target("Primary", host="192.168.64.4", threat_poll_enabled=False)
+    assert get_target("Primary")["threat_poll_enabled"] is False
+
+
+def test_update_target_changes_threat_poll_enabled(targets_file):
+    from app.faz_targets import create_target, get_target, update_target
+
+    create_target("Primary", host="192.168.64.4")
+    update_target("Primary", host="192.168.64.4", adom="root", token="", threat_poll_enabled=False)
+    assert get_target("Primary")["threat_poll_enabled"] is False

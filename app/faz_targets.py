@@ -71,8 +71,16 @@ def get_target(label: str) -> dict | None:
     return None
 
 
-def _build_entry(label: str, host: str, adom: str, token: str, snmp_overrides: dict | None) -> dict:
-    entry = {"label": label, "host": host, "adom": adom, "token": token}
+def _build_entry(
+    label: str, host: str, adom: str, token: str, snmp_overrides: dict | None, threat_poll_enabled: bool
+) -> dict:
+    entry = {
+        "label": label,
+        "host": host,
+        "adom": adom,
+        "token": token,
+        "threat_poll_enabled": threat_poll_enabled,
+    }
     for key, value in (snmp_overrides or {}).items():
         if key in _SNMP_FIELDS and value:
             entry[key] = value
@@ -85,6 +93,7 @@ def create_target(
     adom: str = "root",
     token: str = "",
     snmp_overrides: dict | None = None,
+    threat_poll_enabled: bool = True,
 ) -> bool:
     """Returns False if a target with this label already exists."""
     label = label.strip()
@@ -94,7 +103,7 @@ def create_target(
         targets = _load()
         if any(t.get("label") == label for t in targets):
             return False
-        targets.append(_build_entry(label, host, adom, token, snmp_overrides))
+        targets.append(_build_entry(label, host, adom, token, snmp_overrides, threat_poll_enabled))
         _save(targets)
     return True
 
@@ -105,6 +114,7 @@ def update_target(
     adom: str,
     token: str,
     snmp_overrides: dict | None = None,
+    threat_poll_enabled: bool = True,
 ) -> bool:
     """Returns False if no target with this label exists.
 
@@ -124,7 +134,9 @@ def update_target(
                 effective_token = token if token else t.get("token", "")
                 merged_overrides = {key: t[key] for key in _SNMP_FIELDS if key in t}
                 merged_overrides.update(snmp_overrides or {})
-                targets[i] = _build_entry(label, host, adom, effective_token, merged_overrides)
+                targets[i] = _build_entry(
+                    label, host, adom, effective_token, merged_overrides, threat_poll_enabled
+                )
                 _save(targets)
                 return True
     return False
