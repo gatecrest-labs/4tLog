@@ -226,6 +226,53 @@ def test_faz_targets_missing_label_rejected(client, faz_targets_file):
     assert resp.status_code == 400
 
 
+def test_faz_targets_create_defaults_threat_poll_enabled_true(client, faz_targets_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+    resp = client.post(
+        "/admin/api/faz-targets",
+        json={"label": "Primary", "host": "192.168.64.4", "adom": "root", "token": "tok"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 201
+    assert resp.get_json()["threat_poll_enabled"] is True
+
+
+def test_faz_targets_create_threat_poll_enabled_false(client, faz_targets_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+    resp = client.post(
+        "/admin/api/faz-targets",
+        json={
+            "label": "Primary",
+            "host": "192.168.64.4",
+            "adom": "root",
+            "token": "tok",
+            "threat_poll_enabled": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 201
+    assert resp.get_json()["threat_poll_enabled"] is False
+
+
+def test_faz_targets_update_threat_poll_enabled(client, faz_targets_file):
+    _login(client, "admin1")
+    csrf = _csrf(client)
+    client.post(
+        "/admin/api/faz-targets",
+        json={"label": "Primary", "host": "192.168.64.4", "adom": "root", "token": "tok"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    resp = client.put(
+        "/admin/api/faz-targets/Primary",
+        json={"host": "192.168.64.4", "adom": "root", "threat_poll_enabled": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["threat_poll_enabled"] is False
+
+
 def test_faz_targets_responses_do_not_leak_raw_token(client, faz_targets_file):
     # List/create/update responses must not include a usable raw token —
     # only a token_set boolean. Putting a live FAZ credential in API

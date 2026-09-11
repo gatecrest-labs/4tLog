@@ -175,7 +175,8 @@ def api_faz_targets_create():
     adom = data.get("adom", "root")
     token = data.get("token", "")
     snmp_overrides = {k: data[k] for k in _SNMP_OVERRIDE_FIELDS if data.get(k)}
-    ok = create_target(label, host, adom, token, snmp_overrides)
+    threat_poll_enabled = bool(data.get("threat_poll_enabled", True))
+    ok = create_target(label, host, adom, token, snmp_overrides, threat_poll_enabled)
     if not ok:
         return jsonify({"error": f"Target '{label}' already exists"}), 409
     app_log("INFO", "admin", "FAZ target created", by=session["user"], target=label)
@@ -194,7 +195,8 @@ def api_faz_targets_update(label: str):
     # prior token whenever this is empty.
     token = data.get("token", "")
     snmp_overrides = {k: data[k] for k in _SNMP_OVERRIDE_FIELDS if data.get(k)}
-    ok = update_target(label, host, adom, token, snmp_overrides)
+    threat_poll_enabled = bool(data.get("threat_poll_enabled", True))
+    ok = update_target(label, host, adom, token, snmp_overrides, threat_poll_enabled)
     if not ok:
         return jsonify({"error": f"Target '{label}' not found"}), 404
     app_log("INFO", "admin", "FAZ target updated", by=session["user"], target=label)
