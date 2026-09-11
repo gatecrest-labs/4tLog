@@ -139,18 +139,20 @@ def test_infra_key_shape_and_no_host_or_credentials(client, monkeypatch):
     resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     body = resp.get_json()
 
-    assert body["infra"] == [{
-        "role": "fortianalyzer",
-        "label": "Primary",
-        "hostname": "faz1.local",
-        "version": "v7.4.5",
-        "cpu": 12.0,
-        "mem": 30.0,
-        "disk_used_pct": 60.0,
-        "ha_role": "master",
-        "status": "green",
-        "last_updated": "2026-09-10T00:00:00Z",
-    }]
+    assert body["infra"] == [
+        {
+            "role": "fortianalyzer",
+            "label": "Primary",
+            "hostname": "faz1.local",
+            "version": "v7.4.5",
+            "cpu": 12.0,
+            "mem": 30.0,
+            "disk_used_pct": 60.0,
+            "ha_role": "master",
+            "status": "green",
+            "last_updated": "2026-09-10T00:00:00Z",
+        }
+    ]
     assert "host" not in body["infra"][0]
     assert "token" not in body["infra"][0]
 
