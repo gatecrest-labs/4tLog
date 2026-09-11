@@ -27,6 +27,27 @@ def test_create_list_get(targets_file):
     assert t["token"] == "abc123"
 
 
+def test_legacy_target_missing_threat_poll_enabled_defaults_true(targets_file):
+    """A pre-existing faz_targets.json entry written before threat_poll_enabled
+    existed has no such key. list_targets()/get_target() must still report it
+    as enabled (True), matching the poller's own default, so the Admin UI
+    doesn't render a false "Off" for legacy targets."""
+    import json
+
+    from app.faz_targets import get_target, list_targets
+
+    targets_file.write_text(
+        json.dumps([{"label": "Legacy", "host": "192.168.64.5", "adom": "root", "token": "tok"}])
+    )
+
+    listed = list_targets()
+    assert listed[0]["label"] == "Legacy"
+    assert listed[0]["threat_poll_enabled"] is True
+
+    t = get_target("Legacy")
+    assert t["threat_poll_enabled"] is True
+
+
 def test_create_duplicate_label_fails(targets_file):
     from app.faz_targets import create_target
 
@@ -135,3 +156,25 @@ def test_delete_target(targets_file):
     assert delete_target("Primary") is True
     assert list_targets() == []
     assert delete_target("Primary") is False
+
+
+def test_create_target_defaults_threat_poll_enabled_true(targets_file):
+    from app.faz_targets import create_target, get_target
+
+    create_target("Primary", host="192.168.64.4")
+    assert get_target("Primary")["threat_poll_enabled"] is True
+
+
+def test_create_target_threat_poll_enabled_false(targets_file):
+    from app.faz_targets import create_target, get_target
+
+    create_target("Primary", host="192.168.64.4", threat_poll_enabled=False)
+    assert get_target("Primary")["threat_poll_enabled"] is False
+
+
+def test_update_target_changes_threat_poll_enabled(targets_file):
+    from app.faz_targets import create_target, get_target, update_target
+
+    create_target("Primary", host="192.168.64.4")
+    update_target("Primary", host="192.168.64.4", adom="root", token="", threat_poll_enabled=False)
+    assert get_target("Primary")["threat_poll_enabled"] is False

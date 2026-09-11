@@ -71,6 +71,17 @@ class Config:
     # poller (real network calls) during the test suite.
     LOG_STATS_POLL_DISABLED = os.environ.get("LOG_STATS_POLL_DISABLED", "false").lower() == "true"
 
+    # Threat activity polling (app/threat_stats_cache.py) — unacked alert
+    # counts and 24h IPS detection activity, independent cadence since it's
+    # a heavier FortiView run/poll call rather than a single cheap query.
+    THREAT_STATS_POLL_INTERVAL = int(os.environ.get("THREAT_STATS_POLL_INTERVAL", "900"))
+
+    # Set by tests/conftest.py to skip starting the background threat-stats
+    # poller (real network calls) during the test suite.
+    THREAT_STATS_POLL_DISABLED = (
+        os.environ.get("THREAT_STATS_POLL_DISABLED", "false").lower() == "true"
+    )
+
     # Set by tests/conftest.py to skip starting the background health
     # poller (real network/SNMP calls) during the test suite.
     FAZ_HEALTH_POLL_DISABLED = os.environ.get("FAZ_HEALTH_POLL_DISABLED", "false").lower() == "true"

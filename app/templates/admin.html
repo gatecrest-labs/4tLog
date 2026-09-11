@@ -64,7 +64,7 @@
   <div class="table-wrapper">
     <table class="data-table" id="fazTargetsTable">
       <thead>
-        <tr><th>Label</th><th>Host</th><th>ADOM</th><th>Actions</th></tr>
+        <tr><th>Label</th><th>Host</th><th>ADOM</th><th>Threat Polling</th><th>Actions</th></tr>
       </thead>
       <tbody id="fazTargetsTbody"></tbody>
     </table>
@@ -247,6 +247,12 @@
       <div class="form-group">
         <label>API Token</label>
         <input type="text" class="form-control" id="fazTargetTokenInput" placeholder="Bearer token" />
+      </div>
+      <div class="form-group form-check">
+        <label>
+          <input type="checkbox" id="fazTargetThreatPollInput" checked />
+          Include in threat polling (unacked alerts, IPS activity) (uncheck on HA secondaries to avoid double-counting)
+        </label>
       </div>
       <div id="fazTargetModalError" class="alert alert-danger hidden"></div>
     </div>

@@ -235,3 +235,109 @@ def test_falls_back_to_persisted_rollup_when_cache_empty(client, monkeypatch):
     assert body["devices_silent"] == 1
     assert body["log_volume_events_per_sec"] == 12.5
     assert body["log_stats_collected_at"] == "2026-08-29T17:00:00Z"
+
+
+def test_threats_key_shape_from_cache(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(
+        threat_mod,
+        "get_cached",
+        lambda: {
+            "alerts_unacked_total": 5,
+            "alerts_unacked_by_severity": {"critical": 1, "high": 2, "medium": 1, "low": 1},
+            "ips_detections_24h": 100,
+            "ips_blocked_24h": 80,
+            "ips_blocked_pct": 80.0,
+            "top_signatures": [{"signature": "Eicar.Test.Virus", "count": 40}],
+            "top_source_countries": [{"country": "China", "count": 60}],
+            "collected_at": "2026-09-11T00:00:00+00:00",
+        },
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    assert resp.status_code == 200
+    threats = resp.get_json()["threats"]
+    assert threats["alerts_unacked_total"] == 5
+    expected_severity = {"critical": 1, "high": 2, "medium": 1, "low": 1}
+    assert threats["alerts_unacked_by_severity"] == expected_severity
+    assert threats["ips_detections_24h"] == 100
+    assert threats["ips_blocked_pct"] == 80.0
+    assert threats["top_signatures"] == [{"signature": "Eicar.Test.Virus", "count": 40}]
+    assert threats["top_source_countries"] == [{"country": "China", "count": 60}]
+    assert threats["collected_at"] == "2026-09-11T00:00:00+00:00"
+
+
+def test_threats_key_falls_back_to_history_when_cache_empty(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+    import app.threat_stats_history as threat_history_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
+    monkeypatch.setattr(
+        threat_history_mod,
+        "get_latest_rollup",
+        lambda: {
+            "alerts_unacked_total": 2,
+            "alerts_unacked_by_severity": {"critical": 0, "high": 0, "medium": 1, "low": 1},
+            "ips_detections_24h": 10,
+            "ips_blocked_24h": 5,
+            "ips_blocked_pct": 50.0,
+            "top_signatures": [],
+            "top_source_countries": [],
+            "collected_at": "2026-09-10T00:00:00+00:00",
+        },
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    threats = resp.get_json()["threats"]
+    assert threats["alerts_unacked_total"] == 2
+    assert threats["collected_at"] == "2026-09-10T00:00:00+00:00"
+
+
+def test_threats_key_all_zero_when_no_cache_and_no_history(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+    import app.threat_stats_history as threat_history_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
+    monkeypatch.setattr(threat_history_mod, "get_latest_rollup", lambda: None)
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    threats = resp.get_json()["threats"]
+    assert threats["alerts_unacked_total"] == 0
+    expected_severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    assert threats["alerts_unacked_by_severity"] == expected_severity
+    assert threats["ips_detections_24h"] == 0
+    assert threats["ips_blocked_pct"] == 0.0
+    assert threats["top_signatures"] == []
+    assert threats["top_source_countries"] == []
+    assert threats["collected_at"] is None

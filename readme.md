@@ -37,7 +37,7 @@ Project documentation:
 - **Admin → FAZ Targets**: CRUD for the FortiAnalyzer appliances the
   Dashboard polls (label, host, ADOM, bearer token, optional per-target SNMP
   credential overrides) — backed by `faz_targets.json`, edits take effect on
-  the next poll cycle without an app restart
+  the next poll cycle without an app restart, and a per-target **Threat Polling** checkbox (default on) controlling whether it's included in the threat-activity collector below. Uncheck it on HA secondary units, since the collector sums across every enabled target and both units in an HA pair otherwise report the same underlying data, double-counting.
 - **Admin → Host Metrics**: this server's own CPU/Memory/Disk utilization,
   charted over a selectable time range (1 hour up to 14 days). This is about
   the 4tlog host itself, not any FortiAnalyzer appliance — useful for
@@ -73,6 +73,7 @@ Project documentation:
   extra network calls) — never includes a target's host/IP or token. Shaped
   to match 4thealth-plus's own `"infra"` executive-summary key so
   4tExecutive can merge management-plane health from every source.
+  Also includes a `"threats"` key — `{alerts_unacked_total, alerts_unacked_by_severity: {critical, high, medium, low}, ips_detections_24h, ips_blocked_pct, top_signatures: [{signature, count}] (top 5), top_source_countries: [{country, count}] (top 5), collected_at}` — from a third background poller (`app/threat_stats_cache.py`, `THREAT_STATS_POLL_INTERVAL` in `.env.example`, default 900s) that queries each FAZ target's unacknowledged alert counts (`/eventmgmt/adom/<adom>/alerts/count`) and 24h FortiView Threat Type / Threats / Countries reports, filtered to IPS. Targets can be excluded via the **Threat Polling** checkbox in Admin → FAZ Targets — this collector sums across every enabled target with no device-level dedup, so HA secondary units should have the checkbox unchecked to avoid double-counting.
 - **Inline Help**: a "?" button in the nav opens a help panel with
   Dashboard/Log Search/Admin guidance, filtered to the logged-in user's
   permitted tabs

@@ -487,3 +487,110 @@ def test_get_log_stats_empty_devs_list(monkeypatch):
         [{"jsonrpc": "2.0", "id": 1, "result": {"data": {"devs": []}}}],
     )
     assert client.get_log_stats() == []
+
+
+def test_get_alert_counts_parses_list_shape(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [{"jsonrpc": "2.0", "id": 1, "result": [{"data": [{"count": 7}]}]}],
+    )
+    assert client.get_alert_counts("root", "ackflag=no") == 7
+    assert calls[0]["json"]["params"][0]["url"] == "/eventmgmt/adom/root/alerts/count"
+    assert calls[0]["json"]["params"][0]["filter"] == "ackflag=no"
+
+
+def test_get_alert_counts_parses_bare_dict_shape(monkeypatch):
+    client, _ = _client(
+        monkeypatch,
+        [{"jsonrpc": "2.0", "id": 1, "result": [{"data": {"count": 3}}]}],
+    )
+    assert client.get_alert_counts("root", "ackflag=no and severity=critical") == 3
+
+
+def test_get_alert_counts_returns_zero_on_unrecognized_shape(monkeypatch):
+    client, _ = _client(
+        monkeypatch,
+        [{"jsonrpc": "2.0", "id": 1, "result": [{"data": []}]}],
+    )
+    assert client.get_alert_counts("root", "ackflag=no") == 0
+
+
+def test_run_fortiview_submits_and_polls_to_completion(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [
+            {"jsonrpc": "2.0", "id": 1, "result": {"tid": 42}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"percentage": 40, "data": [], "status": {"code": 0, "message": "OK"}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "result": {
+                    "percentage": 100,
+                    "data": [{"threatname": "Eicar.Test.Virus", "count": 12}],
+                    "status": {"code": 0, "message": "OK"},
+                },
+            },
+        ],
+    )
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    rows = client.run_fortiview(
+        "root", "top-threats", ("2026-09-10T00:00:00+00:00", "2026-09-11T00:00:00+00:00"), limit=5
+    )
+    assert rows == [{"threatname": "Eicar.Test.Virus", "count": 12}]
+    assert calls[0]["json"]["params"][0]["url"] == "/fortiview/adom/root/top-threats/run"
+    assert calls[0]["json"]["method"] == "add"
+    assert calls[0]["json"]["params"][0]["limit"] == 5
+    assert calls[1]["json"]["params"][0]["url"] == "/fortiview/adom/root/top-threats/run/42"
+    assert calls[1]["json"]["method"] == "get"
+
+
+def test_run_fortiview_passes_filter_when_given(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [
+            {"jsonrpc": "2.0", "id": 1, "result": {"tid": 1}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"percentage": 100, "data": [], "status": {"code": 0, "message": "OK"}},
+            },
+        ],
+    )
+    client.run_fortiview(
+        "root",
+        "top-type",
+        ("2026-09-10T00:00:00+00:00", "2026-09-11T00:00:00+00:00"),
+        filter="type==ips",
+    )
+    assert calls[0]["json"]["params"][0]["filter"] == "type==ips"
+
+
+def test_run_fortiview_raises_on_timeout(monkeypatch):
+    from app.faz_client import FAZError
+
+    client, _ = _client(
+        monkeypatch,
+        [
+            {"jsonrpc": "2.0", "id": 1, "result": {"tid": 1}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"percentage": 50, "data": [], "status": {"code": 0, "message": "OK"}},
+            },
+        ]
+        * 5,
+    )
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    now = [0.0]
+    monkeypatch.setattr("time.monotonic", lambda: now.__setitem__(0, now[0] + 10) or now[0])
+    with pytest.raises(FAZError, match="did not complete"):
+        client.run_fortiview(
+            "root",
+            "top-threats",
+            ("2026-09-10T00:00:00+00:00", "2026-09-11T00:00:00+00:00"),
+            timeout=5.0,
+        )

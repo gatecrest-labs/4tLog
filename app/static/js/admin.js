@@ -168,6 +168,7 @@
       tr.appendChild(el('td', { text: t.label }));
       tr.appendChild(el('td', { text: t.host }));
       tr.appendChild(el('td', { text: t.adom }));
+      tr.appendChild(el('td', { text: t.threat_poll_enabled ? 'On' : 'Off' }));
       const actions = el('td', {});
       const editBtn = el('button', { class: 'btn btn-sm', text: 'Edit' });
       editBtn.addEventListener('click', () => openFazTargetModal(t));
@@ -207,6 +208,7 @@
     const tokenInput = document.getElementById('fazTargetTokenInput');
     tokenInput.value = '';
     tokenInput.placeholder = target ? 'Leave blank to keep existing token' : 'Bearer token';
+    document.getElementById('fazTargetThreatPollInput').checked = target ? !!target.threat_poll_enabled : true;
     document.getElementById('fazTargetModalError').classList.add('hidden');
     modal.classList.remove('hidden');
   }
@@ -222,6 +224,7 @@
     const host = document.getElementById('fazTargetHostInput').value.trim();
     const adom = document.getElementById('fazTargetAdomInput').value.trim() || 'root';
     const token = document.getElementById('fazTargetTokenInput').value.trim();
+    const threatPollEnabled = document.getElementById('fazTargetThreatPollInput').checked;
 
     const errBox = document.getElementById('fazTargetModalError');
     errBox.classList.add('hidden');
@@ -231,12 +234,12 @@
       resp = await fetch('/admin/api/faz-targets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, host, adom, token }),
+        body: JSON.stringify({ label, host, adom, token, threat_poll_enabled: threatPollEnabled }),
       });
     } else {
       // A blank token field means "keep the existing token" — only send it
       // if the admin actually typed a replacement value.
-      const body = { host, adom };
+      const body = { host, adom, threat_poll_enabled: threatPollEnabled };
       if (token) body.token = token;
       resp = await fetch(`/admin/api/faz-targets/${encodeURIComponent(origLabel)}`, {
         method: 'PUT',
