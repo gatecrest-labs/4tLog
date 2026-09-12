@@ -83,34 +83,46 @@ def create_app() -> Flask:
             "csrf_token": ensure_csrf_token(),
         }
 
-    if not app.config.get("_FAZ_HEALTH_STARTED"):
-        app.config["_FAZ_HEALTH_STARTED"] = True
-        from app.faz_health_cache import init_scheduler as init_faz_health_scheduler
+    # DB tables must exist regardless of which process polls into them — a
+    # web worker reads them (via each cache's SQLite read-through
+    # fallback, or history rollups) even when it never runs a scheduler
+    # itself.
+    from app.host_metrics_history import init_db as init_host_metrics_db
+    from app.log_stats_history import init_db as init_log_stats_db
+    from app.threat_stats_history import init_db as init_threat_stats_db
 
-        init_faz_health_scheduler(app)
+    init_log_stats_db()
+    init_threat_stats_db()
+    init_host_metrics_db()
 
-    if not app.config.get("_LOG_STATS_STARTED"):
-        app.config["_LOG_STATS_STARTED"] = True
-        from app.log_stats_cache import init_scheduler as init_log_stats_scheduler
-        from app.log_stats_history import init_db as init_log_stats_db
+    # RUN_SCHEDULERS=inline reproduces the historical single-process
+    # behavior for local development. Otherwise (the default), this
+    # process starts no BackgroundScheduler jobs at all — a separate
+    # `python -m app.collector` process owns every poller instead. See
+    # app/collector.py and app/collector_store.py.
+    if Config.RUN_SCHEDULERS == "inline":
+        if not app.config.get("_FAZ_HEALTH_STARTED"):
+            app.config["_FAZ_HEALTH_STARTED"] = True
+            from app.faz_health_cache import init_scheduler as init_faz_health_scheduler
 
-        init_log_stats_db()
-        init_log_stats_scheduler(app)
+            init_faz_health_scheduler(app)
 
-    if not app.config.get("_THREAT_STATS_STARTED"):
-        app.config["_THREAT_STATS_STARTED"] = True
-        from app.threat_stats_cache import init_scheduler as init_threat_stats_scheduler
-        from app.threat_stats_history import init_db as init_threat_stats_db
+        if not app.config.get("_LOG_STATS_STARTED"):
+            app.config["_LOG_STATS_STARTED"] = True
+            from app.log_stats_cache import init_scheduler as init_log_stats_scheduler
 
-        init_threat_stats_db()
-        init_threat_stats_scheduler(app)
+            init_log_stats_scheduler(app)
 
-    if not app.config.get("_HOST_METRICS_STARTED"):
-        app.config["_HOST_METRICS_STARTED"] = True
-        from app.host_metrics_cache import init_scheduler as init_host_metrics_scheduler
-        from app.host_metrics_history import init_db as init_host_metrics_db
+        if not app.config.get("_THREAT_STATS_STARTED"):
+            app.config["_THREAT_STATS_STARTED"] = True
+            from app.threat_stats_cache import init_scheduler as init_threat_stats_scheduler
 
-        init_host_metrics_db()
-        init_host_metrics_scheduler(app)
+            init_threat_stats_scheduler(app)
+
+        if not app.config.get("_HOST_METRICS_STARTED"):
+            app.config["_HOST_METRICS_STARTED"] = True
+            from app.host_metrics_cache import init_scheduler as init_host_metrics_scheduler
+
+            init_host_metrics_scheduler(app)
 
     return app
