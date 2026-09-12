@@ -149,9 +149,7 @@ def test_poll_all_targets_dedupes_devices_seen_across_multiple_targets(
     assert cached["logging_devices"][0]["devid"] == "SHARED"
 
 
-def test_poll_all_targets_writes_snapshot_to_collector_store(
-    targets_file, history_db, monkeypatch
-):
+def test_poll_all_targets_writes_snapshot_to_collector_store(targets_file, history_db, monkeypatch):
     import app.log_stats_cache as cache_mod
     from app import collector_store
 
@@ -277,8 +275,7 @@ def test_build_silent_details_caps_at_50():
     from app.log_stats_cache import build_silent_details
 
     silent_devices = [
-        {"devid": str(i), "devname": f"dev{i}", "last_log_timestamp": i}
-        for i in range(75)
+        {"devid": str(i), "devname": f"dev{i}", "last_log_timestamp": i} for i in range(75)
     ]
     details = build_silent_details(silent_devices)
     assert len(details) == 50

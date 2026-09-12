@@ -13,18 +13,10 @@ def test_start_all_schedulers_calls_every_init_scheduler_once(monkeypatch):
 
         return _recorder
 
-    monkeypatch.setattr(
-        "app.faz_health_cache.init_scheduler", make_recorder("faz_health")
-    )
-    monkeypatch.setattr(
-        "app.log_stats_cache.init_scheduler", make_recorder("log_stats")
-    )
-    monkeypatch.setattr(
-        "app.threat_stats_cache.init_scheduler", make_recorder("threat_stats")
-    )
-    monkeypatch.setattr(
-        "app.host_metrics_cache.init_scheduler", make_recorder("host_metrics")
-    )
+    monkeypatch.setattr("app.faz_health_cache.init_scheduler", make_recorder("faz_health"))
+    monkeypatch.setattr("app.log_stats_cache.init_scheduler", make_recorder("log_stats"))
+    monkeypatch.setattr("app.threat_stats_cache.init_scheduler", make_recorder("threat_stats"))
+    monkeypatch.setattr("app.host_metrics_cache.init_scheduler", make_recorder("host_metrics"))
 
     collector_mod.start_all_schedulers()
 
