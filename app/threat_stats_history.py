@@ -12,7 +12,9 @@ import json
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "logstats.db"
+from app.config import Config
+
+DB_PATH = Path(Config.DATA_DIR) / "logstats.db"
 
 _NEW_COLUMNS: dict[str, str] = {
     "failed_admin_logins_24h": "INTEGER NOT NULL DEFAULT 0",

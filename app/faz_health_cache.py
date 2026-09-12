@@ -44,6 +44,8 @@ from app.faz_targets import list_targets
 _lock = threading.RLock()
 _cache: dict[str, dict] = {}
 
+CACHE_KEY = "faz_health"
+
 OID_CPU = "1.3.6.1.4.1.12356.103.2.1.1.0"
 OID_MEM_USED = "1.3.6.1.4.1.12356.103.2.1.2.0"
 OID_MEM_TOTAL = "1.3.6.1.4.1.12356.103.2.1.3.0"
@@ -241,6 +243,13 @@ def poll_all_targets() -> None:
         with _lock:
             _cache[label] = result
 
+    with _lock:
+        snapshot = dict(_cache)
+
+    from app import collector_store
+
+    collector_store.write_cache(CACHE_KEY, snapshot)
+
 
 def get_cached(label: str) -> dict | None:
     with _lock:
@@ -251,9 +260,24 @@ def get_cached(label: str) -> dict | None:
 def get_all_cached() -> list[dict]:
     """Snapshot for every currently-configured target, in faz_targets.json
     order. A target with no cache entry yet (first poll still pending)
-    shows as status 'gray' rather than being omitted."""
+    shows as status 'gray' rather than being omitted.
+
+    Read-through: if this process's in-memory cache is still empty (true
+    for every web worker under the collector/web split — it never polls
+    itself), fall back to the collector's last-written snapshot in
+    app.collector_store and repopulate the in-memory dict from it."""
     with _lock:
         cache_snapshot = dict(_cache)
+
+    if not cache_snapshot:
+        from app import collector_store
+
+        stored = collector_store.read_cache(CACHE_KEY)
+        if stored:
+            with _lock:
+                _cache.update(stored)
+                cache_snapshot = dict(_cache)
+
     result = []
     for target in list_targets():
         label = target.get("label")

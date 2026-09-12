@@ -199,3 +199,40 @@ def test_get_all_cached_returns_uncached_targets_as_pending(targets_file):
     assert len(entries) == 1
     assert entries[0]["label"] == "Primary"
     assert entries[0]["status"] == "gray"
+
+
+def test_poll_all_targets_writes_snapshot_to_collector_store(targets_file, monkeypatch):
+    import app.faz_health_cache as cache_mod
+    from app import collector_store
+
+    def fake_poll_target(target):
+        return {"label": target["label"], "status": "green", "last_updated": "t1"}
+
+    monkeypatch.setattr(cache_mod, "_poll_target", fake_poll_target)
+
+    cache_mod.poll_all_targets()
+
+    stored = collector_store.read_cache(cache_mod.CACHE_KEY)
+    assert stored == {"Primary": {"label": "Primary", "status": "green", "last_updated": "t1"}}
+
+
+def test_get_all_cached_reads_through_to_collector_store_when_in_memory_empty(
+    targets_file,
+):
+    """Simulates a web worker (empty in-memory cache) reading data a
+    separate collector process already wrote to SQLite."""
+    import app.faz_health_cache as cache_mod
+    from app import collector_store
+
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY,
+        {"Primary": {"label": "Primary", "status": "green", "last_updated": "t1"}},
+    )
+    assert cache_mod._cache == {}  # this "process" has never polled
+
+    entries = cache_mod.get_all_cached()
+
+    assert len(entries) == 1
+    assert entries[0]["status"] == "green"
+    # Read-through also repopulates the in-memory dict.
+    assert cache_mod._cache.get("Primary", {}).get("status") == "green"
