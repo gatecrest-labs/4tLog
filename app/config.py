@@ -1,6 +1,7 @@
 """Application configuration loaded from environment / .env file."""
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -33,6 +34,21 @@ class Config:
         os.environ.get("SESSION_ABSOLUTE_LIFETIME", str(10 * 3600))
     )  # 10 h
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))
+
+    # Collector/web process split (app/collector.py, app/collector_store.py).
+    # DATA_DIR is where every SQLite file (logstats.db, hostmetrics.db,
+    # collector_state.db) lives — default matches where they've always
+    # lived (the repo root), overridable so docker-compose can point both
+    # the "web" and "collector" services at one shared volume.
+    DATA_DIR = os.environ.get("DATA_DIR", str(Path(__file__).resolve().parent.parent))
+
+    # "inline" reproduces the historical single-process behavior (this app
+    # starts and owns every BackgroundScheduler poller itself) — useful for
+    # local development. Any other value (the default, "collector") means
+    # this process starts no schedulers; a separate `python -m
+    # app.collector` process owns them instead, and this process reads
+    # poll results via each cache module's SQLite read-through fallback.
+    RUN_SCHEDULERS = os.environ.get("RUN_SCHEDULERS", "collector")
 
     # FortiAnalyzer client (app/faz_client.py)
     FAZ_VERIFY_SSL = os.environ.get("FAZ_VERIFY_SSL", "false").lower() == "true"
