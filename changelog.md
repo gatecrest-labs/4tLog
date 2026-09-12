@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-09-12
+
+### Added
+
+- External API: `GET /external/api/executive/summary` gains a
+  `"devices_silent_details"` key alongside the existing `devices_silent`
+  count — up to 50 silent devices as `{devid, devname, last_log_at}`,
+  most-severe-first: devices FortiAnalyzer has never logged from at all
+  sort ahead of every device with a real (but stale) timestamp, and among
+  those, the oldest `last_log_timestamp` sorts first. `last_log_at` is an
+  ISO-8601 UTC string or `null` for "never logged." Built by
+  `app/log_stats_cache.py::build_silent_details()`; empty when the route
+  falls back to the persisted rollup (counts only, no device list survives
+  a restart).
+- Collector/web process split: pollers (FAZ health, log stats, threat
+  stats, host metrics) now run in a dedicated `python -m app.collector`
+  process by default; web (gunicorn) workers start no schedulers unless
+  `RUN_SCHEDULERS=inline` (single-process dev mode). The three caches the
+  executive summary route reads (`faz_health_cache`, `log_stats_cache`,
+  `threat_stats_cache`) persist their latest snapshot to a shared SQLite
+  WAL store (`app/collector_store.py`) after every poll; each cache's
+  in-memory dict is now a read-through cache in front of that store, so a
+  web worker that has never polled still serves the collector's latest
+  data. `docker-compose.yml` splits the old single `app` service into
+  `web` and `collector` services sharing a data volume.
+- External API: `GET /external/api/executive/summary`'s `schema_version`
+  bumps from `1` to `2` and gains a `"freshness"` map —
+  `{"faz_health": collected_at, "log_stats": collected_at, "threats":
+  collected_at}` — reporting how stale each field group's source is,
+  independent of whether the payload came from the in-memory cache or the
+  SQLite read-through fallback. All v1 keys are unchanged.
+
 ## 2026-09-11
 
 ### Added
