@@ -66,7 +66,14 @@ Project documentation:
   silent-device counts (from FortiAnalyzer `logview/logstats`, polled
   independently of the SNMP health cycle — see
   `SILENT_DEVICE_THRESHOLD_MINUTES`/`LOG_STATS_POLL_INTERVAL` in
-  `.env.example`), and fleet log volume. Also includes a per-target `"infra"`
+  `.env.example`), and fleet log volume. `devices_silent_details` is a
+  drill-down list for the `devices_silent` count — up to 50 devices as
+  `{devid, devname, last_log_at}`, most-severe-first (devices FAZ has
+  never logged from at all come first, then the rest oldest-`last_log_at`
+  first); `last_log_at` is `null` for "never logged," otherwise ISO-8601
+  UTC. Empty whenever the route serves the persisted rollup fallback
+  instead of a live poll, since only counts survive a restart, not the
+  device list. Also includes a per-target `"infra"`
   list — `{role: "fortianalyzer", label, hostname, version, cpu, mem,
   disk_used_pct, ha_role, status, last_updated}` for every configured FAZ
   target, sourced from `app/faz_health_cache.py`'s existing poll cache (no
@@ -76,7 +83,30 @@ Project documentation:
   Also includes a `"threats"` key — `{alerts_unacked_total, alerts_unacked_by_severity: {critical, high, medium, low}, ips_detections_24h, ips_blocked_pct, top_signatures: [{signature, count}] (top 5), top_source_countries: [{country, count}] (top 5), collected_at}` — from a third background poller (`app/threat_stats_cache.py`, `THREAT_STATS_POLL_INTERVAL` in `.env.example`, default 900s) that queries each FAZ target's unacknowledged alert counts (`/eventmgmt/adom/<adom>/alerts/count`) and 24h FortiView Threat Type / Threats / Countries reports, filtered to IPS. Targets can be excluded via the **Threat Polling** checkbox in Admin → FAZ Targets — this collector sums across every enabled target with no device-level dedup, so HA secondary units should have the checkbox unchecked to avoid double-counting.
   Also includes an `"admin_access"` key — `{failed_admin_logins_24h, devices_with_failed_logins, top_failed_sources: [{source, count}] (top 5 failed-authentication source IPs — all failed-auth types, e.g. VPN, wireless, admin, etc., not admin-login-specific), admin_logins_outside_hours_24h, business_hours, collected_at}` — from the same threat-activity poller, using FortiView's `admin-logins` (for `failed_admin_logins_24h`, `devices_with_failed_logins`, and `admin_logins_outside_hours_24h`, which ARE admin-login-specific) and `failed-authentication-attempts` (for `top_failed_sources`, which is NOT admin-login-specific) reports. `business_hours` (default `08:00-18:00 America/Chicago`, configurable via `ADMIN_ACCESS_BUSINESS_HOURS`/`ADMIN_ACCESS_TIMEZONE` in `.env.example`) describes the window `admin_logins_outside_hours_24h` is measured against — note it only accounts for the current calendar day's business window in the configured timezone, so the few hours right after local midnight can slightly overcount 'outside hours' logins.
   Also includes a `"vpn"` key — `{ipsec_tunnels_total, ipsec_tunnels_down, ssl_vpn_users_now, collected_at}` — from the same threat-activity poller, using FortiView's `site-to-site-ipsec` and `ssl-dialup-ipsec` reports. FortiAnalyzer has no live tunnel-status API; a tunnel/user is counted as currently up/connected if it has an open (no end-timestamp) session in the trailing 24h, and `ipsec_tunnels_down` counts tunnels seen in that window with no currently-open session — an inference from recent log activity, not a live device-config query, so a session whose close event was never logged (e.g. a reboot or a logging gap) can read as "up"/"connected now" for the full 24h after the tunnel or user actually disconnected (`ssl_vpn_users_now` in particular is really "distinct users with an unterminated session logged in the last 24h," not an instantaneous gauge). Unlike `"threats"`/`"admin_access"`, which sum raw counts across every enabled target with no device-level dedup (an HA pair can double-count), `"vpn"`'s tunnel/user counts are deduplicated by device+name via set union, so a tunnel or user seen from multiple targets counts once, not per-target. The row fields this relies on (`e_time` for `site-to-site-ipsec`, `end_time` for `ssl-dialup-ipsec`) are not yet confirmed live against real hardware, and the evidence is weaker for `e_time` — it appears only in that view's filterable field list, never its sortable/row-column list — so `ipsec_tunnels_down` may currently read a degenerate constant (permanently `0`, or permanently equal to `ipsec_tunnels_total`) until this is validated against a live appliance.
-- **Inline Help**: a "?" button in the nav opens a help panel with
+  `schema_version` is `2` (bumped from `1`): the payload also carries a
+  `"freshness"` map — `{faz_health, log_stats, threats}`, each the
+  `collected_at`/`last_updated` of that field group's underlying source
+  (for `faz_health`, the newest `last_updated` across every FAZ target;
+  `null` for a group that's never been polled) — so a consumer can tell
+  how stale each part of the payload is independent of whether it came
+  from a live poll or the SQLite fallback below. Every v1 key is
+  unchanged.
+- **Collector/web process split**: FAZ health, log stats, threat-activity,
+  and host-metrics polling run in a dedicated `python -m app.collector`
+  process; the web process (Gunicorn) starts no `BackgroundScheduler`
+  itself unless `RUN_SCHEDULERS=inline` (single-process mode, for local
+  development — don't also run `app.collector` in that mode, or polling
+  doubles). The three caches the executive summary route reads
+  (`app/faz_health_cache.py`, `app/log_stats_cache.py`,
+  `app/threat_stats_cache.py`) persist their latest snapshot to a shared
+  SQLite WAL-mode store (`app/collector_store.py`, `collector_state.db`)
+  after every poll cycle; each module's in-memory dict is a read-through
+  cache in front of that store, so a web worker that has never polled
+  itself still serves the collector's latest data. `DATA_DIR` (env,
+  default: repo root) controls where every SQLite file lives — set it to
+  a shared volume path when running `web`/`collector` as separate
+  containers (see `docker-compose.yml`).
+ **Inline Help**: a "?" button in the nav opens a help panel with
   Dashboard/Log Search/Admin guidance, filtered to the logged-in user's
   permitted tabs
 - **Deployment**: Docker (with TLS via an Nginx reverse-proxy sidecar

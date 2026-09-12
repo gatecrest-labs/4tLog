@@ -70,15 +70,59 @@ sudo systemctl enable --now 4tlog
 sudo systemctl status 4tlog
 ```
 
-**Note on `--workers 1 --threads 8` / `gthread`:** Phase 2's FAZ health
-poller (`app/faz_health_cache.py`) runs an APScheduler job and an
-in-memory cache inside the Gunicorn process. Both are per-process state,
-not shared across pre-forked workers — running more than one worker would
-poll FortiAnalyzer redundantly and serve a different, independently-timed
-cache depending on which worker handles a given request. Get concurrency
-from threads instead (`--worker-class gthread`, which lets a background
-thread run within the same process — `sync` workers fork child processes
-and don't share the parent's threads at all).
+**Note on `--workers 1 --threads 8` / `gthread`:** historically required
+because every poller (`app/faz_health_cache.py`, etc.) ran its APScheduler
+job and in-memory cache inside the Gunicorn process itself — per-process
+state, not shared across pre-forked workers. Since the collector/web
+process split (see readme.md's "Collector/web process split" and the
+`4tlog-collector.service` unit below), this Gunicorn service starts no
+scheduler at all by default (`RUN_SCHEDULERS` unset — its default is
+"collector", not "inline") and reads poll results through each cache
+module's SQLite read-through fallback instead, so that reason no longer
+strictly applies. Left at 1 worker anyway as the conservative default;
+raising it is a deliberate follow-up, not implied by this change. Get
+concurrency from threads instead (`--worker-class gthread`, which lets a
+background thread run within the same process — `sync` workers fork child
+processes and don't share the parent's threads at all).
+
+### Collector service
+
+A second systemd unit runs `python -m app.collector` — the process that
+now owns every poller (FAZ health, log stats, threat stats, host
+metrics). It shares `/opt/4tlog` (and its SQLite files, at `DATA_DIR`,
+default the repo root) with the Gunicorn service above; no bare-metal
+`DATA_DIR` override is needed since both processes already share the same
+filesystem (unlike the Docker Compose topology, which needs an explicit
+shared volume — see `container.md`).
+
+`/etc/systemd/system/4tlog-collector.service`:
+
+```ini
+[Unit]
+Description=4tlog collector (poller) service
+After=network.target
+
+[Service]
+User=4tlog
+Group=4tlog
+WorkingDirectory=/opt/4tlog
+Environment="PATH=/opt/4tlog/.venv/bin"
+ExecStart=/opt/4tlog/.venv/bin/python -m app.collector
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now 4tlog-collector
+sudo systemctl status 4tlog-collector
+```
+
+Do not set `RUN_SCHEDULERS=inline` on the Gunicorn service while also
+running `4tlog-collector` — that starts every poller twice.
 
 ## 5. Nginx reverse proxy
 

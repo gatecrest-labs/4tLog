@@ -68,3 +68,24 @@ the RHEL/Nginx path in `docs/deployment.md` §5.
 
 The app is reachable at `https://localhost:8300` (HTTP on `8301` redirects
 to HTTPS).
+
+## Collector/web process split
+
+`docker compose up -d` now starts three services: `app` (Gunicorn, the web
+UI and external API), `collector` (`python -m app.collector`, owns every
+FAZ health/log stats/threat stats/host metrics poller), and `nginx`. Both
+`app` and `collector` share a named volume (`4tlog-data`, mounted at
+`/app/data`, set via `DATA_DIR=/app/data`) for the SQLite files
+(`logstats.db`, `hostmetrics.db`, `collector_state.db`) — `collector`
+writes each poll's latest result there, and `app` reads it through when
+its own in-memory cache is empty (always, in this topology, since `app`
+itself starts no scheduler). See readme.md's "Collector/web process
+split" section for the read-through mechanics.
+
+`collector` only bind-mounts `faz_targets.json` — it never touches
+auth/session/API-token state, so `users.json`/`groups.json`/
+`app_settings.json`/`api_tokens.json` stay `app`-only.
+
+`docker compose logs -f collector` shows poll activity; `docker compose
+restart collector` after editing `faz_targets.json` if you don't want to
+wait for its next scheduled cycle.

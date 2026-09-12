@@ -3,6 +3,10 @@ fleet log volume. Structured like app/faz_health_cache.py: a background
 poller on its own APScheduler interval writes into a lock-guarded
 in-memory dict; app/routes/external_api_routes.py reads a snapshot and
 never blocks on a live poll.
+
+Also builds `silent_details` — a capped, ordered drill-down list for the
+`devices_silent` count (see build_silent_details()) — for 4tExecutive's
+"why is this count non-zero" UI.
 """
 
 from __future__ import annotations
@@ -14,7 +18,14 @@ import time
 from app.config import Config
 
 _lock = threading.RLock()
-_cache: dict = {"logging_devices": [], "silent_devices": [], "collected_at": None}
+_cache: dict = {
+    "logging_devices": [],
+    "silent_devices": [],
+    "silent_details": [],
+    "collected_at": None,
+}
+
+SILENT_DETAILS_MAX = 50
 
 
 def classify_devices(
@@ -36,9 +47,65 @@ def classify_devices(
     return logging_devices, silent_devices
 
 
+def build_silent_details(silent_devices: list[dict], limit: int = SILENT_DETAILS_MAX) -> list[dict]:
+    """Drill-down detail rows for the `devices_silent` count: up to `limit`
+    silent devices, most-severe-first. "Never logged" (last_log_timestamp
+    None or 0 — FAZ has no record of this device at all) is the most
+    severe state and sorts ahead of every device with a real timestamp;
+    among devices that have logged before, the oldest last_log_timestamp
+    (most stale) sorts first. Ties preserve input order (Python sort is
+    stable)."""
+
+    def sort_key(dev: dict) -> tuple[int, float]:
+        ts = dev.get("last_log_timestamp")
+        if not ts:
+            return (0, 0.0)
+        return (1, ts)
+
+    ordered = sorted(silent_devices, key=sort_key)
+    details = []
+    for dev in ordered[:limit]:
+        ts = dev.get("last_log_timestamp")
+        last_log_at = (
+            datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
+            if ts
+            else None
+        )
+        details.append(
+            {
+                "devid": dev.get("devid"),
+                "devname": dev.get("devname"),
+                "last_log_at": last_log_at,
+            }
+        )
+    return details
+
+
+CACHE_KEY = "log_stats"
+
+
 def get_cached() -> dict:
     """Snapshot of the latest poll: {"logging_devices": [...], "silent_devices": [...],
-    "collected_at": iso-str | None}."""
+    "silent_details": [...], "collected_at": iso-str | None}.
+
+    Read-through: if this process's in-memory cache is still at its
+    startup/empty state (collected_at is None — true for every web worker
+    under the collector/web split, since web workers never poll), fall
+    back to the collector's last-written snapshot in app.collector_store.
+    A successful fallback also repopulates the in-memory dict so
+    subsequent calls in this process skip the SQLite read."""
+    with _lock:
+        if _cache.get("collected_at") is not None:
+            return dict(_cache)
+
+    from app import collector_store
+
+    stored = collector_store.read_cache(CACHE_KEY)
+    if stored is not None:
+        with _lock:
+            _cache.update(stored)
+            return dict(_cache)
+
     with _lock:
         return dict(_cache)
 
@@ -95,11 +162,18 @@ def poll_all_targets() -> None:
     logging_devices, silent_devices = classify_devices(
         list(devices_by_id.values()), now, Config.SILENT_DEVICE_THRESHOLD_MINUTES
     )
+    silent_details = build_silent_details(silent_devices)
     collected_at = _now()
     with _lock:
         _cache["logging_devices"] = logging_devices
         _cache["silent_devices"] = silent_devices
+        _cache["silent_details"] = silent_details
         _cache["collected_at"] = collected_at
+        snapshot = dict(_cache)
+
+    from app import collector_store
+
+    collector_store.write_cache(CACHE_KEY, snapshot)
 
     total_lograte = sum(d.get("lograte", 0.0) for d in logging_devices)
     history.init_db()
