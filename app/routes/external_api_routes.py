@@ -11,6 +11,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import datetime
 import re
 
 from flask import Blueprint, jsonify, request
@@ -19,7 +20,7 @@ from app.api_tokens import validate_token
 from app.app_logger import app_log
 from app.app_settings import get_setting
 from app.config import Config
-from app.faz_client import FAZError  # noqa: F401 -- propagated uncaught, caught by Task 4
+from app.faz_client import FAZError
 from app.faz_targets import list_targets
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
@@ -151,6 +152,80 @@ def _search_one_device(
         "log_count": len(rows),
         "truncated": bool(result.get("truncated")),
     }
+
+
+def _run_log_usage_search(req: dict, faz_client_factory) -> tuple[dict | None, str | None, int]:
+    """Execute the full log-usage search across every FAZ target matching
+    req['adom']. faz_client_factory(target_dict) -> FAZClient (or a
+    context-manager-compatible fake in tests) is injected so this function
+    never constructs a real FAZClient itself.
+
+    Returns (response, None, 200) on success or (None, error_message,
+    status_code) on failure, per the endpoint's spec error table."""
+    targets = _match_targets_for_adom(req["adom"])
+    if not targets:
+        return None, f"No FortiAnalyzer target configured for ADOM '{req['adom']}'", 404
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start_iso = (now - datetime.timedelta(days=req["days"])).strftime("%Y-%m-%dT%H:%M:%S")
+    end_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    remaining = set(req["devices"])
+    devices_queried: list[str] = []
+    device_errors: dict[str, str] = {}
+    srcips: set = set()
+    dstips: set = set()
+    dstports: set = set()
+    log_count = 0
+    truncated = False
+    time_range = {"start": None, "end": None}
+
+    for target in targets:
+        if not remaining:
+            break
+        client = faz_client_factory(target)
+        with client:
+            resolved, _not_found_here = _resolve_devices_for_target(client, sorted(remaining))
+            for name, devid in resolved.items():
+                remaining.discard(name)
+                try:
+                    contribution = _search_one_device(
+                        client, devid, req["policyid"], start_iso, end_iso, req["days"]
+                    )
+                except FAZError as exc:
+                    device_errors[name] = str(exc)
+                    continue
+                devices_queried.append(name)
+                srcips |= contribution["srcips"]
+                dstips |= contribution["dstips"]
+                dstports |= contribution["dstports"]
+                log_count += contribution["log_count"]
+                if contribution["truncated"]:
+                    truncated = True
+                time_range = {
+                    "start": contribution["local_start"],
+                    "end": contribution["local_end"],
+                }
+
+    devices_not_found = sorted(remaining)
+
+    if not devices_queried and device_errors:
+        return None, "; ".join(f"{name}: {msg}" for name, msg in device_errors.items()), 502
+
+    response = {
+        "policyid": req["policyid"],
+        "days": req["days"],
+        "time_range": time_range,
+        "srcips": sorted(srcips),
+        "dstips": sorted(dstips),
+        "dstports": sorted(dstports),
+        "log_count": log_count,
+        "truncated": truncated,
+        "devices_queried": sorted(devices_queried),
+        "devices_not_found": devices_not_found,
+        "device_errors": device_errors,
+    }
+    return response, None, 200
 
 
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
