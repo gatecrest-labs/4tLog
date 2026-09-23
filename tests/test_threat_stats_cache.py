@@ -99,6 +99,56 @@ def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, histor
     assert rollup["ips_blocked_pct"] == 80.0
 
 
+def test_poll_all_targets_writes_snapshot_to_collector_store(targets_file, history_db, monkeypatch):
+    import app.threat_stats_cache as cache_mod
+    from app import collector_store
+
+    _stub_client(
+        monkeypatch,
+        alert_counts_by_filter={
+            "ackflag=no": 1,
+            "ackflag=no and severity=critical": 0,
+            "ackflag=no and severity=high": 0,
+            "ackflag=no and severity=medium": 0,
+            "ackflag=no and severity=low": 1,
+        },
+        fortiview_rows_by_view={
+            "top-type": [],
+            "top-threats": [],
+            "top-countries": [],
+            "admin-logins": [],
+            "failed-authentication-attempts": [],
+            "site-to-site-ipsec": [],
+            "ssl-dialup-ipsec": [],
+        },
+    )
+
+    cache_mod.poll_all_targets()
+
+    stored = collector_store.read_cache(cache_mod.CACHE_KEY)
+    assert stored is not None
+    assert stored["alerts_unacked_total"] == 1
+    assert stored["collected_at"] == cache_mod.get_cached()["collected_at"]
+
+
+def test_get_cached_reads_through_to_collector_store_when_in_memory_empty():
+    """Simulates a web worker (empty in-memory cache) reading data a
+    separate collector process already wrote to SQLite."""
+    import app.threat_stats_cache as cache_mod
+    from app import collector_store
+
+    persisted = dict(cache_mod._EMPTY_CACHE)
+    persisted["alerts_unacked_total"] = 9
+    persisted["collected_at"] = "2026-09-12T00:00:00+00:00"
+    collector_store.write_cache(cache_mod.CACHE_KEY, persisted)
+    assert cache_mod._cache["collected_at"] is None  # this "process" has never polled
+
+    cached = cache_mod.get_cached()
+
+    assert cached == persisted
+    assert cache_mod._cache["collected_at"] == "2026-09-12T00:00:00+00:00"
+
+
 def test_poll_all_targets_skips_target_with_threat_poll_disabled(tmp_path, monkeypatch, history_db):
     import app.faz_targets as faz_targets_mod
     import app.threat_stats_cache as cache_mod

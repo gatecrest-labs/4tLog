@@ -31,6 +31,9 @@ groups.json
 faz_targets.json
 logstats.db
 hostmetrics.db
+collector_state.db
+*.db-wal
+*.db-shm
 api_tokens.json
 app_settings.json
 
