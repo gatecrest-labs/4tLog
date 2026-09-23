@@ -7,21 +7,34 @@ disabled, every route returns 503.
 
 Endpoints:
   GET /external/api/executive/summary   Fleet-wide metrics for 4tExecutive
+  POST /external/api/log-usage          Aggregated per-policy traffic observed in FAZ logs
 """
 
 from __future__ import annotations
 
+import datetime
 import re
+import time
 
+import requests
 from flask import Blueprint, jsonify, request
 
 from app.api_tokens import validate_token
 from app.app_logger import app_log
 from app.app_settings import get_setting
+from app.config import Config
+from app.faz_client import FAZClient, FAZError, summarize_connection_error
+from app.faz_targets import list_targets
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
 
 _DISK_USAGE_RE = re.compile(r"Free\s+([\d.]+)\s*\w+,\s*Total\s+([\d.]+)\s*\w+")
+
+# Whole-request deadline for /log-usage's sequential per-device FAZ searches
+# (see _run_log_usage_search) -- kept as a literal rather than a new Config
+# setting since 4thealth-plus's own consumer client timeout (~90s) is the
+# thing being protected against, not a per-deployment tunable.
+_LOG_USAGE_DEADLINE_SECS = 75.0
 
 
 def _feature_enabled() -> bool:
@@ -42,11 +55,237 @@ def _gate():
         app_log(
             "WARN",
             "external_api",
-            "Unauthorized executive/summary request",
+            f"Unauthorized request to {request.path}",
             remote=request.remote_addr,
         )
         return jsonify({"error": "Unauthorized — valid Bearer token required"}), 401
     return None
+
+
+def _validate_log_usage_request(data: dict) -> tuple[dict | None, str | None]:
+    """Validate and normalize a /external/api/log-usage request body.
+
+    Returns (normalized_request, None) on success, or (None, error_message)
+    on the first validation failure. Rejects out-of-range `days` rather
+    than clamping it -- this endpoint is a contract boundary; the caller
+    owns its own input hygiene."""
+    adom = str(data.get("adom") or "").strip()
+    if not adom:
+        return None, "adom is required"
+
+    devices = data.get("devices")
+    if (
+        not isinstance(devices, list)
+        or not devices
+        or not all(isinstance(d, str) and d.strip() for d in devices)
+    ):
+        return None, "devices must be a non-empty list of strings"
+
+    policyid = data.get("policyid")
+    if not isinstance(policyid, int) or isinstance(policyid, bool) or policyid <= 0:
+        return None, "policyid must be a positive integer"
+
+    days = data.get("days")
+    if not isinstance(days, int) or isinstance(days, bool) or not (1 <= days <= 60):
+        return None, "days must be an integer between 1 and 60"
+
+    # De-duplicate case-insensitively while preserving first-seen casing --
+    # "FW1" and "fw1" resolve to the same devid and would otherwise be
+    # searched (and counted) twice.
+    deduped: dict[str, str] = {}
+    for d in devices:
+        stripped = d.strip()
+        deduped.setdefault(stripped.lower(), stripped)
+
+    return {
+        "adom": adom,
+        "devices": list(deduped.values()),
+        "policyid": policyid,
+        "days": days,
+    }, None
+
+
+def _match_targets_for_adom(adom: str) -> list[dict]:
+    """Case-insensitive match against each faz_targets entry's own 'adom'
+    field -- the same mapping the app already maintains for internal
+    Log Search."""
+    adom_lower = adom.lower()
+    return [t for t in list_targets() if str(t.get("adom", "")).lower() == adom_lower]
+
+
+def _resolve_devices_for_target(client, requested_names: list[str]) -> tuple[dict, list]:
+    """Match requested device names against one target's device list,
+    case-insensitively on name. Returns ({requested_name: devid, ...},
+    [requested names not found on this target])."""
+    devices = client.get_devices()
+    by_name_lower = {
+        d["name"].lower(): d["devid"] for d in devices if d.get("name") and d.get("devid")
+    }
+    resolved: dict[str, str] = {}
+    not_found: list[str] = []
+    for name in requested_names:
+        devid = by_name_lower.get(name.lower())
+        if devid:
+            resolved[name] = devid
+        else:
+            not_found.append(name)
+    return resolved, not_found
+
+
+def _search_one_device(
+    client, devid: str, policyid: int, start_iso: str, end_iso: str, days: int
+) -> dict:
+    """Run one policyid-scoped traffic-log search against one device and
+    return its aggregated contribution. Raises FAZError on failure --
+    callers decide whether that's fatal to the overall request."""
+    local_start, local_end = client.local_time_range(start_iso, end_iso)
+    result = client.search_logs(
+        logtype="traffic",
+        device=devid,
+        filter_expression=f"policyid=={policyid}",
+        start_time=local_start,
+        end_time=local_end,
+        limit=Config.LOG_SEARCH_MAX_RESULTS,
+        poll_interval=Config.LOG_SEARCH_POLL_INTERVAL,
+        timeout=Config.LOG_SEARCH_TIMEOUT,
+    )
+    rows = result.get("rows", [])
+    srcips: set = set()
+    dstips: set = set()
+    dstports: set = set()
+    for row in rows:
+        if row.get("srcip"):
+            srcips.add(str(row["srcip"]))
+        if row.get("dstip"):
+            dstips.add(str(row["dstip"]))
+        if "dstport" in row and row["dstport"] is not None:
+            raw_port = row["dstport"]
+            if isinstance(raw_port, bool):
+                pass  # bool is an int subtype but not a meaningful port value
+            elif isinstance(raw_port, int):
+                dstports.add(raw_port)
+            elif str(raw_port).strip().lstrip("-").isdigit():
+                dstports.add(int(str(raw_port).strip()))
+            # else: not coercible to int -- skip rather than corrupt the set
+    return {
+        "local_start": local_start,
+        "local_end": local_end,
+        "srcips": srcips,
+        "dstips": dstips,
+        "dstports": dstports,
+        "log_count": len(rows),
+        "truncated": bool(result.get("truncated")),
+    }
+
+
+def _run_log_usage_search(req: dict, faz_client_factory) -> tuple[dict | None, str | None, int]:
+    """Execute the full log-usage search across every FAZ target matching
+    req['adom']. faz_client_factory(target_dict) -> FAZClient (or a
+    context-manager-compatible fake in tests) is injected so this function
+    never constructs a real FAZClient itself.
+
+    Returns (response, None, 200) on success or (None, error_message,
+    status_code) on failure, per the endpoint's spec error table."""
+    targets = _match_targets_for_adom(req["adom"])
+    if not targets:
+        return None, f"No FortiAnalyzer target configured for ADOM '{req['adom']}'", 404
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start_iso = (now - datetime.timedelta(days=req["days"])).strftime("%Y-%m-%dT%H:%M:%S")
+    end_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    remaining = set(req["devices"])
+    devices_queried: list[str] = []
+    device_errors: dict[str, str] = {}
+    srcips: set = set()
+    dstips: set = set()
+    dstports: set = set()
+    log_count = 0
+    truncated = False
+    time_range = {"start": None, "end": None}
+
+    deadline = time.monotonic() + _LOG_USAGE_DEADLINE_SECS
+    deadline_hit = False
+
+    for target in targets:
+        if not remaining:
+            break
+        client = faz_client_factory(target)
+        with client:
+            try:
+                resolved, _not_found_here = _resolve_devices_for_target(client, sorted(remaining))
+            except (FAZError, requests.RequestException) as exc:
+                msg = (
+                    summarize_connection_error(exc)
+                    if isinstance(exc, requests.RequestException)
+                    else str(exc)
+                )
+                # This target couldn't be queried at all -- leave the names
+                # in `remaining` so a later target can still try them; they
+                # only end up in devices_not_found if nothing ever resolves
+                # them. Record the failure so it's visible either way.
+                for name in remaining:
+                    device_errors.setdefault(name, msg)
+                continue
+
+            for name, devid in resolved.items():
+                if time.monotonic() >= deadline:
+                    deadline_hit = True
+                    break
+                remaining.discard(name)
+                device_errors.pop(name, None)
+                try:
+                    contribution = _search_one_device(
+                        client, devid, req["policyid"], start_iso, end_iso, req["days"]
+                    )
+                except (FAZError, requests.RequestException) as exc:
+                    msg = (
+                        summarize_connection_error(exc)
+                        if isinstance(exc, requests.RequestException)
+                        else str(exc)
+                    )
+                    device_errors[name] = msg
+                    continue
+                devices_queried.append(name)
+                srcips |= contribution["srcips"]
+                dstips |= contribution["dstips"]
+                dstports |= contribution["dstports"]
+                log_count += contribution["log_count"]
+                if contribution["truncated"]:
+                    truncated = True
+                time_range = {
+                    "start": contribution["local_start"],
+                    "end": contribution["local_end"],
+                }
+        if deadline_hit:
+            break
+
+    if deadline_hit:
+        # Everything still unresolved/unsearched was never attempted -- not
+        # "not found" (device_not_found implies FAZ was actually asked).
+        for name in remaining:
+            device_errors[name] = "skipped: request deadline exceeded"
+        remaining = set()
+
+    devices_not_found = sorted(remaining)
+
+    if not devices_queried and device_errors:
+        return None, "; ".join(f"{name}: {msg}" for name, msg in device_errors.items()), 502
+
+    response = {
+        "policyid": req["policyid"],
+        "days": req["days"],
+        "time_range": time_range,
+        "srcips": sorted(srcips),
+        "dstips": sorted(dstips),
+        "dstports": sorted(dstports),
+        "log_count": log_count,
+        "truncated": truncated,
+        "devices_queried": sorted(devices_queried),
+        "devices_not_found": devices_not_found,
+        "device_errors": device_errors,
+    }
+    return response, None, 200
 
 
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
@@ -234,3 +473,40 @@ def executive_summary():
             "vpn": vpn,
         }
     )
+
+
+@bp.route("/log-usage", methods=["POST"])
+def log_usage():
+    gate_error = _gate()
+    if gate_error is not None:
+        return gate_error
+
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+    req, err = _validate_log_usage_request(data)
+    if err is not None:
+        return jsonify({"error": err}), 400
+
+    def _factory(target: dict) -> FAZClient:
+        return FAZClient(
+            host=target["host"],
+            token=target.get("token", ""),
+            adom=target.get("adom", "root"),
+            verify_ssl=Config.FAZ_VERIFY_SSL,
+            timeout=Config.FAZ_REQUEST_TIMEOUT,
+        )
+
+    response, error, status = _run_log_usage_search(req, faz_client_factory=_factory)
+    if error is not None:
+        app_log(
+            "WARN",
+            "external_api",
+            "log-usage request failed",
+            adom=req["adom"],
+            error=error,
+            status=status,
+        )
+        return jsonify({"error": error}), status
+
+    return jsonify(response)

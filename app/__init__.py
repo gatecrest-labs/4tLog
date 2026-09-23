@@ -25,6 +25,9 @@ def create_app() -> Flask:
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             if request.endpoint == "static":
                 return None
+            if request.path.startswith("/external/api/"):
+                # Bearer-token authenticated, no browser session/CSRF token exists.
+                return None
             if not validate_csrf_request():
                 return csrf_error_response()
         return None
