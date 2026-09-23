@@ -18,6 +18,8 @@ from flask import Blueprint, jsonify, request
 from app.api_tokens import validate_token
 from app.app_logger import app_log
 from app.app_settings import get_setting
+from app.config import Config
+from app.faz_client import FAZError  # noqa: F401 -- propagated uncaught, caught by Task 4
 from app.faz_targets import list_targets
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
@@ -110,6 +112,45 @@ def _resolve_devices_for_target(client, requested_names: list[str]) -> tuple[dic
         else:
             not_found.append(name)
     return resolved, not_found
+
+
+def _search_one_device(
+    client, devid: str, policyid: int, start_iso: str, end_iso: str, days: int
+) -> dict:
+    """Run one policyid-scoped traffic-log search against one device and
+    return its aggregated contribution. Raises FAZError on failure --
+    callers decide whether that's fatal to the overall request."""
+    local_start, local_end = client.local_time_range(start_iso, end_iso)
+    result = client.search_logs(
+        logtype="traffic",
+        device=devid,
+        filter_expression=f"policyid=={policyid}",
+        start_time=local_start,
+        end_time=local_end,
+        limit=Config.LOG_SEARCH_MAX_RESULTS,
+        poll_interval=Config.LOG_SEARCH_POLL_INTERVAL,
+        timeout=Config.LOG_SEARCH_TIMEOUT,
+    )
+    rows = result.get("rows", [])
+    srcips: set = set()
+    dstips: set = set()
+    dstports: set = set()
+    for row in rows:
+        if row.get("srcip"):
+            srcips.add(str(row["srcip"]))
+        if row.get("dstip"):
+            dstips.add(str(row["dstip"]))
+        if "dstport" in row and row["dstport"] is not None:
+            dstports.add(row["dstport"])
+    return {
+        "local_start": local_start,
+        "local_end": local_end,
+        "srcips": srcips,
+        "dstips": dstips,
+        "dstports": dstports,
+        "log_count": len(rows),
+        "truncated": bool(result.get("truncated")),
+    }
 
 
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
