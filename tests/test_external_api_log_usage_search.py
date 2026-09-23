@@ -66,3 +66,20 @@ def test_search_one_device_empty_dstport_not_added():
     client = _client([{"dstport": 0}, {}])
     result = _search_one_device(client, "SN001", 123, "a", "b", 30)
     assert result["dstports"] == {0}
+
+
+def test_search_one_device_normalizes_mixed_type_dstports():
+    """FAZ's JSON response shape for dstport is unconfirmed (int vs str) --
+    mixed types across rows/devices must not crash sorted() downstream, so
+    every coercible value is normalized to int."""
+    client = _client([{"dstport": "443"}, {"dstport": 8443}])
+    result = _search_one_device(client, "SN001", 123, "a", "b", 30)
+    assert result["dstports"] == {443, 8443}
+    assert all(isinstance(p, int) for p in result["dstports"])
+    assert sorted(result["dstports"]) == [443, 8443]
+
+
+def test_search_one_device_skips_non_numeric_dstport():
+    client = _client([{"dstport": "not-a-port"}, {"dstport": 443}])
+    result = _search_one_device(client, "SN001", 123, "a", "b", 30)
+    assert result["dstports"] == {443}

@@ -65,6 +65,18 @@ def test_returns_400_on_invalid_body(client):
     assert "error" in resp.get_json()
 
 
+def test_returns_400_on_non_object_body(client):
+    token = _enable_and_token()
+    resp = client.post(
+        "/external/api/log-usage",
+        data=json.dumps([1]),
+        content_type="application/json",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "error" in resp.get_json()
+
+
 def test_returns_404_when_no_faz_target(client):
     token = _enable_and_token()
     resp = _post(client, token, {"adom": "Nonexistent", "devices": ["FW1"], "policyid": 1, "days": 1})

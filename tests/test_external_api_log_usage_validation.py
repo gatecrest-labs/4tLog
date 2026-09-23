@@ -112,6 +112,14 @@ def test_days_string_rejected():
     assert "days" in err
 
 
+def test_devices_deduped_case_insensitively_preserving_first_casing():
+    req, err = _validate_log_usage_request({
+        "adom": "A", "devices": ["FW1", "fw1", "FW2"], "policyid": 1, "days": 1,
+    })
+    assert err is None
+    assert req["devices"] == ["FW1", "FW2"]
+
+
 def test_days_boundaries_accepted():
     req, err = _validate_log_usage_request({
         "adom": "A", "devices": ["FW1"], "policyid": 1, "days": 1,

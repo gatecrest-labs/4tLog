@@ -14,19 +14,27 @@ from __future__ import annotations
 
 import datetime
 import re
+import time
 
+import requests
 from flask import Blueprint, jsonify, request
 
 from app.api_tokens import validate_token
 from app.app_logger import app_log
 from app.app_settings import get_setting
 from app.config import Config
-from app.faz_client import FAZClient, FAZError
+from app.faz_client import FAZClient, FAZError, summarize_connection_error
 from app.faz_targets import list_targets
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
 
 _DISK_USAGE_RE = re.compile(r"Free\s+([\d.]+)\s*\w+,\s*Total\s+([\d.]+)\s*\w+")
+
+# Whole-request deadline for /log-usage's sequential per-device FAZ searches
+# (see _run_log_usage_search) -- kept as a literal rather than a new Config
+# setting since 4thealth-plus's own consumer client timeout (~90s) is the
+# thing being protected against, not a per-deployment tunable.
+_LOG_USAGE_DEADLINE_SECS = 75.0
 
 
 def _feature_enabled() -> bool:
@@ -47,7 +55,7 @@ def _gate():
         app_log(
             "WARN",
             "external_api",
-            "Unauthorized executive/summary request",
+            f"Unauthorized request to {request.path}",
             remote=request.remote_addr,
         )
         return jsonify({"error": "Unauthorized — valid Bearer token required"}), 401
@@ -81,9 +89,17 @@ def _validate_log_usage_request(data: dict) -> tuple[dict | None, str | None]:
     if not isinstance(days, int) or isinstance(days, bool) or not (1 <= days <= 60):
         return None, "days must be an integer between 1 and 60"
 
+    # De-duplicate case-insensitively while preserving first-seen casing --
+    # "FW1" and "fw1" resolve to the same devid and would otherwise be
+    # searched (and counted) twice.
+    deduped: dict[str, str] = {}
+    for d in devices:
+        stripped = d.strip()
+        deduped.setdefault(stripped.lower(), stripped)
+
     return {
         "adom": adom,
-        "devices": [d.strip() for d in devices],
+        "devices": list(deduped.values()),
         "policyid": policyid,
         "days": days,
     }, None
@@ -143,7 +159,14 @@ def _search_one_device(
         if row.get("dstip"):
             dstips.add(str(row["dstip"]))
         if "dstport" in row and row["dstport"] is not None:
-            dstports.add(row["dstport"])
+            raw_port = row["dstport"]
+            if isinstance(raw_port, bool):
+                pass  # bool is an int subtype but not a meaningful port value
+            elif isinstance(raw_port, int):
+                dstports.add(raw_port)
+            elif str(raw_port).strip().lstrip("-").isdigit():
+                dstports.add(int(str(raw_port).strip()))
+            # else: not coercible to int -- skip rather than corrupt the set
     return {
         "local_start": local_start,
         "local_end": local_end,
@@ -181,20 +204,47 @@ def _run_log_usage_search(req: dict, faz_client_factory) -> tuple[dict | None, s
     truncated = False
     time_range = {"start": None, "end": None}
 
+    deadline = time.monotonic() + _LOG_USAGE_DEADLINE_SECS
+    deadline_hit = False
+
     for target in targets:
         if not remaining:
             break
         client = faz_client_factory(target)
         with client:
-            resolved, _not_found_here = _resolve_devices_for_target(client, sorted(remaining))
+            try:
+                resolved, _not_found_here = _resolve_devices_for_target(client, sorted(remaining))
+            except (FAZError, requests.RequestException) as exc:
+                msg = (
+                    summarize_connection_error(exc)
+                    if isinstance(exc, requests.RequestException)
+                    else str(exc)
+                )
+                # This target couldn't be queried at all -- leave the names
+                # in `remaining` so a later target can still try them; they
+                # only end up in devices_not_found if nothing ever resolves
+                # them. Record the failure so it's visible either way.
+                for name in remaining:
+                    device_errors.setdefault(name, msg)
+                continue
+
             for name, devid in resolved.items():
+                if time.monotonic() >= deadline:
+                    deadline_hit = True
+                    break
                 remaining.discard(name)
+                device_errors.pop(name, None)
                 try:
                     contribution = _search_one_device(
                         client, devid, req["policyid"], start_iso, end_iso, req["days"]
                     )
-                except FAZError as exc:
-                    device_errors[name] = str(exc)
+                except (FAZError, requests.RequestException) as exc:
+                    msg = (
+                        summarize_connection_error(exc)
+                        if isinstance(exc, requests.RequestException)
+                        else str(exc)
+                    )
+                    device_errors[name] = msg
                     continue
                 devices_queried.append(name)
                 srcips |= contribution["srcips"]
@@ -207,6 +257,15 @@ def _run_log_usage_search(req: dict, faz_client_factory) -> tuple[dict | None, s
                     "start": contribution["local_start"],
                     "end": contribution["local_end"],
                 }
+        if deadline_hit:
+            break
+
+    if deadline_hit:
+        # Everything still unresolved/unsearched was never attempted -- not
+        # "not found" (device_not_found implies FAZ was actually asked).
+        for name in remaining:
+            device_errors[name] = "skipped: request deadline exceeded"
+        remaining = set()
 
     devices_not_found = sorted(remaining)
 
@@ -403,6 +462,8 @@ def log_usage():
         return gate_error
 
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
     req, err = _validate_log_usage_request(data)
     if err is not None:
         return jsonify({"error": err}), 400
