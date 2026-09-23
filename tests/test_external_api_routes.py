@@ -94,7 +94,7 @@ def test_happy_path_shape(client, monkeypatch):
     resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     assert resp.status_code == 200
     body = resp.get_json()
-    assert body["schema_version"] == 1
+    assert body["schema_version"] == 2
     assert body["faz_targets_total"] == 2
     assert body["faz_targets_healthy"] == 1
     assert body["faz_disk_used_pct"] == 95.0
@@ -103,6 +103,110 @@ def test_happy_path_shape(client, monkeypatch):
     assert body["silent_device_threshold_minutes"] == 60
     assert body["log_volume_events_per_sec"] == 8.0
     assert body["log_stats_collected_at"] == "2026-08-29T18:00:00Z"
+
+
+def test_devices_silent_details_from_cache(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {
+            "logging_devices": [],
+            "silent_devices": [{"devid": "C", "devname": "c", "lograte": 0.0}],
+            "silent_details": [{"devid": "C", "devname": "c", "last_log_at": None}],
+            "collected_at": "2026-08-29T18:00:00Z",
+        },
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    body = resp.get_json()
+    assert body["devices_silent_details"] == [{"devid": "C", "devname": "c", "last_log_at": None}]
+
+
+def test_devices_silent_details_empty_when_falling_back_to_rollup(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    from app.log_stats_history import write_rollup
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    write_rollup(
+        devices_logging=7, devices_silent=1, total_lograte=12.5, collected_at="2026-08-29T17:00:00Z"
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    assert resp.get_json()["devices_silent_details"] == []
+
+
+def test_freshness_key_reflects_each_source_collected_at(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+
+    monkeypatch.setattr(
+        health_mod,
+        "get_all_cached",
+        lambda: [
+            {"label": "Primary", "status": "green", "last_updated": "2026-09-12T01:00:00+00:00"},
+            {"label": "Secondary", "status": "green", "last_updated": "2026-09-12T02:00:00+00:00"},
+        ],
+    )
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {
+            "logging_devices": [],
+            "silent_devices": [],
+            "silent_details": [],
+            "collected_at": "2026-09-12T03:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(
+        threat_mod,
+        "get_cached",
+        lambda: {"collected_at": "2026-09-12T04:00:00+00:00"},
+    )
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    freshness = resp.get_json()["freshness"]
+    assert freshness["faz_health"] == "2026-09-12T02:00:00+00:00"
+    assert freshness["log_stats"] == "2026-09-12T03:00:00+00:00"
+    assert freshness["threats"] == "2026-09-12T04:00:00+00:00"
+
+
+def test_freshness_key_none_when_never_polled(client, monkeypatch):
+    raw = _enable_and_token()
+
+    import app.faz_health_cache as health_mod
+    import app.log_stats_cache as logstats_mod
+    import app.threat_stats_cache as threat_mod
+    import app.threat_stats_history as threat_history_mod
+
+    monkeypatch.setattr(health_mod, "get_all_cached", lambda: [])
+    monkeypatch.setattr(
+        logstats_mod,
+        "get_cached",
+        lambda: {"logging_devices": [], "silent_devices": [], "collected_at": None},
+    )
+    monkeypatch.setattr(threat_mod, "get_cached", lambda: {"collected_at": None})
+    monkeypatch.setattr(threat_history_mod, "get_latest_rollup", lambda: None)
+
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
+    freshness = resp.get_json()["freshness"]
+    assert freshness == {"faz_health": None, "log_stats": None, "threats": None}
 
 
 def test_infra_key_shape_and_no_host_or_credentials(client, monkeypatch):

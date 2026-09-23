@@ -1,4 +1,10 @@
 services:
+  # Web (Gunicorn) — serves the app and the external API. Starts no
+  # BackgroundScheduler pollers itself (RUN_SCHEDULERS left at its
+  # "collector" default); reads poll results via each cache module's
+  # SQLite read-through fallback against the shared "data" volume. See
+  # app/collector.py / app/collector_store.py and readme.md's "Collector/
+  # web process split" section.
   app:
     build: .
     image: 4tlog:latest
@@ -6,6 +12,8 @@ services:
     restart: unless-stopped
     expose:
       - "8100"
+    environment:
+      - DATA_DIR=/app/data
     env_file:
       - .env
       # TLS terminates at the nginx service below, so set in .env:
@@ -17,6 +25,7 @@ services:
       - ./faz_targets.json:/app/faz_targets.json:rw
       - ./app_settings.json:/app/app_settings.json:rw
       - ./api_tokens.json:/app/api_tokens.json:rw
+      - 4tlog-data:/app/data
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8100/login', timeout=5)"]
@@ -24,6 +33,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+  # Collector — owns every poller (FAZ health, log stats, threat stats,
+  # host metrics). No exposed port; writes to the same SQLite files the
+  # "app" service reads from, via the shared "data" volume.
+  collector:
+    build: .
+    image: 4tlog:latest
+    container_name: 4tlog-collector
+    restart: unless-stopped
+    command: ["python", "-m", "app.collector"]
+    environment:
+      - DATA_DIR=/app/data
+    env_file:
+      - .env
+    volumes:
+      # Only faz_targets.json — the collector polls FAZ targets but never
+      # touches auth/session/API-token state (that's web-only).
+      - ./faz_targets.json:/app/faz_targets.json:rw
+      - 4tlog-data:/app/data
 
   nginx:
     image: nginx:1.27-alpine
@@ -37,3 +65,6 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./certs:/etc/nginx/certs:ro
+
+volumes:
+  4tlog-data:

@@ -368,6 +368,15 @@ def _build_admin_access(cache: dict, rollup: dict | None) -> dict:
     }
 
 
+def _faz_health_freshness(targets: list[dict]) -> str | None:
+    """Most recent `last_updated` across every FAZ target, or None if no
+    target has ever been polled. faz_health_cache has no single
+    collected_at (each target polls independently), so freshness for this
+    field group is the newest of the per-target timestamps."""
+    timestamps = [t.get("last_updated") for t in targets if t.get("last_updated")]
+    return max(timestamps) if timestamps else None
+
+
 def _build_vpn(cache: dict, rollup: dict | None) -> dict:
     """VPN tunnel/SSL-VPN-user coverage summary, preferring cache over
     history rollup. Follows the same cache-first/history-fallback pattern
@@ -413,6 +422,7 @@ def executive_summary():
     if log_cache.get("collected_at") is not None:
         devices_logging = len(log_cache["logging_devices"])
         devices_silent = len(log_cache["silent_devices"])
+        devices_silent_details = log_cache.get("silent_details", [])
         log_volume_events_per_sec = sum(d.get("lograte", 0.0) for d in log_cache["logging_devices"])
         log_stats_collected_at = log_cache["collected_at"]
     else:
@@ -427,6 +437,10 @@ def executive_summary():
             devices_silent = 0
             log_volume_events_per_sec = 0.0
             log_stats_collected_at = None
+        # The persisted rollup only carries counts, not the device list —
+        # no live device detail to serve until a fresh poll repopulates
+        # the in-memory cache.
+        devices_silent_details = []
 
     threat_cache = threat_stats_cache.get_cached()
     threat_rollup = (
@@ -438,12 +452,18 @@ def executive_summary():
 
     return jsonify(
         {
-            "schema_version": 1,
+            "schema_version": 2,
+            "freshness": {
+                "faz_health": _faz_health_freshness(targets),
+                "log_stats": log_stats_collected_at,
+                "threats": threats["collected_at"],
+            },
             "faz_targets_total": faz_targets_total,
             "faz_targets_healthy": faz_targets_healthy,
             "faz_disk_used_pct": faz_disk_used_pct,
             "devices_logging": devices_logging,
             "devices_silent": devices_silent,
+            "devices_silent_details": devices_silent_details,
             "silent_device_threshold_minutes": Config.SILENT_DEVICE_THRESHOLD_MINUTES,
             "log_volume_events_per_sec": log_volume_events_per_sec,
             "log_stats_collected_at": log_stats_collected_at,

@@ -41,7 +41,25 @@ _EMPTY_CACHE: dict = {
 _cache: dict = dict(_EMPTY_CACHE)
 
 
+CACHE_KEY = "threat_stats"
+
+
 def get_cached() -> dict:
+    """Read-through: falls back to app.collector_store's last-written
+    snapshot when this process's in-memory cache is still empty (see
+    app/log_stats_cache.py::get_cached() for the identical pattern)."""
+    with _lock:
+        if _cache.get("collected_at") is not None:
+            return dict(_cache)
+
+    from app import collector_store
+
+    stored = collector_store.read_cache(CACHE_KEY)
+    if stored is not None:
+        with _lock:
+            _cache.update(stored)
+            return dict(_cache)
+
     with _lock:
         return dict(_cache)
 
@@ -397,6 +415,11 @@ def poll_all_targets() -> None:
         _cache["ipsec_tunnels_down"] = ipsec_tunnels_down
         _cache["ssl_vpn_users_now"] = ssl_vpn_users_now
         _cache["collected_at"] = collected_at
+        snapshot = dict(_cache)
+
+    from app import collector_store
+
+    collector_store.write_cache(CACHE_KEY, snapshot)
 
     history.init_db()
     history.write_rollup(

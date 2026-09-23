@@ -12,7 +12,9 @@ import datetime
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "hostmetrics.db"
+from app.config import Config
+
+DB_PATH = Path(Config.DATA_DIR) / "hostmetrics.db"
 
 RANGES: dict[str, datetime.timedelta] = {
     "1h": datetime.timedelta(hours=1),
