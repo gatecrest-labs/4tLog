@@ -11,9 +11,7 @@ def test_match_targets_for_adom_case_insensitive(monkeypatch):
         {"label": "Primary", "host": "1.2.3.4", "adom": "Enterprise Services"},
         {"label": "Secondary", "host": "5.6.7.8", "adom": "root"},
     ]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     matched = _match_targets_for_adom("enterprise services")
     assert matched == [targets[0]]
 
@@ -31,9 +29,7 @@ def test_match_targets_for_adom_multiple_matches(monkeypatch):
         {"label": "A", "host": "1.1.1.1", "adom": "Shared"},
         {"label": "B", "host": "2.2.2.2", "adom": "shared"},
     ]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     assert _match_targets_for_adom("Shared") == targets
 
 

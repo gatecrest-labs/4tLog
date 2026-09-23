@@ -14,11 +14,15 @@ def _client(rows, truncated=False, local_range=("2026-08-24T00:00:00", "2026-09-
 
 
 def test_search_one_device_aggregates_rows():
-    client = _client([
-        {"srcip": "10.1.1.5", "dstip": "10.2.2.10", "dstport": 443},
-        {"srcip": "10.1.1.6", "dstip": "10.2.2.10", "dstport": 8443},
-    ])
-    result = _search_one_device(client, "SN001", 123, "2026-08-24T00:00:00", "2026-09-23T00:00:00", 30)
+    client = _client(
+        [
+            {"srcip": "10.1.1.5", "dstip": "10.2.2.10", "dstport": 443},
+            {"srcip": "10.1.1.6", "dstip": "10.2.2.10", "dstport": 8443},
+        ]
+    )
+    result = _search_one_device(
+        client, "SN001", 123, "2026-08-24T00:00:00", "2026-09-23T00:00:00", 30
+    )
     assert result["srcips"] == {"10.1.1.5", "10.1.1.6"}
     assert result["dstips"] == {"10.2.2.10"}
     assert result["dstports"] == {443, 8443}

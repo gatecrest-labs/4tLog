@@ -22,7 +22,9 @@ def _fake_client(devices, search_result=None, search_error=None):
         client.search_logs.side_effect = search_error
     else:
         client.search_logs.return_value = search_result or {
-            "rows": [], "fields": [], "truncated": False,
+            "rows": [],
+            "fields": [],
+            "truncated": False,
         }
     return client
 
@@ -36,9 +38,7 @@ def test_no_matching_target_returns_404(monkeypatch):
 
 
 def test_happy_path_single_target_single_device(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = _fake_client(
         devices=[{"devid": "SN001", "name": "FW-DC-01", "platform": "x"}],
         search_result={
@@ -63,9 +63,7 @@ def test_happy_path_single_target_single_device(monkeypatch):
 
 
 def test_device_not_found_on_only_target(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = _fake_client(devices=[])
     response, error, status = _run_log_usage_search(_REQ, faz_client_factory=lambda t: client)
     assert error is None
@@ -77,9 +75,7 @@ def test_device_not_found_on_only_target(monkeypatch):
 
 def test_device_found_on_second_target_not_first(monkeypatch):
     targets = [_target(host="1.1.1.1"), _target(host="2.2.2.2")]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     client_miss = _fake_client(devices=[])
     client_hit = _fake_client(
         devices=[{"devid": "SN001", "name": "FW-DC-01", "platform": "x"}],
@@ -96,9 +92,7 @@ def test_device_found_on_second_target_not_first(monkeypatch):
 
 
 def test_one_device_faz_error_does_not_block_others(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     req = {**_REQ, "devices": ["FW-DC-01", "FW-DC-02"]}
     client = MagicMock()
     client.__enter__.return_value = client
@@ -124,9 +118,7 @@ def test_one_device_faz_error_does_not_block_others(monkeypatch):
 
 
 def test_all_devices_error_returns_502(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = MagicMock()
     client.__enter__.return_value = client
     client.__exit__.return_value = False
@@ -142,9 +134,7 @@ def test_all_devices_error_returns_502(monkeypatch):
 def test_device_search_connection_error_does_not_crash_request(monkeypatch):
     """search_logs() raising a raw requests exception (not FAZError) must
     not propagate -- it should land in device_errors like a FAZError does."""
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     req = {**_REQ, "devices": ["FW-DC-01", "FW-DC-02"]}
     client = MagicMock()
     client.__enter__.return_value = client
@@ -173,9 +163,7 @@ def test_device_search_malformed_json_does_not_crash_request(monkeypatch):
     """A JSONDecodeError from search_logs() (FAZ returned malformed JSON)
     is a requests.RequestException subclass and must be caught the same
     way as a connection error."""
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = _fake_client(
         devices=[{"devid": "SN001", "name": "FW-DC-01", "platform": "x"}],
         search_error=requests.exceptions.JSONDecodeError("Expecting value", "", 0),
@@ -190,9 +178,7 @@ def test_get_devices_error_on_one_target_lets_another_target_resolve(monkeypatch
     """get_devices() failing on one target must not crash the request --
     remaining device names stay eligible for the next target."""
     targets = [_target(host="1.1.1.1"), _target(host="2.2.2.2")]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     client_fail = MagicMock()
     client_fail.__enter__.return_value = client_fail
     client_fail.__exit__.return_value = False
@@ -214,9 +200,7 @@ def test_get_devices_error_on_one_target_lets_another_target_resolve(monkeypatch
 
 
 def test_get_devices_error_on_only_target_ends_in_devices_not_found(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = MagicMock()
     client.__enter__.return_value = client
     client.__exit__.return_value = False
@@ -232,9 +216,7 @@ def test_deadline_exceeded_skips_remaining_devices(monkeypatch):
     """When the whole-request deadline is hit partway through, devices not
     yet attempted must show up in device_errors as 'skipped', not crash,
     and not be misreported as devices_not_found."""
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     req = {**_REQ, "devices": ["FW-DC-01", "FW-DC-02"]}
     client = MagicMock()
     client.__enter__.return_value = client
@@ -245,7 +227,9 @@ def test_deadline_exceeded_skips_remaining_devices(monkeypatch):
     ]
     client.local_time_range.return_value = ("a", "b")
     client.search_logs.return_value = {
-        "rows": [{"srcip": "10.1.1.5"}], "fields": [], "truncated": False,
+        "rows": [{"srcip": "10.1.1.5"}],
+        "fields": [],
+        "truncated": False,
     }
 
     # Call sequence inside _run_log_usage_search: 1) compute the deadline,
@@ -273,9 +257,7 @@ def test_deadline_exceeded_skips_remaining_devices(monkeypatch):
 
 
 def test_truncated_true_if_any_device_truncated(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     req = {**_REQ, "devices": ["FW-DC-01", "FW-DC-02"]}
     client = MagicMock()
     client.__enter__.return_value = client

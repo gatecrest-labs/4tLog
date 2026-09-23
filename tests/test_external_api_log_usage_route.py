@@ -79,7 +79,9 @@ def test_returns_400_on_non_object_body(client):
 
 def test_returns_404_when_no_faz_target(client):
     token = _enable_and_token()
-    resp = _post(client, token, {"adom": "Nonexistent", "devices": ["FW1"], "policyid": 1, "days": 1})
+    resp = _post(
+        client, token, {"adom": "Nonexistent", "devices": ["FW1"], "policyid": 1, "days": 1}
+    )
     assert resp.status_code == 404
 
 
@@ -113,9 +115,16 @@ def test_happy_path_end_to_end(client, monkeypatch):
 
     monkeypatch.setattr(route_mod, "FAZClient", lambda **kwargs: FakeClient())
 
-    resp = _post(client, token, {
-        "adom": "Enterprise Services", "devices": ["FW-DC-01"], "policyid": 123, "days": 30,
-    })
+    resp = _post(
+        client,
+        token,
+        {
+            "adom": "Enterprise Services",
+            "devices": ["FW-DC-01"],
+            "policyid": 123,
+            "days": 30,
+        },
+    )
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["srcips"] == ["10.1.1.5"]
