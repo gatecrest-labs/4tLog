@@ -7,6 +7,7 @@ disabled, every route returns 503.
 
 Endpoints:
   GET /external/api/executive/summary   Fleet-wide metrics for 4tExecutive
+  POST /external/api/log-usage          Aggregated per-policy traffic observed in FAZ logs
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from app.api_tokens import validate_token
 from app.app_logger import app_log
 from app.app_settings import get_setting
 from app.config import Config
-from app.faz_client import FAZError
+from app.faz_client import FAZClient, FAZError
 from app.faz_targets import list_targets
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
@@ -393,3 +394,38 @@ def executive_summary():
             "vpn": vpn,
         }
     )
+
+
+@bp.route("/log-usage", methods=["POST"])
+def log_usage():
+    gate_error = _gate()
+    if gate_error is not None:
+        return gate_error
+
+    data = request.get_json(silent=True) or {}
+    req, err = _validate_log_usage_request(data)
+    if err is not None:
+        return jsonify({"error": err}), 400
+
+    def _factory(target: dict) -> FAZClient:
+        return FAZClient(
+            host=target["host"],
+            token=target.get("token", ""),
+            adom=target.get("adom", "root"),
+            verify_ssl=Config.FAZ_VERIFY_SSL,
+            timeout=Config.FAZ_REQUEST_TIMEOUT,
+        )
+
+    response, error, status = _run_log_usage_search(req, faz_client_factory=_factory)
+    if error is not None:
+        app_log(
+            "WARN",
+            "external_api",
+            "log-usage request failed",
+            adom=req["adom"],
+            error=error,
+            status=status,
+        )
+        return jsonify({"error": error}), status
+
+    return jsonify(response)
