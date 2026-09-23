@@ -49,6 +49,41 @@ def _gate():
     return None
 
 
+def _validate_log_usage_request(data: dict) -> tuple[dict | None, str | None]:
+    """Validate and normalize a /external/api/log-usage request body.
+
+    Returns (normalized_request, None) on success, or (None, error_message)
+    on the first validation failure. Rejects out-of-range `days` rather
+    than clamping it -- this endpoint is a contract boundary; the caller
+    owns its own input hygiene."""
+    adom = str(data.get("adom") or "").strip()
+    if not adom:
+        return None, "adom is required"
+
+    devices = data.get("devices")
+    if (
+        not isinstance(devices, list)
+        or not devices
+        or not all(isinstance(d, str) and d.strip() for d in devices)
+    ):
+        return None, "devices must be a non-empty list of strings"
+
+    policyid = data.get("policyid")
+    if not isinstance(policyid, int) or isinstance(policyid, bool) or policyid <= 0:
+        return None, "policyid must be a positive integer"
+
+    days = data.get("days")
+    if not isinstance(days, int) or isinstance(days, bool) or not (1 <= days <= 60):
+        return None, "days must be an integer between 1 and 60"
+
+    return {
+        "adom": adom,
+        "devices": [d.strip() for d in devices],
+        "policyid": policyid,
+        "days": days,
+    }, None
+
+
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
     """ "Free 40GB, Total 100GB" -> 60.0 (used percent). None if unparseable."""
     if not disk_used:
