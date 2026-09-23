@@ -18,6 +18,7 @@ from flask import Blueprint, jsonify, request
 from app.api_tokens import validate_token
 from app.app_logger import app_log
 from app.app_settings import get_setting
+from app.faz_targets import list_targets
 
 bp = Blueprint("external_api", __name__, url_prefix="/external/api")
 
@@ -82,6 +83,33 @@ def _validate_log_usage_request(data: dict) -> tuple[dict | None, str | None]:
         "policyid": policyid,
         "days": days,
     }, None
+
+
+def _match_targets_for_adom(adom: str) -> list[dict]:
+    """Case-insensitive match against each faz_targets entry's own 'adom'
+    field -- the same mapping the app already maintains for internal
+    Log Search."""
+    adom_lower = adom.lower()
+    return [t for t in list_targets() if str(t.get("adom", "")).lower() == adom_lower]
+
+
+def _resolve_devices_for_target(client, requested_names: list[str]) -> tuple[dict, list]:
+    """Match requested device names against one target's device list,
+    case-insensitively on name. Returns ({requested_name: devid, ...},
+    [requested names not found on this target])."""
+    devices = client.get_devices()
+    by_name_lower = {
+        d["name"].lower(): d["devid"] for d in devices if d.get("name") and d.get("devid")
+    }
+    resolved: dict[str, str] = {}
+    not_found: list[str] = []
+    for name in requested_names:
+        devid = by_name_lower.get(name.lower())
+        if devid:
+            resolved[name] = devid
+        else:
+            not_found.append(name)
+    return resolved, not_found
 
 
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
