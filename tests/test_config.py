@@ -25,6 +25,18 @@ def test_config_loads_defaults(monkeypatch):
     assert config_mod.Config.PERMANENT_SESSION_LIFETIME == 3600
 
 
+def test_session_cookie_name_is_app_specific(monkeypatch):
+    """Must not be Flask's default "session" -- browser cookies are scoped
+    by domain+path, not port, so a default name collides with any other
+    local Flask app (e.g. 4thealth-plus) served from localhost at a
+    different port, silently clobbering each other's session cookie."""
+    monkeypatch.setenv("SECRET_KEY", "a-real-secret")
+    import app.config as config_mod
+
+    importlib.reload(config_mod)
+    assert config_mod.Config.SESSION_COOKIE_NAME == "4tlog_session"
+
+
 def test_log_search_defaults(monkeypatch):
     monkeypatch.delenv("LOG_SEARCH_MAX_RESULTS", raising=False)
     monkeypatch.delenv("LOG_SEARCH_POLL_INTERVAL", raising=False)

@@ -56,6 +56,18 @@ def test_admin_page_reachable_for_admin(client):
     assert resp.status_code == 200
 
 
+def test_admin_page_modals_use_styled_dialog_class(client):
+    """Every modal-overlay's inner box must use "modal-dialog" -- the only
+    class style.css actually defines a background/border/shadow for. A
+    bare "modal" class (no matching CSS rule) renders as a transparent
+    box over the page behind it."""
+    _login(client, "admin1")
+    resp = client.get("/admin/")
+    html = resp.get_data(as_text=True)
+    assert '<div class="modal">' not in html
+    assert html.count('<div class="modal-dialog">') == 4
+
+
 def test_admin_users_list(client):
     _login(client, "admin1")
     resp = client.get("/admin/api/users")
