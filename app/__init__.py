@@ -12,6 +12,7 @@ _BLUEPRINT_MODULES: list[str] = [
     "app.routes.log_search_routes",
     "app.routes.admin_routes",
     "app.routes.external_api_routes",
+    "app.routes.sync_routes",
 ]
 
 
@@ -25,7 +26,7 @@ def create_app() -> Flask:
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             if request.endpoint == "static":
                 return None
-            if request.path.startswith("/external/api/"):
+            if request.path.startswith("/external/api/") or request.path.startswith("/4tsuite/"):
                 # Bearer-token authenticated, no browser session/CSRF token exists.
                 return None
             if not validate_csrf_request():
