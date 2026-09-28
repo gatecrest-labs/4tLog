@@ -25,6 +25,7 @@ services:
       - ./faz_targets.json:/app/faz_targets.json:rw
       - ./app_settings.json:/app/app_settings.json:rw
       - ./api_tokens.json:/app/api_tokens.json:rw
+      - ./sso_public_key.pem:/app/sso_public_key.pem:ro
       - 4tlog-data:/app/data
     healthcheck:
       test: ["CMD", "python3", "-c",

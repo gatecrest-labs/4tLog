@@ -36,6 +36,7 @@ collector_state.db
 *.db-shm
 api_tokens.json
 app_settings.json
+sso_public_key.pem
 
 graphify-out
 .worktrees/
