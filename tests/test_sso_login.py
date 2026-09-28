@@ -23,8 +23,12 @@ def _keypair():
 def _mint(priv_pem, *, audience="4tlog", issuer="4tsuite", sub="alice"):
     now = int(time.time())
     claims = {
-        "sub": sub, "aud": audience, "iss": issuer,
-        "iat": now, "nbf": now, "exp": now + 300,
+        "sub": sub,
+        "aud": audience,
+        "iss": issuer,
+        "iat": now,
+        "nbf": now,
+        "exp": now + 300,
     }
     return jwt.encode(claims, priv_pem, algorithm="EdDSA")
 

@@ -25,8 +25,13 @@ def _mint(
 ):
     now = int(time.time())
     claims = {
-        "sub": sub, "aud": audience, "iss": issuer, "scope": scope,
-        "iat": now, "nbf": now, "exp": now + 300,
+        "sub": sub,
+        "aud": audience,
+        "iss": issuer,
+        "scope": scope,
+        "iat": now,
+        "nbf": now,
+        "exp": now + 300,
     }
     return jwt.encode(claims, priv_pem, algorithm="EdDSA")
 
@@ -72,11 +77,13 @@ def test_push_add_membership_without_a_prior_csrf_session_succeeds(app, client):
     assert response.status_code == 204
 
     import app.groups as groups_mod
+
     assert groups_mod.get_group("operators")["members"] == ["dave"]
 
 
 def test_push_remove_membership(app, client):
     import app.groups as groups_mod
+
     groups_mod.add_group_member("operators", "dave")
 
     response = client.post(
@@ -100,8 +107,12 @@ def test_push_without_a_valid_token_returns_403(client):
 def test_push_rejects_a_login_token_lacking_the_groups_push_scope(app, client):
     login_token = jwt.encode(
         {
-            "sub": "alice", "aud": "4tlog", "iss": "4tsuite",
-            "iat": int(time.time()), "nbf": int(time.time()), "exp": int(time.time()) + 300,
+            "sub": "alice",
+            "aud": "4tlog",
+            "iss": "4tsuite",
+            "iat": int(time.time()),
+            "nbf": int(time.time()),
+            "exp": int(time.time()) + 300,
         },
         app.config["_TEST_PRIV_KEY"],
         algorithm="EdDSA",
