@@ -3,12 +3,13 @@ import time
 from collections import defaultdict
 from urllib.parse import urlparse
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
 from app import registry
 from app.app_logger import app_log
 from app.auth import authenticate
 from app.groups import get_allowed_tabs
+from app.sso_verify import verify_token
 
 # In-memory sliding-window rate limiter for /login:
 # 10 attempts per IP per 10 minutes, 5 attempts per username per 10 minutes.
@@ -115,6 +116,30 @@ def login():
         flash("Invalid credentials.", "danger")
         return render_template("login.html"), 401
     return render_template("login.html")
+
+
+@bp.route("/sso/login")
+def sso_login():
+    token = request.args.get("token", "")
+    username = verify_token(token)
+    if username is None:
+        abort(403)
+    session.clear()
+    session.permanent = True
+    session["user"] = username
+    session["role"] = None
+    session["ad_groups"] = []
+    session["auth_source"] = "sso"
+    allowed = list(get_allowed_tabs(username, ad_groups=[], role=None))
+    session["allowed_tabs"] = allowed
+    session["login_at"] = int(time.time())
+    app_log("INFO", "auth", "SSO login successful", username=username)
+    if not allowed:
+        flash(
+            "Your account has no tabs assigned. Contact an administrator.",
+            "warning",
+        )
+    return redirect(_first_allowed_url(allowed))
 
 
 @bp.route("/logout", methods=["POST"])
