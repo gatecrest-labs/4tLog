@@ -90,11 +90,18 @@ auth/session/API-token state, so `users.json`/`groups.json`/
 restart collector` after editing `faz_targets.json` if you don't want to
 wait for its next scheduled cycle.
 
-## Installing the 4tSuite SSO public key
+## Installing the 4tSuite SSO public key (optional)
 
-Log into 4tSuite as an admin, open **Admin → Signing Key**, and use the
-"Download public key" link (`/admin/signing-key/public-key.pem`) to
-save the file. Place it at `sso_public_key.pem` in this app's repo
-root (same directory as `groups.json`/`users.json`). Re-do this
-whenever 4tSuite rotates its signing key -- `app/sso_verify.py` fails
+**Skip this section entirely if you're running 4tlog standalone**, without
+a 4tSuite instance managing it. Nothing else in this guide depends on it --
+local login, `manage_users.py`, and the collector all work exactly the
+same either way. The `/sso/login` and `/4tsuite/groups` routes simply stay
+unreachable (they fail closed) until you complete this step.
+
+If you *are* integrating with 4tSuite: log into 4tSuite as an admin, open
+**Admin → Signing Key**, and use the "Download public key" link
+(`/admin/signing-key/public-key.pem`) to save the file. Place it at
+`sso_public_key.pem` in this app's repo root (same directory as
+`groups.json`/`users.json`). Re-do this whenever 4tSuite rotates its
+signing key -- `app/sso_verify.py` fails
 closed (rejects all tokens) if this file is missing or stale.
