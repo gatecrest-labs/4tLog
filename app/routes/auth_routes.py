@@ -127,10 +127,13 @@ def sso_login():
     session.clear()
     session.permanent = True
     session["user"] = username
-    session["role"] = None
+    session["role"] = "sso"  # truthy sentinel -- see decorators.py::_revalidate_session();
+    # None would pass the initial redirect and then get silently logged out on
+    # the next request, since that function clears any session lacking a
+    # truthy role for a username absent from users.json.
     session["ad_groups"] = []
     session["auth_source"] = "sso"
-    allowed = list(get_allowed_tabs(username, ad_groups=[], role=None))
+    allowed = list(get_allowed_tabs(username, ad_groups=[], role="sso"))
     session["allowed_tabs"] = allowed
     session["login_at"] = int(time.time())
     app_log("INFO", "auth", "SSO login successful", username=username)

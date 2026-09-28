@@ -60,7 +60,7 @@ def test_sso_login_with_valid_token_establishes_session(app, client):
     assert response.status_code == 302
     with client.session_transaction() as sess:
         assert sess["user"] == "alice"
-        assert sess["role"] is None
+        assert sess["role"] == "sso"
         assert "dashboard" in sess["allowed_tabs"]
 
 
@@ -79,3 +79,18 @@ def test_sso_login_does_not_establish_a_session_on_failure(client):
     client.get("/sso/login?token=garbage")
     with client.session_transaction() as sess:
         assert "user" not in sess
+
+
+def test_sso_session_survives_a_second_authenticated_request(app, client):
+    """Regression test: a session for a username absent from users.json is
+    cleared on the next request unless session["role"] is truthy. A
+    session["role"] = None mistake passes the initial redirect and only
+    fails on this second request."""
+    token = _mint(app.config["_TEST_PRIV_KEY"], sub="alice")
+    client.get(f"/sso/login?token={token}")
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert sess.get("user") == "alice"
