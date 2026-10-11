@@ -98,3 +98,14 @@ def test_sso_session_survives_a_second_authenticated_request(app, client):
     assert response.status_code == 200
     with client.session_transaction() as sess:
         assert sess.get("user") == "alice"
+
+
+def test_zero_grant_sso_user_sees_banner_in_an_authenticated_shell(app, client):
+    """Reference behavior the other sub-apps match: authenticated, nothing granted."""
+    token = _mint(app.config["_TEST_PRIV_KEY"], sub="mallory")  # in no group
+    response = client.get(f"/sso/login?token={token}", follow_redirects=True)
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Your account has no tabs assigned. Contact an administrator." in body
+    assert "mallory" in body  # username shown in the nav
+    assert "/logout" in body  # working logout form
