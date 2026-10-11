@@ -136,6 +136,7 @@ def sso_login():
     allowed = list(get_allowed_tabs(username, ad_groups=[], role="sso"))
     session["allowed_tabs"] = allowed
     session["login_at"] = int(time.time())
+    session["sso_login_at"] = time.time()
     app_log("INFO", "auth", "SSO login successful", username=username)
     if not allowed:
         flash(

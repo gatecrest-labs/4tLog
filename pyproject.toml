@@ -33,6 +33,10 @@ dev = [
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.format]
+# Vendored byte-for-byte from 4tSuite/adapter/; never reformat locally.
+exclude = ["app/tsuite_adapter.py"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 

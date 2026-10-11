@@ -169,3 +169,19 @@ def test_push_with_malformed_body_returns_400(app, client):
         headers={"Authorization": f"Bearer {_token(app)}"},
     )
     assert response.status_code == 400
+
+
+def test_manifest_advertises_revocations_only_when_a_checker_is_configured(app, monkeypatch):
+    from app import create_app
+
+    token = _mint(app.config["_TEST_PRIV_KEY"], scope="manifest_read")
+    headers = {"Authorization": f"Bearer {token}"}
+    monkeypatch.delenv("TSUITE_REVOCATIONS_URL", raising=False)
+    monkeypatch.delenv("TSUITE_REVOCATIONS_TOKEN", raising=False)
+    plain = create_app().test_client().get("/4tsuite/manifest", headers=headers).get_json()
+    assert plain["capabilities"] == []
+
+    monkeypatch.setenv("TSUITE_REVOCATIONS_URL", "https://suite.example:8400")
+    monkeypatch.setenv("TSUITE_REVOCATIONS_TOKEN", "tok")
+    configured = create_app().test_client().get("/4tsuite/manifest", headers=headers).get_json()
+    assert configured["capabilities"] == ["revocations"]
