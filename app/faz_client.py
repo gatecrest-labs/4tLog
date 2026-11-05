@@ -15,6 +15,7 @@ against 192.168.64.4) support the Phase 3 Log Search tab.
 """
 
 import datetime
+import functools
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -62,6 +63,67 @@ def summarize_connection_error(exc: Exception) -> str:
     return "Connection failed"
 
 
+_FAZ_VERSION_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:\s*[-,]?\s*build\s*0*(\d+))?", re.IGNORECASE)
+
+
+@functools.total_ordering
+class FAZVersion:
+    """A parsed FortiAnalyzer release, e.g. ``v8.0.2-build0198``.
+
+    Orders on (major, minor, patch) only and compares against plain tuples, so
+    ``client.version >= (7, 6)`` works. The build number is informational.
+    """
+
+    __slots__ = ("build", "major", "minor", "patch")
+
+    def __init__(self, major: int, minor: int, patch: int, build: int | None = None):
+        self.major, self.minor, self.patch, self.build = major, minor, patch, build
+
+    @property
+    def train(self) -> str:
+        """Release train as ``"major.minor"`` (e.g. ``"8.0"``)."""
+        return f"{self.major}.{self.minor}"
+
+    @property
+    def _key(self) -> tuple:
+        return (self.major, self.minor, self.patch)
+
+    @staticmethod
+    def _other_key(other):
+        if isinstance(other, FAZVersion):
+            return other._key
+        if isinstance(other, tuple):
+            return other
+        return None
+
+    def __eq__(self, other):
+        key = self._other_key(other)
+        return NotImplemented if key is None else self._key == key
+
+    def __lt__(self, other):
+        key = self._other_key(other)
+        return NotImplemented if key is None else self._key < key
+
+    def __hash__(self):
+        return hash(self._key)
+
+    def __repr__(self):
+        return f"FAZVersion({self.major}.{self.minor}.{self.patch}, build={self.build})"
+
+
+def parse_faz_version(raw) -> "FAZVersion | None":
+    """Parse the ``Version`` field of FortiAnalyzer ``/sys/status``
+    (``v8.0.2-build0198 261006 (GA.F)`` or ``v7.4.5,build2360,240702 (GA)``).
+    Returns None when unparseable."""
+    if not isinstance(raw, str):
+        return None
+    m = _FAZ_VERSION_RE.search(raw)
+    if not m:
+        return None
+    major, minor, patch, build = m.groups()
+    return FAZVersion(int(major), int(minor), int(patch), int(build) if build else None)
+
+
 class FAZClient:
     def __init__(
         self,
@@ -83,8 +145,24 @@ class FAZClient:
         self.base_url = f"https://{host}:{port}/jsonrpc"
         self._req_id = 0
         self._http = requests.Session()
+        self._version: FAZVersion | None = None
         if not verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    @property
+    def version(self) -> "FAZVersion | None":
+        """The FortiAnalyzer's own release, fetched lazily and cached on success.
+
+        None (never raises) if ``/sys/status`` is unreachable, so callers must
+        treat "unknown version" as "use the most compatible behaviour".
+        """
+        if self._version is None:
+            try:
+                raw = self.get_sys_status().get("Version")
+            except Exception:
+                return None
+            self._version = parse_faz_version(raw)
+        return self._version
 
     def _next_id(self) -> int:
         self._req_id += 1

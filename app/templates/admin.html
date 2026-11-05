@@ -10,6 +10,7 @@
   <button class="admin-tab" data-panel="panel-faz-targets">FAZ Targets</button>
   <button class="admin-tab" data-panel="panel-host-metrics">Host Metrics</button>
   <button class="admin-tab" data-panel="panel-external-api">External API</button>
+  <button class="admin-tab" data-panel="panel-faz-selftest">API Self-Test</button>
 </div>
 
 <div class="admin-panel active" id="panel-groups">
@@ -69,6 +70,19 @@
       <tbody id="fazTargetsTbody"></tbody>
     </table>
   </div>
+</div>
+
+<div class="admin-panel" id="panel-faz-selftest">
+  <div class="admin-panel-header">
+    <h3>FortiAnalyzer API Self-Test</h3>
+    <div>
+      <select id="fazSelftestTarget" aria-label="FAZ target"></select>
+      <button class="btn btn-primary" id="btnFazSelftest">Run self-test</button>
+    </div>
+  </div>
+  <p class="muted">Runs the read-only FortiAnalyzer calls this app depends on and reports which work.
+    Use it after a FortiAnalyzer upgrade or a token change. It only runs when you click the button.</p>
+  <div id="fazSelftestResult"></div>
 </div>
 
 <div class="admin-panel" id="panel-host-metrics">

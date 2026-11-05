@@ -2686,3 +2686,9 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
   overflow: hidden;
 }
+
+/* ── Admin: API self-test ─────────────────────────────────────────────── */
+.st-ok { color: #15803d; font-weight: 600; }
+.st-denied { color: #b45309; font-weight: 600; }
+.st-error { color: #b91c1c; font-weight: 600; }
+.st-skipped { color: #6b7280; font-weight: 600; }
