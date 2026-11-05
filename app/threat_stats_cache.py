@@ -148,6 +148,36 @@ def _merge_top_lists(lists: list[list[dict]], key: str, limit: int = 5) -> list[
     return [{key: name, "count": count} for name, count in ranked[:limit]]
 
 
+_INVALID_PARAMS = -32002
+
+
+def _fortiview_filtered(client, view: str, time_range, **kwargs) -> list[dict]:
+    """run_fortiview for a view whose *filter* may be rejected by the appliance.
+
+    FortiAnalyzer 8.0.2 answers ``type==ips`` on top-threats / top-countries
+    with -32002 "filter 'type' not supported" (confirmed live; the 7.6.7 spec's
+    filterable fields for those views do not include ``type`` either). That
+    must blank just these lists, not discard the whole target's poll, and it
+    must not fall back to an unfiltered query: "top countries" for ALL traffic
+    shown as "top IPS source countries" would be wrong data. Any other error
+    (permissions, connectivity, timeouts) still propagates.
+    """
+    from app.app_logger import app_log
+    from app.faz_client import FAZError
+
+    try:
+        return client.run_fortiview(client.adom, view, time_range, **kwargs)
+    except FAZError as exc:
+        if exc.code != _INVALID_PARAMS:
+            raise
+        app_log(
+            "WARN",
+            "threat_stats_cache",
+            f"FortiView '{view}' rejected its filter, leaving that list empty: {exc}",
+        )
+        return []
+
+
 def _poll_one_target(client, now: datetime.datetime) -> dict:
     """Collect one target's threat stats. Raises FAZError/Exception on any
     failure — the caller decides whether to skip this target or abort."""
@@ -169,11 +199,11 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
     ips_detections_24h = int(ips_row.get("count", 0) or 0) if ips_row else 0
     ips_blocked_24h = int(ips_row.get("blockedsessions", 0) or 0) if ips_row else 0
 
-    signature_rows = client.run_fortiview(
-        client.adom, "top-threats", time_range, limit=5, filter="type==ips"
+    signature_rows = _fortiview_filtered(
+        client, "top-threats", time_range, limit=5, filter="type==ips"
     )
-    country_rows = client.run_fortiview(
-        client.adom, "top-countries", time_range, limit=5, filter="type==ips"
+    country_rows = _fortiview_filtered(
+        client, "top-countries", time_range, limit=5, filter="type==ips"
     )
 
     # NOTE: "failed-authentication-attempts" (used below for

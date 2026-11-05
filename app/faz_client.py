@@ -30,7 +30,14 @@ _EXTRA_FILTER_FIELD_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 class FAZError(Exception):
     """Raised when FortiAnalyzer returns a non-zero status code, a JSON-RPC
-    error envelope, or an unexpected response shape."""
+    error envelope, or an unexpected response shape.
+
+    ``code`` is FortiAnalyzer's own error code when it supplied one (e.g. -11
+    no permission, -32002 invalid params, -32005 server error), else None."""
+
+    def __init__(self, message: str = "", code: int | None = None):
+        super().__init__(message)
+        self.code = code
 
 
 class FAZSearchTimeout(FAZError):
@@ -101,7 +108,11 @@ class FAZClient:
     @staticmethod
     def _unwrap_result(data: dict) -> dict:
         if "error" in data:
-            raise FAZError(f"FortiAnalyzer error: {data['error']}")
+            err = data["error"]
+            raise FAZError(
+                f"FortiAnalyzer error: {err}",
+                code=err.get("code") if isinstance(err, dict) else None,
+            )
         result = data.get("result")
         if isinstance(result, list):
             result = result[0] if result else {}
@@ -114,7 +125,9 @@ class FAZClient:
         # failure, so it must not be treated as an implicit error code.
         status = result.get("status")
         if status is not None and status.get("code", 0) != 0:
-            raise FAZError(status.get("message", "Unknown FortiAnalyzer error"))
+            raise FAZError(
+                status.get("message", "Unknown FortiAnalyzer error"), code=status.get("code")
+            )
         return result
 
     def login(self) -> "FAZClient":
@@ -405,6 +418,7 @@ class FAZClient:
         filter: str | None = None,
         poll_interval: float = 2.0,
         timeout: float = 60.0,
+        devices: list[dict] | None = None,
     ) -> list[dict]:
         """Run a FortiView report and poll it to completion, returning its
         result rows. Request/poll shape confirmed against the vendored spec
@@ -413,7 +427,13 @@ class FAZClient:
         inside each returned row are NOT documented there (they vary by
         view/report-by and the spec's row schema is a generic
         {"field","value"} placeholder) and have not been confirmed live;
-        callers must treat row keys defensively. Same submit->poll->fetch
+        callers must treat row keys defensively.
+
+        ``devices`` is the FortiView device scope (default: every FortiGate,
+        ``All_FortiGate``). The spec marks ``device`` optional, but
+        FortiAnalyzer 8.0.2 rejects an unscoped run with -32005 "No eligible
+        device(s)" (confirmed live); sending the scope works on 8.0.2 and is
+        the documented form on 7.6. Same submit->poll->fetch
         shape as search_logs(), ported to FortiView's /run and /run/<tid>
         resources instead of /logsearch."""
         start, end = time_range
@@ -427,6 +447,7 @@ class FAZClient:
                     "apiver": 3,
                     "time-range": {"start": start, "end": end},
                     "limit": limit,
+                    "device": devices or [{"devid": "All_FortiGate"}],
                     **({"filter": filter} if filter else {}),
                 }
             ],
