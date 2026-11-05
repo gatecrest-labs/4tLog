@@ -16,6 +16,7 @@ against 192.168.64.4) support the Phase 3 Log Search tab.
 
 import datetime
 import functools
+import os
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -146,6 +147,13 @@ class FAZClient:
         self._req_id = 0
         self._http = requests.Session()
         self._version: FAZVersion | None = None
+        # Opt-in traffic capture for building test fixtures (see faz_recorder).
+        self._recorder = None
+        record_file = os.environ.get("FAZ_RECORD_FILE")
+        if record_file:
+            from app.faz_recorder import Recorder
+
+            self._recorder = Recorder(record_file)
         if not verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -181,7 +189,10 @@ class FAZClient:
             timeout=self.timeout,
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        if self._recorder is not None:
+            self._recorder.record(body, data)
+        return data
 
     @staticmethod
     def _unwrap_result(data: dict) -> dict:
