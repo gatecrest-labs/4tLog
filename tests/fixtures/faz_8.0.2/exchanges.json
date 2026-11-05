@@ -1,0 +1,4784 @@
+{
+ "exchanges": [
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "url": "/dvmdb/adom/root/device"
+     }
+    ]
+   },
+   "response": {
+    "cid": 250,
+    "id": 4,
+    "result": [
+     {
+      "data": [
+       {
+        "adm_pass": [
+         "ENC",
+         "SH2k7kv1KdqNqtJ/Y6C5izCr9OZ8g8MJC9XtrZunczjz9xBEb0ZtP4QdKR5atI="
+        ],
+        "adm_usr": "",
+        "app_ver": "",
+        "auto_mgmt": 0,
+        "av_ver": "",
+        "beta": -1,
+        "branch_pt": 3704,
+        "build": 251,
+        "checksum": "",
+        "cluster_worker": [],
+        "conf_status": 0,
+        "conn_mode": 0,
+        "conn_status": 0,
+        "db_status": 0,
+        "desc": "",
+        "dev_status": 0,
+        "eip": "",
+        "fap_cnt": 0,
+        "faz.full_act": 0,
+        "faz.perm": 15,
+        "faz.quota": 0,
+        "faz.used": 0,
+        "fex_cnt": 0,
+        "first_tunnel_up": 0,
+        "flags": 0,
+        "foslic_cpu": 0,
+        "foslic_dr_site": 0,
+        "foslic_inst_time": 0,
+        "foslic_last_sync": 0,
+        "foslic_ram": 0,
+        "foslic_type": 0,
+        "foslic_utm": 0,
+        "fsw_cnt": 0,
+        "ha.vsn": "",
+        "ha_group_id": 0,
+        "ha_group_name": "",
+        "ha_mode": 0,
+        "ha_slave": null,
+        "ha_upgrade_mode": 0,
+        "hdisk_size": 0,
+        "hostname": "",
+        "hw_generation": 0,
+        "hw_rev_major": 0,
+        "hw_rev_minor": 0,
+        "hyperscale": 0,
+        "ip": "10.250.0.1",
+        "ips_ext": 0,
+        "ips_ver": "",
+        "last_checked": 1783469788,
+        "last_resync": 0,
+        "latitude": "0.0",
+        "lic_flags": 0,
+        "lic_region": "",
+        "location_from": "",
+        "logdisk_size": 0,
+        "longitude": "0.0",
+        "maxvdom": 500,
+        "mgmt.__data[0]": 0,
+        "mgmt.__data[1]": 0,
+        "mgmt.__data[2]": 0,
+        "mgmt.__data[3]": 0,
+        "mgmt.__data[4]": 0,
+        "mgmt.__data[5]": 0,
+        "mgmt.__data[6]": 0,
+        "mgmt.__data[7]": 0,
+        "mgmt_if": "",
+        "mgmt_mode": 2,
+        "mgmt_uuid": "00000000-0000-4000-8000-000000000001",
+        "mgt_vdom": "",
+        "module_sn": "",
+        "mr": 0,
+        "name": "FortiWiFi-71G",
+        "node_flags": 0,
+        "nsxt_service_name": "",
+        "oid": 198,
+        "onboard_rule": null,
+        "opts": 0,
+        "os_type": 0,
+        "os_ver": 8,
+        "patch": 2,
+        "platform_str": "FortiWiFi-71G",
+        "prefer_img_ver": "",
+        "prio": 0,
+        "private_key": "<redacted>",
+        "private_key_status": 0,
+        "psk": "",
+        "relver_info": "",
+        "role": 0,
+        "sn": "FGT0000000000001",
+        "source": 2,
+        "sov_sase_license": "",
+        "tab_status": "",
+        "tunnel_cookie": "",
+        "tunnel_ip": "",
+        "tunnel_sn": "",
+        "vdom": [
+         {
+          "comments": null,
+          "devid": "FortiWiFi-71G",
+          "ext_flags": 0,
+          "flags": 0,
+          "name": "root",
+          "node_flags": 0,
+          "oid": 3,
+          "opmode": 0,
+          "rtm_prof_id": 0,
+          "status": null,
+          "tab_status": null,
+          "vdom_type": 0,
+          "vpn_id": 0
+         }
+        ],
+        "version": 800,
+        "vm_cpu": 0,
+        "vm_cpu_limit": 0,
+        "vm_lic_expire": 0,
+        "vm_lic_overdue_since": 0,
+        "vm_mem": 0,
+        "vm_mem_limit": 0,
+        "vm_payg_status": 0,
+        "vm_status": 0
+       }
+      ],
+      "status": {
+       "code": 0,
+       "message": "OK"
+      },
+      "url": "/dvmdb/adom/root/device"
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "url": "/sys/status"
+     }
+    ]
+   },
+   "response": {
+    "cid": 251,
+    "id": 5,
+    "result": [
+     {
+      "data": {
+       "Admin Domain Configuration": "Disabled",
+       "BIOS version": "04000002",
+       "Branch Point": "0198",
+       "Build": "0198",
+       "Current Time": "Thu Nov 05 12:45:39 PST 2026",
+       "Daylight Time Saving": "Yes",
+       "Disk Usage": "Free 135.29GB, Total 146.58GB",
+       "FIPS Mode": "Disabled",
+       "Hostname": "FAZ-LAB",
+       "License Status": "Valid",
+       "Major": 8,
+       "Max Number of Admin Domains": 5,
+       "Minor": 0,
+       "Patch": 2,
+       "Platform Full Name": "FortiAnalyzer-VM64-KVM",
+       "Platform Type": "FAZVM64-KVM",
+       "Release Version Information": " (GA.F)",
+       "Serial Number": "FGT0000000000002",
+       "TZ": "US/Pacific",
+       "Time Zone": "(GMT-8:00) Pacific Time (US & Canada).",
+       "Version": "v8.0.2-build0198 261006 (GA.F)",
+       "x86-64 Applications": "Yes"
+      },
+      "status": {
+       "code": 0,
+       "message": "OK"
+      },
+      "url": "/sys/status"
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "url": "/sys/status"
+     }
+    ]
+   },
+   "response": {
+    "cid": 252,
+    "id": 6,
+    "result": [
+     {
+      "data": {
+       "Admin Domain Configuration": "Disabled",
+       "BIOS version": "04000002",
+       "Branch Point": "0198",
+       "Build": "0198",
+       "Current Time": "Thu Nov 05 12:45:39 PST 2026",
+       "Daylight Time Saving": "Yes",
+       "Disk Usage": "Free 135.29GB, Total 146.58GB",
+       "FIPS Mode": "Disabled",
+       "Hostname": "FAZ-LAB",
+       "License Status": "Valid",
+       "Major": 8,
+       "Max Number of Admin Domains": 5,
+       "Minor": 0,
+       "Patch": 2,
+       "Platform Full Name": "FortiAnalyzer-VM64-KVM",
+       "Platform Type": "FAZVM64-KVM",
+       "Release Version Information": " (GA.F)",
+       "Serial Number": "FGT0000000000002",
+       "TZ": "US/Pacific",
+       "Time Zone": "(GMT-8:00) Pacific Time (US & Canada).",
+       "Version": "v8.0.2-build0198 261006 (GA.F)",
+       "x86-64 Applications": "Yes"
+      },
+      "status": {
+       "code": 0,
+       "message": "OK"
+      },
+      "url": "/sys/status"
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "devtype": "FortiGate",
+      "logtype": "traffic",
+      "url": "/logview/adom/root/logfields"
+     }
+    ]
+   },
+   "response": {
+    "id": 7,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [
+      {
+       "field": [
+        {
+         "defaultshow": 1,
+         "desc": "itime",
+         "logfldgrp": 9,
+         "name": "itime",
+         "type": 0
+        },
+        {
+         "defaultshow": 1,
+         "desc": "devid",
+         "logfldgrp": 5,
+         "name": "devid",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "action",
+         "logfldgrp": 0,
+         "name": "action",
+         "type": 5
+        },
+        {
+         "defaultshow": 1,
+         "desc": "srcip",
+         "logfldgrp": 5,
+         "name": "srcip",
+         "type": 6
+        },
+        {
+         "defaultshow": 1,
+         "desc": "user",
+         "logfldgrp": 5,
+         "name": "user",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "dstip",
+         "logfldgrp": 4,
+         "name": "dstip",
+         "type": 6
+        },
+        {
+         "defaultshow": 1,
+         "desc": "service",
+         "logfldgrp": 1,
+         "name": "service",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "app",
+         "logfldgrp": 1,
+         "name": "app",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "sentbyte",
+         "logfldgrp": 2,
+         "name": "sentbyte",
+         "type": 0
+        },
+        {
+         "defaultshow": 1,
+         "desc": "rcvdbyte",
+         "logfldgrp": 2,
+         "name": "rcvdbyte",
+         "type": 0
+        },
+        {
+         "defaultshow": 1,
+         "desc": "utmaction",
+         "logfldgrp": 0,
+         "name": "utmaction",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Device time",
+         "logfldgrp": 9,
+         "name": "dtime",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "src enduser id",
+         "logfldgrp": 5,
+         "name": "euid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "src endpoint id",
+         "logfldgrp": 5,
+         "name": "epid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dst enduser id",
+         "logfldgrp": 4,
+         "name": "dsteuid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dst endpoint id",
+         "logfldgrp": 4,
+         "name": "dstepid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "devid",
+         "logfldgrp": 5,
+         "name": "devname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vd",
+         "logfldgrp": 3,
+         "name": "vd",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "type",
+         "logfldgrp": 8,
+         "name": "type",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "subtype",
+         "logfldgrp": 8,
+         "name": "subtype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "level",
+         "logfldgrp": 6,
+         "name": "level",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policyid",
+         "logfldgrp": 0,
+         "name": "policyid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sessionid",
+         "logfldgrp": 3,
+         "name": "sessionid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tranip",
+         "logfldgrp": 4,
+         "name": "tranip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "transip",
+         "logfldgrp": 5,
+         "name": "transip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcport",
+         "logfldgrp": 5,
+         "name": "srcport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstport",
+         "logfldgrp": 4,
+         "name": "dstport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tranport",
+         "logfldgrp": 4,
+         "name": "tranport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "transport",
+         "logfldgrp": 5,
+         "name": "transport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "trandisp",
+         "logfldgrp": 3,
+         "name": "trandisp",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "duration",
+         "logfldgrp": 2,
+         "name": "duration",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "proto",
+         "logfldgrp": 1,
+         "name": "proto",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vrf",
+         "logfldgrp": 9,
+         "name": "vrf",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "slot",
+         "logfldgrp": 9,
+         "name": "slot",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sentdelta",
+         "logfldgrp": 9,
+         "name": "sentdelta",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "rcvddelta",
+         "logfldgrp": 9,
+         "name": "rcvddelta",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sentpkt",
+         "logfldgrp": 2,
+         "name": "sentpkt",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "rcvdpkt",
+         "logfldgrp": 2,
+         "name": "rcvdpkt",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "logid",
+         "logfldgrp": 3,
+         "name": "logid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "unauthuser",
+         "logfldgrp": 5,
+         "name": "unauthuser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstunauthuser",
+         "logfldgrp": 9,
+         "name": "dstunauthuser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcname",
+         "logfldgrp": 5,
+         "name": "srcname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstname",
+         "logfldgrp": 4,
+         "name": "dstname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "group",
+         "logfldgrp": 5,
+         "name": "group",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "appcat",
+         "logfldgrp": 1,
+         "name": "appcat",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fctuid",
+         "logfldgrp": 9,
+         "name": "fctuid",
+         "type": 9
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcintfrole",
+         "logfldgrp": 5,
+         "name": "srcintfrole",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstintfrole",
+         "logfldgrp": 4,
+         "name": "dstintfrole",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcserver",
+         "logfldgrp": 5,
+         "name": "srcserver",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstserver",
+         "logfldgrp": 4,
+         "name": "dstserver",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "appid",
+         "logfldgrp": 1,
+         "name": "appid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "appact",
+         "logfldgrp": 1,
+         "name": "appact",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "apprisk",
+         "logfldgrp": 1,
+         "name": "apprisk",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "wanoptapptype",
+         "logfldgrp": 2,
+         "name": "wanoptapptype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policytype",
+         "logfldgrp": 9,
+         "name": "policytype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "centralnatid",
+         "logfldgrp": 9,
+         "name": "centralnatid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "channel",
+         "logfldgrp": 9,
+         "name": "channel",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwpvlanid",
+         "logfldgrp": 9,
+         "name": "vwpvlanid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shapingpolicyid",
+         "logfldgrp": 9,
+         "name": "shapingpolicyid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "eventtime",
+         "logfldgrp": 9,
+         "name": "eventtime",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlid",
+         "logfldgrp": 9,
+         "name": "vwlid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperdropsentbyte",
+         "logfldgrp": 2,
+         "name": "shaperdropsentbyte",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperdroprcvdbyte",
+         "logfldgrp": 2,
+         "name": "shaperdroprcvdbyte",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperperipdropbyte",
+         "logfldgrp": 2,
+         "name": "shaperperipdropbyte",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "wanin",
+         "logfldgrp": 2,
+         "name": "wanin",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "wanout",
+         "logfldgrp": 2,
+         "name": "wanout",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "lanin",
+         "logfldgrp": 2,
+         "name": "lanin",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "lanout",
+         "logfldgrp": 2,
+         "name": "lanout",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "crscore",
+         "logfldgrp": 6,
+         "name": "crscore",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "craction",
+         "logfldgrp": 0,
+         "name": "craction",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "crlevel",
+         "logfldgrp": 6,
+         "name": "crlevel",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countapp",
+         "logfldgrp": 6,
+         "name": "countapp",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countav",
+         "logfldgrp": 6,
+         "name": "countav",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countdlp",
+         "logfldgrp": 6,
+         "name": "countdlp",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countemail",
+         "logfldgrp": 6,
+         "name": "countemail",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countips",
+         "logfldgrp": 6,
+         "name": "countips",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countweb",
+         "logfldgrp": 6,
+         "name": "countweb",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countwaf",
+         "logfldgrp": 6,
+         "name": "countwaf",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countssl",
+         "logfldgrp": 6,
+         "name": "countssl",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countssh",
+         "logfldgrp": 6,
+         "name": "countssh",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countdns",
+         "logfldgrp": 6,
+         "name": "countdns",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcuuid",
+         "logfldgrp": 5,
+         "name": "srcuuid",
+         "type": 8
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstuuid",
+         "logfldgrp": 4,
+         "name": "dstuuid",
+         "type": 8
+        },
+        {
+         "defaultshow": 0,
+         "desc": "poluuid",
+         "logfldgrp": 0,
+         "name": "poluuid",
+         "type": 8
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcmac",
+         "logfldgrp": 5,
+         "name": "srcmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "mastersrcmac",
+         "logfldgrp": 5,
+         "name": "mastersrcmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstmac",
+         "logfldgrp": 4,
+         "name": "dstmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "masterdstmac",
+         "logfldgrp": 4,
+         "name": "masterdstmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srchwvendor",
+         "logfldgrp": 5,
+         "name": "srchwvendor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srchwversion",
+         "logfldgrp": 5,
+         "name": "srchwversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcfamily",
+         "logfldgrp": 5,
+         "name": "srcfamily",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcswversion",
+         "logfldgrp": 5,
+         "name": "srcswversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dsthwvendor",
+         "logfldgrp": 4,
+         "name": "dsthwvendor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dsthwversion",
+         "logfldgrp": 4,
+         "name": "dsthwversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstfamily",
+         "logfldgrp": 4,
+         "name": "dstfamily",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstswversion",
+         "logfldgrp": 4,
+         "name": "dstswversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "devtype",
+         "logfldgrp": 5,
+         "name": "devtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "devcategory",
+         "logfldgrp": 9,
+         "name": "devcategory",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstdevtype",
+         "logfldgrp": 4,
+         "name": "dstdevtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstdevcategory",
+         "logfldgrp": 9,
+         "name": "dstdevcategory",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "osname",
+         "logfldgrp": 5,
+         "name": "osname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "osversion",
+         "logfldgrp": 5,
+         "name": "osversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstosname",
+         "logfldgrp": 4,
+         "name": "dstosname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstosversion",
+         "logfldgrp": 9,
+         "name": "dstosversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srccountry",
+         "logfldgrp": 5,
+         "name": "srccountry",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstcountry",
+         "logfldgrp": 4,
+         "name": "dstcountry",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcssid",
+         "logfldgrp": 5,
+         "name": "srcssid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstssid",
+         "logfldgrp": 4,
+         "name": "dstssid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcintf",
+         "logfldgrp": 5,
+         "name": "srcintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstintf",
+         "logfldgrp": 4,
+         "name": "dstintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcinetsvc",
+         "logfldgrp": 9,
+         "name": "srcinetsvc",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstinetsvc",
+         "logfldgrp": 9,
+         "name": "dstinetsvc",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "unauthusersource",
+         "logfldgrp": 5,
+         "name": "unauthusersource",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstunauthusersource",
+         "logfldgrp": 9,
+         "name": "dstunauthusersource",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "authserver",
+         "logfldgrp": 9,
+         "name": "authserver",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "applist",
+         "logfldgrp": 1,
+         "name": "applist",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vpn",
+         "logfldgrp": 2,
+         "name": "vpn",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vpntype",
+         "logfldgrp": 8,
+         "name": "vpntype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "radioband",
+         "logfldgrp": 9,
+         "name": "radioband",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policyname",
+         "logfldgrp": 9,
+         "name": "policyname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policymode",
+         "logfldgrp": 9,
+         "name": "policymode",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sslaction",
+         "logfldgrp": 9,
+         "name": "sslaction",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "url",
+         "logfldgrp": 1,
+         "name": "url",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "agent",
+         "logfldgrp": 5,
+         "name": "agent",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "comment",
+         "logfldgrp": 9,
+         "name": "comment",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ap",
+         "logfldgrp": 9,
+         "name": "ap",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "apsn",
+         "logfldgrp": 9,
+         "name": "apsn",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlservice",
+         "logfldgrp": 9,
+         "name": "vwlservice",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlquality",
+         "logfldgrp": 9,
+         "name": "vwlquality",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "collectedemail",
+         "logfldgrp": 5,
+         "name": "collectedemail",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstcollectedemail",
+         "logfldgrp": 9,
+         "name": "dstcollectedemail",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shapersentname",
+         "logfldgrp": 0,
+         "name": "shapersentname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperrcvdname",
+         "logfldgrp": 0,
+         "name": "shaperrcvdname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperperipname",
+         "logfldgrp": 0,
+         "name": "shaperperipname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "msg",
+         "logfldgrp": 3,
+         "name": "msg",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "custom",
+         "logfldgrp": 9,
+         "name": "custom_field1",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "utmevent",
+         "logfldgrp": 9,
+         "name": "utmevent",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "utmsubtype",
+         "logfldgrp": 9,
+         "name": "utmsubtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sender",
+         "logfldgrp": 5,
+         "name": "sender",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "recipient",
+         "logfldgrp": 5,
+         "name": "recipient",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "virus",
+         "logfldgrp": 7,
+         "name": "virus",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "attack",
+         "logfldgrp": 7,
+         "name": "attack",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "hostname",
+         "logfldgrp": 4,
+         "name": "hostname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "catdesc",
+         "logfldgrp": 8,
+         "name": "catdesc",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dlpsensor",
+         "logfldgrp": 9,
+         "name": "dlpsensor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countff",
+         "logfldgrp": 6,
+         "name": "countff",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "identifier",
+         "logfldgrp": 9,
+         "name": "identifier",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "securityid",
+         "logfldgrp": 9,
+         "name": "securityid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "securityact",
+         "logfldgrp": 9,
+         "name": "securityact",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tz",
+         "logfldgrp": 9,
+         "name": "tz",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcdomain",
+         "logfldgrp": 9,
+         "name": "srcdomain",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "counticap",
+         "logfldgrp": 6,
+         "name": "counticap",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstregion",
+         "logfldgrp": 9,
+         "name": "dstregion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcregion",
+         "logfldgrp": 9,
+         "name": "srcregion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstcity",
+         "logfldgrp": 9,
+         "name": "dstcity",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srccity",
+         "logfldgrp": 9,
+         "name": "srccity",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "signal",
+         "logfldgrp": 9,
+         "name": "signal",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "snr",
+         "logfldgrp": 9,
+         "name": "snr",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstauthserver",
+         "logfldgrp": 9,
+         "name": "dstauthserver",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstgroup",
+         "logfldgrp": 9,
+         "name": "dstgroup",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstuser",
+         "logfldgrp": 9,
+         "name": "dstuser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelid",
+         "logfldgrp": 9,
+         "name": "tunnelid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlname",
+         "logfldgrp": 9,
+         "name": "vwlname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcthreatfeed",
+         "logfldgrp": 9,
+         "name": "srcthreatfeed",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstthreatfeed",
+         "logfldgrp": 9,
+         "name": "dstthreatfeed",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "psrcport",
+         "logfldgrp": 9,
+         "name": "psrcport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "pdstport",
+         "logfldgrp": 9,
+         "name": "pdstport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countsctpf",
+         "logfldgrp": 6,
+         "name": "countsctpf",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcreputation",
+         "logfldgrp": 9,
+         "name": "srcreputation",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstreputation",
+         "logfldgrp": 9,
+         "name": "dstreputation",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vip",
+         "logfldgrp": 9,
+         "name": "vip",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "accessproxy",
+         "logfldgrp": 9,
+         "name": "accessproxy",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "gatewayid",
+         "logfldgrp": 9,
+         "name": "gatewayid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdeviceid",
+         "logfldgrp": 9,
+         "name": "clientdeviceid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdeviceowner",
+         "logfldgrp": 9,
+         "name": "clientdeviceowner",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdevicetags",
+         "logfldgrp": 9,
+         "name": "clientdevicetags",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "httpmethod",
+         "logfldgrp": 9,
+         "name": "httpmethod",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "referralurl",
+         "logfldgrp": 9,
+         "name": "referralurl",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "saasname",
+         "logfldgrp": 9,
+         "name": "saasname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcmacvendor",
+         "logfldgrp": 9,
+         "name": "srcmacvendor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shapingpolicyname",
+         "logfldgrp": 9,
+         "name": "shapingpolicyname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "accessctrl",
+         "logfldgrp": 9,
+         "name": "accessctrl",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countcifs",
+         "logfldgrp": 9,
+         "name": "countcifs",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "proxyapptype",
+         "logfldgrp": 9,
+         "name": "proxyapptype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdevicemanageable",
+         "logfldgrp": 9,
+         "name": "clientdevicemanageable",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "emsconnection",
+         "logfldgrp": 9,
+         "name": "emsconnection",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "realserverid",
+         "logfldgrp": 9,
+         "name": "realserverid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fwdsrv",
+         "logfldgrp": 9,
+         "name": "fwdsrv",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "replydstintf",
+         "logfldgrp": 9,
+         "name": "replydstintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "replysrcintf",
+         "logfldgrp": 9,
+         "name": "replysrcintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countvpatch",
+         "logfldgrp": 6,
+         "name": "countvpatch",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countcasb",
+         "logfldgrp": 6,
+         "name": "countcasb",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientcert",
+         "logfldgrp": 9,
+         "name": "clientcert",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdeviceems",
+         "logfldgrp": 9,
+         "name": "clientdeviceems",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "durationdelta",
+         "logfldgrp": 9,
+         "name": "durationdelta",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sentpktdelta",
+         "logfldgrp": 9,
+         "name": "sentpktdelta",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "rcvdpktdelta",
+         "logfldgrp": 9,
+         "name": "rcvdpktdelta",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcremote",
+         "logfldgrp": 9,
+         "name": "srcremote",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vsn",
+         "logfldgrp": 9,
+         "name": "vsn",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "emstag",
+         "logfldgrp": 9,
+         "name": "emstag",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "emstag2",
+         "logfldgrp": 9,
+         "name": "emstag2",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "reqlength",
+         "logfldgrp": 9,
+         "name": "reqlength",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "resplength",
+         "logfldgrp": 9,
+         "name": "resplength",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "reqtime",
+         "logfldgrp": 9,
+         "name": "reqtime",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "resptime",
+         "logfldgrp": 9,
+         "name": "resptime",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "respfinishtime",
+         "logfldgrp": 9,
+         "name": "respfinishtime",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "scheme",
+         "logfldgrp": 9,
+         "name": "scheme",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "resptype",
+         "logfldgrp": 9,
+         "name": "resptype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "statuscode",
+         "logfldgrp": 9,
+         "name": "statuscode",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "transid",
+         "logfldgrp": 9,
+         "name": "transid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcgeoid",
+         "logfldgrp": 9,
+         "name": "srcgeoid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstgeoid",
+         "logfldgrp": 9,
+         "name": "dstgeoid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpnrt",
+         "logfldgrp": 9,
+         "name": "tcpnrt",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpsrt",
+         "logfldgrp": 9,
+         "name": "tcpsrt",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcporgrtrs",
+         "logfldgrp": 9,
+         "name": "tcporgrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcprplrtrs",
+         "logfldgrp": 9,
+         "name": "tcprplrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpsynrtrs",
+         "logfldgrp": 9,
+         "name": "tcpsynrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpsynackrtrs",
+         "logfldgrp": 9,
+         "name": "tcpsynackrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcprst",
+         "logfldgrp": 9,
+         "name": "tcprst",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelsessionid",
+         "logfldgrp": 9,
+         "name": "tunnelsessionid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelproto",
+         "logfldgrp": 9,
+         "name": "tunnelproto",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelsrcip",
+         "logfldgrp": 9,
+         "name": "tunnelsrcip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunneldstip",
+         "logfldgrp": 9,
+         "name": "tunneldstip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vipincomingip",
+         "logfldgrp": 9,
+         "name": "vipincomingip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Source Zone",
+         "logfldgrp": 9,
+         "name": "srczone",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Destination Zone",
+         "logfldgrp": 9,
+         "name": "dstzone",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "App Classification",
+         "logfldgrp": 9,
+         "name": "appclassification",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countllm",
+         "logfldgrp": 9,
+         "name": "countllm",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vlan",
+         "logfldgrp": 9,
+         "name": "vlan",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ztnadestination",
+         "logfldgrp": 9,
+         "name": "ztnadestination",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ztnaproxytype",
+         "logfldgrp": 9,
+         "name": "ztnaproxytype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fct_devid",
+         "name": "fct_devid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "String for unique utmaction values from correlated FortiClient logs, separated by ','.",
+         "name": "fct_utmaction",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "source address object name",
+         "name": "srcuuid_name",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "destination address object name",
+         "name": "dstuuid_name",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threat detect type",
+         "name": "tdtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "detected threat type",
+         "name": "tdthreattype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "detected threat name",
+         "name": "tdthreatname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "detected threat category",
+         "name": "tdwfcate",
+         "type": 4
+        }
+       ],
+       "index": 10,
+       "logtype": "traffic",
+       "private-field": [
+        {
+         "defaultshow": 0,
+         "desc": "batch id",
+         "logfldgrp": 9,
+         "name": "bid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dev-vdom id",
+         "logfldgrp": 9,
+         "name": "dvid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Log flag",
+         "logfldgrp": 9,
+         "name": "logflag",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Log version",
+         "logfldgrp": 9,
+         "name": "logver",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Security Fabric session id",
+         "logfldgrp": 9,
+         "name": "sfsid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "utmref",
+         "logfldgrp": 9,
+         "name": "utmref",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdinfoid",
+         "logfldgrp": 9,
+         "name": "tdinfoid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstowner",
+         "logfldgrp": 9,
+         "name": "dstowner",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdtype",
+         "logfldgrp": 9,
+         "name": "tdtype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdscantime",
+         "logfldgrp": 9,
+         "name": "tdscantime",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdthreattype",
+         "logfldgrp": 9,
+         "name": "tdthreattype",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdthreatname",
+         "logfldgrp": 9,
+         "name": "tdthreatname",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdwfcate",
+         "logfldgrp": 9,
+         "name": "tdwfcate",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threatwgts",
+         "logfldgrp": 9,
+         "name": "threatwgts",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threatcnts",
+         "logfldgrp": 9,
+         "name": "threatcnts",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threatlvls",
+         "logfldgrp": 9,
+         "name": "threatlvls",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "combination of SaaS and SaaS category.",
+         "logfldgrp": 9,
+         "name": "saasinfo",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ebtime",
+         "logfldgrp": 9,
+         "name": "ebtime",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clouduser info from app-ctrl log.",
+         "logfldgrp": 5,
+         "name": "clouduser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threats",
+         "logfldgrp": 9,
+         "name": "threats",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threattyps",
+         "logfldgrp": 9,
+         "name": "threattyps",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "app-name from app-ctrl log.",
+         "logfldgrp": 9,
+         "name": "apps",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "CSF group name",
+         "logfldgrp": 9,
+         "name": "csf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "device name",
+         "logfldgrp": 9,
+         "name": "devname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "FortiGate traffic log loguid.",
+         "name": "fct_corr_id",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fct_fctref",
+         "name": "fct_fctref",
+         "type": 4
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "devtype": "FortiGate",
+      "logtype": "traffic",
+      "url": "/logview/adom/root/logfields"
+     }
+    ]
+   },
+   "response": {
+    "id": 8,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [
+      {
+       "field": [
+        {
+         "defaultshow": 1,
+         "desc": "itime",
+         "logfldgrp": 9,
+         "name": "itime",
+         "type": 0
+        },
+        {
+         "defaultshow": 1,
+         "desc": "devid",
+         "logfldgrp": 5,
+         "name": "devid",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "action",
+         "logfldgrp": 0,
+         "name": "action",
+         "type": 5
+        },
+        {
+         "defaultshow": 1,
+         "desc": "srcip",
+         "logfldgrp": 5,
+         "name": "srcip",
+         "type": 6
+        },
+        {
+         "defaultshow": 1,
+         "desc": "user",
+         "logfldgrp": 5,
+         "name": "user",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "dstip",
+         "logfldgrp": 4,
+         "name": "dstip",
+         "type": 6
+        },
+        {
+         "defaultshow": 1,
+         "desc": "service",
+         "logfldgrp": 1,
+         "name": "service",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "app",
+         "logfldgrp": 1,
+         "name": "app",
+         "type": 4
+        },
+        {
+         "defaultshow": 1,
+         "desc": "sentbyte",
+         "logfldgrp": 2,
+         "name": "sentbyte",
+         "type": 0
+        },
+        {
+         "defaultshow": 1,
+         "desc": "rcvdbyte",
+         "logfldgrp": 2,
+         "name": "rcvdbyte",
+         "type": 0
+        },
+        {
+         "defaultshow": 1,
+         "desc": "utmaction",
+         "logfldgrp": 0,
+         "name": "utmaction",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Device time",
+         "logfldgrp": 9,
+         "name": "dtime",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "src enduser id",
+         "logfldgrp": 5,
+         "name": "euid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "src endpoint id",
+         "logfldgrp": 5,
+         "name": "epid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dst enduser id",
+         "logfldgrp": 4,
+         "name": "dsteuid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dst endpoint id",
+         "logfldgrp": 4,
+         "name": "dstepid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "devid",
+         "logfldgrp": 5,
+         "name": "devname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vd",
+         "logfldgrp": 3,
+         "name": "vd",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "type",
+         "logfldgrp": 8,
+         "name": "type",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "subtype",
+         "logfldgrp": 8,
+         "name": "subtype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "level",
+         "logfldgrp": 6,
+         "name": "level",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policyid",
+         "logfldgrp": 0,
+         "name": "policyid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sessionid",
+         "logfldgrp": 3,
+         "name": "sessionid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tranip",
+         "logfldgrp": 4,
+         "name": "tranip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "transip",
+         "logfldgrp": 5,
+         "name": "transip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcport",
+         "logfldgrp": 5,
+         "name": "srcport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstport",
+         "logfldgrp": 4,
+         "name": "dstport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tranport",
+         "logfldgrp": 4,
+         "name": "tranport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "transport",
+         "logfldgrp": 5,
+         "name": "transport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "trandisp",
+         "logfldgrp": 3,
+         "name": "trandisp",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "duration",
+         "logfldgrp": 2,
+         "name": "duration",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "proto",
+         "logfldgrp": 1,
+         "name": "proto",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vrf",
+         "logfldgrp": 9,
+         "name": "vrf",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "slot",
+         "logfldgrp": 9,
+         "name": "slot",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sentdelta",
+         "logfldgrp": 9,
+         "name": "sentdelta",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "rcvddelta",
+         "logfldgrp": 9,
+         "name": "rcvddelta",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sentpkt",
+         "logfldgrp": 2,
+         "name": "sentpkt",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "rcvdpkt",
+         "logfldgrp": 2,
+         "name": "rcvdpkt",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "logid",
+         "logfldgrp": 3,
+         "name": "logid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "unauthuser",
+         "logfldgrp": 5,
+         "name": "unauthuser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstunauthuser",
+         "logfldgrp": 9,
+         "name": "dstunauthuser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcname",
+         "logfldgrp": 5,
+         "name": "srcname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstname",
+         "logfldgrp": 4,
+         "name": "dstname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "group",
+         "logfldgrp": 5,
+         "name": "group",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "appcat",
+         "logfldgrp": 1,
+         "name": "appcat",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fctuid",
+         "logfldgrp": 9,
+         "name": "fctuid",
+         "type": 9
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcintfrole",
+         "logfldgrp": 5,
+         "name": "srcintfrole",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstintfrole",
+         "logfldgrp": 4,
+         "name": "dstintfrole",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcserver",
+         "logfldgrp": 5,
+         "name": "srcserver",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstserver",
+         "logfldgrp": 4,
+         "name": "dstserver",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "appid",
+         "logfldgrp": 1,
+         "name": "appid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "appact",
+         "logfldgrp": 1,
+         "name": "appact",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "apprisk",
+         "logfldgrp": 1,
+         "name": "apprisk",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "wanoptapptype",
+         "logfldgrp": 2,
+         "name": "wanoptapptype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policytype",
+         "logfldgrp": 9,
+         "name": "policytype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "centralnatid",
+         "logfldgrp": 9,
+         "name": "centralnatid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "channel",
+         "logfldgrp": 9,
+         "name": "channel",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwpvlanid",
+         "logfldgrp": 9,
+         "name": "vwpvlanid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shapingpolicyid",
+         "logfldgrp": 9,
+         "name": "shapingpolicyid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "eventtime",
+         "logfldgrp": 9,
+         "name": "eventtime",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlid",
+         "logfldgrp": 9,
+         "name": "vwlid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperdropsentbyte",
+         "logfldgrp": 2,
+         "name": "shaperdropsentbyte",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperdroprcvdbyte",
+         "logfldgrp": 2,
+         "name": "shaperdroprcvdbyte",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperperipdropbyte",
+         "logfldgrp": 2,
+         "name": "shaperperipdropbyte",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "wanin",
+         "logfldgrp": 2,
+         "name": "wanin",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "wanout",
+         "logfldgrp": 2,
+         "name": "wanout",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "lanin",
+         "logfldgrp": 2,
+         "name": "lanin",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "lanout",
+         "logfldgrp": 2,
+         "name": "lanout",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "crscore",
+         "logfldgrp": 6,
+         "name": "crscore",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "craction",
+         "logfldgrp": 0,
+         "name": "craction",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "crlevel",
+         "logfldgrp": 6,
+         "name": "crlevel",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countapp",
+         "logfldgrp": 6,
+         "name": "countapp",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countav",
+         "logfldgrp": 6,
+         "name": "countav",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countdlp",
+         "logfldgrp": 6,
+         "name": "countdlp",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countemail",
+         "logfldgrp": 6,
+         "name": "countemail",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countips",
+         "logfldgrp": 6,
+         "name": "countips",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countweb",
+         "logfldgrp": 6,
+         "name": "countweb",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countwaf",
+         "logfldgrp": 6,
+         "name": "countwaf",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countssl",
+         "logfldgrp": 6,
+         "name": "countssl",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countssh",
+         "logfldgrp": 6,
+         "name": "countssh",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countdns",
+         "logfldgrp": 6,
+         "name": "countdns",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcuuid",
+         "logfldgrp": 5,
+         "name": "srcuuid",
+         "type": 8
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstuuid",
+         "logfldgrp": 4,
+         "name": "dstuuid",
+         "type": 8
+        },
+        {
+         "defaultshow": 0,
+         "desc": "poluuid",
+         "logfldgrp": 0,
+         "name": "poluuid",
+         "type": 8
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcmac",
+         "logfldgrp": 5,
+         "name": "srcmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "mastersrcmac",
+         "logfldgrp": 5,
+         "name": "mastersrcmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstmac",
+         "logfldgrp": 4,
+         "name": "dstmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "masterdstmac",
+         "logfldgrp": 4,
+         "name": "masterdstmac",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srchwvendor",
+         "logfldgrp": 5,
+         "name": "srchwvendor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srchwversion",
+         "logfldgrp": 5,
+         "name": "srchwversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcfamily",
+         "logfldgrp": 5,
+         "name": "srcfamily",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcswversion",
+         "logfldgrp": 5,
+         "name": "srcswversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dsthwvendor",
+         "logfldgrp": 4,
+         "name": "dsthwvendor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dsthwversion",
+         "logfldgrp": 4,
+         "name": "dsthwversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstfamily",
+         "logfldgrp": 4,
+         "name": "dstfamily",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstswversion",
+         "logfldgrp": 4,
+         "name": "dstswversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "devtype",
+         "logfldgrp": 5,
+         "name": "devtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "devcategory",
+         "logfldgrp": 9,
+         "name": "devcategory",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstdevtype",
+         "logfldgrp": 4,
+         "name": "dstdevtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstdevcategory",
+         "logfldgrp": 9,
+         "name": "dstdevcategory",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "osname",
+         "logfldgrp": 5,
+         "name": "osname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "osversion",
+         "logfldgrp": 5,
+         "name": "osversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstosname",
+         "logfldgrp": 4,
+         "name": "dstosname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstosversion",
+         "logfldgrp": 9,
+         "name": "dstosversion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srccountry",
+         "logfldgrp": 5,
+         "name": "srccountry",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstcountry",
+         "logfldgrp": 4,
+         "name": "dstcountry",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcssid",
+         "logfldgrp": 5,
+         "name": "srcssid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstssid",
+         "logfldgrp": 4,
+         "name": "dstssid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcintf",
+         "logfldgrp": 5,
+         "name": "srcintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstintf",
+         "logfldgrp": 4,
+         "name": "dstintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcinetsvc",
+         "logfldgrp": 9,
+         "name": "srcinetsvc",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstinetsvc",
+         "logfldgrp": 9,
+         "name": "dstinetsvc",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "unauthusersource",
+         "logfldgrp": 5,
+         "name": "unauthusersource",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstunauthusersource",
+         "logfldgrp": 9,
+         "name": "dstunauthusersource",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "authserver",
+         "logfldgrp": 9,
+         "name": "authserver",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "applist",
+         "logfldgrp": 1,
+         "name": "applist",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vpn",
+         "logfldgrp": 2,
+         "name": "vpn",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vpntype",
+         "logfldgrp": 8,
+         "name": "vpntype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "radioband",
+         "logfldgrp": 9,
+         "name": "radioband",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policyname",
+         "logfldgrp": 9,
+         "name": "policyname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "policymode",
+         "logfldgrp": 9,
+         "name": "policymode",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sslaction",
+         "logfldgrp": 9,
+         "name": "sslaction",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "url",
+         "logfldgrp": 1,
+         "name": "url",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "agent",
+         "logfldgrp": 5,
+         "name": "agent",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "comment",
+         "logfldgrp": 9,
+         "name": "comment",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ap",
+         "logfldgrp": 9,
+         "name": "ap",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "apsn",
+         "logfldgrp": 9,
+         "name": "apsn",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlservice",
+         "logfldgrp": 9,
+         "name": "vwlservice",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlquality",
+         "logfldgrp": 9,
+         "name": "vwlquality",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "collectedemail",
+         "logfldgrp": 5,
+         "name": "collectedemail",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstcollectedemail",
+         "logfldgrp": 9,
+         "name": "dstcollectedemail",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shapersentname",
+         "logfldgrp": 0,
+         "name": "shapersentname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperrcvdname",
+         "logfldgrp": 0,
+         "name": "shaperrcvdname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shaperperipname",
+         "logfldgrp": 0,
+         "name": "shaperperipname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "msg",
+         "logfldgrp": 3,
+         "name": "msg",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "custom",
+         "logfldgrp": 9,
+         "name": "custom_field1",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "utmevent",
+         "logfldgrp": 9,
+         "name": "utmevent",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "utmsubtype",
+         "logfldgrp": 9,
+         "name": "utmsubtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sender",
+         "logfldgrp": 5,
+         "name": "sender",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "recipient",
+         "logfldgrp": 5,
+         "name": "recipient",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "virus",
+         "logfldgrp": 7,
+         "name": "virus",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "attack",
+         "logfldgrp": 7,
+         "name": "attack",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "hostname",
+         "logfldgrp": 4,
+         "name": "hostname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "catdesc",
+         "logfldgrp": 8,
+         "name": "catdesc",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dlpsensor",
+         "logfldgrp": 9,
+         "name": "dlpsensor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countff",
+         "logfldgrp": 6,
+         "name": "countff",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "identifier",
+         "logfldgrp": 9,
+         "name": "identifier",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "securityid",
+         "logfldgrp": 9,
+         "name": "securityid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "securityact",
+         "logfldgrp": 9,
+         "name": "securityact",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tz",
+         "logfldgrp": 9,
+         "name": "tz",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcdomain",
+         "logfldgrp": 9,
+         "name": "srcdomain",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "counticap",
+         "logfldgrp": 6,
+         "name": "counticap",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstregion",
+         "logfldgrp": 9,
+         "name": "dstregion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcregion",
+         "logfldgrp": 9,
+         "name": "srcregion",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstcity",
+         "logfldgrp": 9,
+         "name": "dstcity",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srccity",
+         "logfldgrp": 9,
+         "name": "srccity",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "signal",
+         "logfldgrp": 9,
+         "name": "signal",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "snr",
+         "logfldgrp": 9,
+         "name": "snr",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstauthserver",
+         "logfldgrp": 9,
+         "name": "dstauthserver",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstgroup",
+         "logfldgrp": 9,
+         "name": "dstgroup",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstuser",
+         "logfldgrp": 9,
+         "name": "dstuser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelid",
+         "logfldgrp": 9,
+         "name": "tunnelid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vwlname",
+         "logfldgrp": 9,
+         "name": "vwlname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcthreatfeed",
+         "logfldgrp": 9,
+         "name": "srcthreatfeed",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstthreatfeed",
+         "logfldgrp": 9,
+         "name": "dstthreatfeed",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "psrcport",
+         "logfldgrp": 9,
+         "name": "psrcport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "pdstport",
+         "logfldgrp": 9,
+         "name": "pdstport",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countsctpf",
+         "logfldgrp": 6,
+         "name": "countsctpf",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcreputation",
+         "logfldgrp": 9,
+         "name": "srcreputation",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstreputation",
+         "logfldgrp": 9,
+         "name": "dstreputation",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vip",
+         "logfldgrp": 9,
+         "name": "vip",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "accessproxy",
+         "logfldgrp": 9,
+         "name": "accessproxy",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "gatewayid",
+         "logfldgrp": 9,
+         "name": "gatewayid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdeviceid",
+         "logfldgrp": 9,
+         "name": "clientdeviceid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdeviceowner",
+         "logfldgrp": 9,
+         "name": "clientdeviceowner",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdevicetags",
+         "logfldgrp": 9,
+         "name": "clientdevicetags",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "httpmethod",
+         "logfldgrp": 9,
+         "name": "httpmethod",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "referralurl",
+         "logfldgrp": 9,
+         "name": "referralurl",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "saasname",
+         "logfldgrp": 9,
+         "name": "saasname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcmacvendor",
+         "logfldgrp": 9,
+         "name": "srcmacvendor",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "shapingpolicyname",
+         "logfldgrp": 9,
+         "name": "shapingpolicyname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "accessctrl",
+         "logfldgrp": 9,
+         "name": "accessctrl",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countcifs",
+         "logfldgrp": 9,
+         "name": "countcifs",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "proxyapptype",
+         "logfldgrp": 9,
+         "name": "proxyapptype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdevicemanageable",
+         "logfldgrp": 9,
+         "name": "clientdevicemanageable",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "emsconnection",
+         "logfldgrp": 9,
+         "name": "emsconnection",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "realserverid",
+         "logfldgrp": 9,
+         "name": "realserverid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fwdsrv",
+         "logfldgrp": 9,
+         "name": "fwdsrv",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "replydstintf",
+         "logfldgrp": 9,
+         "name": "replydstintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "replysrcintf",
+         "logfldgrp": 9,
+         "name": "replysrcintf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countvpatch",
+         "logfldgrp": 6,
+         "name": "countvpatch",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countcasb",
+         "logfldgrp": 6,
+         "name": "countcasb",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientcert",
+         "logfldgrp": 9,
+         "name": "clientcert",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clientdeviceems",
+         "logfldgrp": 9,
+         "name": "clientdeviceems",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "durationdelta",
+         "logfldgrp": 9,
+         "name": "durationdelta",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "sentpktdelta",
+         "logfldgrp": 9,
+         "name": "sentpktdelta",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "rcvdpktdelta",
+         "logfldgrp": 9,
+         "name": "rcvdpktdelta",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcremote",
+         "logfldgrp": 9,
+         "name": "srcremote",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vsn",
+         "logfldgrp": 9,
+         "name": "vsn",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "emstag",
+         "logfldgrp": 9,
+         "name": "emstag",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "emstag2",
+         "logfldgrp": 9,
+         "name": "emstag2",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "reqlength",
+         "logfldgrp": 9,
+         "name": "reqlength",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "resplength",
+         "logfldgrp": 9,
+         "name": "resplength",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "reqtime",
+         "logfldgrp": 9,
+         "name": "reqtime",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "resptime",
+         "logfldgrp": 9,
+         "name": "resptime",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "respfinishtime",
+         "logfldgrp": 9,
+         "name": "respfinishtime",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "scheme",
+         "logfldgrp": 9,
+         "name": "scheme",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "resptype",
+         "logfldgrp": 9,
+         "name": "resptype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "statuscode",
+         "logfldgrp": 9,
+         "name": "statuscode",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "transid",
+         "logfldgrp": 9,
+         "name": "transid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "srcgeoid",
+         "logfldgrp": 9,
+         "name": "srcgeoid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstgeoid",
+         "logfldgrp": 9,
+         "name": "dstgeoid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpnrt",
+         "logfldgrp": 9,
+         "name": "tcpnrt",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpsrt",
+         "logfldgrp": 9,
+         "name": "tcpsrt",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcporgrtrs",
+         "logfldgrp": 9,
+         "name": "tcporgrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcprplrtrs",
+         "logfldgrp": 9,
+         "name": "tcprplrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpsynrtrs",
+         "logfldgrp": 9,
+         "name": "tcpsynrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcpsynackrtrs",
+         "logfldgrp": 9,
+         "name": "tcpsynackrtrs",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tcprst",
+         "logfldgrp": 9,
+         "name": "tcprst",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelsessionid",
+         "logfldgrp": 9,
+         "name": "tunnelsessionid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelproto",
+         "logfldgrp": 9,
+         "name": "tunnelproto",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunnelsrcip",
+         "logfldgrp": 9,
+         "name": "tunnelsrcip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tunneldstip",
+         "logfldgrp": 9,
+         "name": "tunneldstip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vipincomingip",
+         "logfldgrp": 9,
+         "name": "vipincomingip",
+         "type": 6
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Source Zone",
+         "logfldgrp": 9,
+         "name": "srczone",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Destination Zone",
+         "logfldgrp": 9,
+         "name": "dstzone",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "App Classification",
+         "logfldgrp": 9,
+         "name": "appclassification",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "countllm",
+         "logfldgrp": 9,
+         "name": "countllm",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "vlan",
+         "logfldgrp": 9,
+         "name": "vlan",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ztnadestination",
+         "logfldgrp": 9,
+         "name": "ztnadestination",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ztnaproxytype",
+         "logfldgrp": 9,
+         "name": "ztnaproxytype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fct_devid",
+         "name": "fct_devid",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "String for unique utmaction values from correlated FortiClient logs, separated by ','.",
+         "name": "fct_utmaction",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "source address object name",
+         "name": "srcuuid_name",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "destination address object name",
+         "name": "dstuuid_name",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threat detect type",
+         "name": "tdtype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "detected threat type",
+         "name": "tdthreattype",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "detected threat name",
+         "name": "tdthreatname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "detected threat category",
+         "name": "tdwfcate",
+         "type": 4
+        }
+       ],
+       "index": 10,
+       "logtype": "traffic",
+       "private-field": [
+        {
+         "defaultshow": 0,
+         "desc": "batch id",
+         "logfldgrp": 9,
+         "name": "bid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dev-vdom id",
+         "logfldgrp": 9,
+         "name": "dvid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Log flag",
+         "logfldgrp": 9,
+         "name": "logflag",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Log version",
+         "logfldgrp": 9,
+         "name": "logver",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "Security Fabric session id",
+         "logfldgrp": 9,
+         "name": "sfsid",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "utmref",
+         "logfldgrp": 9,
+         "name": "utmref",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdinfoid",
+         "logfldgrp": 9,
+         "name": "tdinfoid",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "dstowner",
+         "logfldgrp": 9,
+         "name": "dstowner",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdtype",
+         "logfldgrp": 9,
+         "name": "tdtype",
+         "type": 5
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdscantime",
+         "logfldgrp": 9,
+         "name": "tdscantime",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdthreattype",
+         "logfldgrp": 9,
+         "name": "tdthreattype",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdthreatname",
+         "logfldgrp": 9,
+         "name": "tdthreatname",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "tdwfcate",
+         "logfldgrp": 9,
+         "name": "tdwfcate",
+         "type": 1
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threatwgts",
+         "logfldgrp": 9,
+         "name": "threatwgts",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threatcnts",
+         "logfldgrp": 9,
+         "name": "threatcnts",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threatlvls",
+         "logfldgrp": 9,
+         "name": "threatlvls",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "combination of SaaS and SaaS category.",
+         "logfldgrp": 9,
+         "name": "saasinfo",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "ebtime",
+         "logfldgrp": 9,
+         "name": "ebtime",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "clouduser info from app-ctrl log.",
+         "logfldgrp": 5,
+         "name": "clouduser",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threats",
+         "logfldgrp": 9,
+         "name": "threats",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "threattyps",
+         "logfldgrp": 9,
+         "name": "threattyps",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "app-name from app-ctrl log.",
+         "logfldgrp": 9,
+         "name": "apps",
+         "type": 10
+        },
+        {
+         "defaultshow": 0,
+         "desc": "CSF group name",
+         "logfldgrp": 9,
+         "name": "csf",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "device name",
+         "logfldgrp": 9,
+         "name": "devname",
+         "type": 4
+        },
+        {
+         "defaultshow": 0,
+         "desc": "FortiGate traffic log loguid.",
+         "name": "fct_corr_id",
+         "type": 0
+        },
+        {
+         "defaultshow": 0,
+         "desc": "fct_fctref",
+         "name": "fct_fctref",
+         "type": 4
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "url": "/dvmdb/adom/root/device"
+     }
+    ]
+   },
+   "response": {
+    "cid": 255,
+    "id": 9,
+    "result": [
+     {
+      "data": [
+       {
+        "adm_pass": [
+         "ENC",
+         "SH2iDHpxPiJzUNK+v+d9gr5ts7KMqEi+2mb0+IbyiBhnhKWiWw2/buJ6sJ3/yo="
+        ],
+        "adm_usr": "",
+        "app_ver": "",
+        "auto_mgmt": 0,
+        "av_ver": "",
+        "beta": -1,
+        "branch_pt": 3704,
+        "build": 251,
+        "checksum": "",
+        "cluster_worker": [],
+        "conf_status": 0,
+        "conn_mode": 0,
+        "conn_status": 0,
+        "db_status": 0,
+        "desc": "",
+        "dev_status": 0,
+        "eip": "",
+        "fap_cnt": 0,
+        "faz.full_act": 0,
+        "faz.perm": 15,
+        "faz.quota": 0,
+        "faz.used": 0,
+        "fex_cnt": 0,
+        "first_tunnel_up": 0,
+        "flags": 0,
+        "foslic_cpu": 0,
+        "foslic_dr_site": 0,
+        "foslic_inst_time": 0,
+        "foslic_last_sync": 0,
+        "foslic_ram": 0,
+        "foslic_type": 0,
+        "foslic_utm": 0,
+        "fsw_cnt": 0,
+        "ha.vsn": "",
+        "ha_group_id": 0,
+        "ha_group_name": "",
+        "ha_mode": 0,
+        "ha_slave": null,
+        "ha_upgrade_mode": 0,
+        "hdisk_size": 0,
+        "hostname": "",
+        "hw_generation": 0,
+        "hw_rev_major": 0,
+        "hw_rev_minor": 0,
+        "hyperscale": 0,
+        "ip": "10.250.0.1",
+        "ips_ext": 0,
+        "ips_ver": "",
+        "last_checked": 1783469788,
+        "last_resync": 0,
+        "latitude": "0.0",
+        "lic_flags": 0,
+        "lic_region": "",
+        "location_from": "",
+        "logdisk_size": 0,
+        "longitude": "0.0",
+        "maxvdom": 500,
+        "mgmt.__data[0]": 0,
+        "mgmt.__data[1]": 0,
+        "mgmt.__data[2]": 0,
+        "mgmt.__data[3]": 0,
+        "mgmt.__data[4]": 0,
+        "mgmt.__data[5]": 0,
+        "mgmt.__data[6]": 0,
+        "mgmt.__data[7]": 0,
+        "mgmt_if": "",
+        "mgmt_mode": 2,
+        "mgmt_uuid": "00000000-0000-4000-8000-000000000001",
+        "mgt_vdom": "",
+        "module_sn": "",
+        "mr": 0,
+        "name": "FortiWiFi-71G",
+        "node_flags": 0,
+        "nsxt_service_name": "",
+        "oid": 198,
+        "onboard_rule": null,
+        "opts": 0,
+        "os_type": 0,
+        "os_ver": 8,
+        "patch": 2,
+        "platform_str": "FortiWiFi-71G",
+        "prefer_img_ver": "",
+        "prio": 0,
+        "private_key": "<redacted>",
+        "private_key_status": 0,
+        "psk": "",
+        "relver_info": "",
+        "role": 0,
+        "sn": "FGT0000000000001",
+        "source": 2,
+        "sov_sase_license": "",
+        "tab_status": "",
+        "tunnel_cookie": "",
+        "tunnel_ip": "",
+        "tunnel_sn": "",
+        "vdom": [
+         {
+          "comments": null,
+          "devid": "FortiWiFi-71G",
+          "ext_flags": 0,
+          "flags": 0,
+          "name": "root",
+          "node_flags": 0,
+          "oid": 3,
+          "opmode": 0,
+          "rtm_prof_id": 0,
+          "status": null,
+          "tab_status": null,
+          "vdom_type": 0,
+          "vpn_id": 0
+         }
+        ],
+        "version": 800,
+        "vm_cpu": 0,
+        "vm_cpu_limit": 0,
+        "vm_lic_expire": 0,
+        "vm_lic_overdue_since": 0,
+        "vm_mem": 0,
+        "vm_mem_limit": 0,
+        "vm_payg_status": 0,
+        "vm_status": 0
+       }
+      ],
+      "status": {
+       "code": 0,
+       "message": "OK"
+      },
+      "url": "/dvmdb/adom/root/device"
+     }
+    ]
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "url": "/logview/adom/root/logstats"
+     }
+    ]
+   },
+   "response": {
+    "id": 10,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": {
+      "devs": [
+       {
+        "devid": "FGT0000000000001",
+        "devname": "FortiWiFi-71G",
+        "encrypted-forwarding": 0,
+        "encrypted-logging": 0,
+        "is-ha": 0,
+        "log-interval-dev-no-logging": 15,
+        "log-upload-interval-dev-no-logging": 360,
+        "logging-mode": 0,
+        "logstat-info": "0,0,0,0,0,0,0",
+        "status": 1,
+        "vdoms": [
+         {
+          "adom-quota-MB": 51200,
+          "log-db-size": 0,
+          "log-disk-size": 28049408,
+          "vdom": "root"
+         }
+        ]
+       }
+      ],
+      "log-interval-dev-no-logging-realtime": 900,
+      "log-interval-dev-no-logging-upload": 21600,
+      "system-timestamp": 1793911540
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "filter": "ackflag=no",
+      "url": "/eventmgmt/adom/root/alerts/count"
+     }
+    ]
+   },
+   "response": {
+    "id": 11,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [
+      {
+       "count": "139",
+       "severity": "medium"
+      },
+      {
+       "count": "99",
+       "severity": "low"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/top-type/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 12,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 1700986916
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/top-type/run/1700986916"
+     }
+    ]
+   },
+   "response": {
+    "id": 13,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "db_start_time": 1788223788,
+     "percentage": 0,
+     "request-id": 1700986916,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/top-type/run/1700986916"
+     }
+    ]
+   },
+   "response": {
+    "id": 14,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1793911539,
+      "start": 1793825139
+     },
+     "db_start_time": 1788223788,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "filter": "type==ips",
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/top-threats/run"
+     }
+    ]
+   },
+   "response": {
+    "error": {
+     "code": -32002,
+     "message": "Invalid params: filter 'type' not supported."
+    },
+    "id": 15,
+    "jsonrpc": "2.0"
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "filter": "type==ips",
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/top-countries/run"
+     }
+    ]
+   },
+   "response": {
+    "error": {
+     "code": -32002,
+     "message": "Invalid params: filter 'type' not supported."
+    },
+    "id": 16,
+    "jsonrpc": "2.0"
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/admin-logins/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 17,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 624033829
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/admin-logins/run/624033829"
+     }
+    ]
+   },
+   "response": {
+    "id": 18,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 624033829,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/admin-logins/run/624033829"
+     }
+    ]
+   },
+   "response": {
+    "id": 19,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1793911539,
+      "start": 1793825139
+     },
+     "db_start_time": 1788223788,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/failed-authentication-attempts/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 20,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 1326645286
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/failed-authentication-attempts/run/1326645286"
+     }
+    ]
+   },
+   "response": {
+    "id": 21,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 1326645286,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/failed-authentication-attempts/run/1326645286"
+     }
+    ]
+   },
+   "response": {
+    "id": 22,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1793911539,
+      "start": 1793825139
+     },
+     "db_start_time": 1788223788,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/site-to-site-ipsec/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 23,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 1918566439
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/site-to-site-ipsec/run/1918566439"
+     }
+    ]
+   },
+   "response": {
+    "id": 24,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 1918566439,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/site-to-site-ipsec/run/1918566439"
+     }
+    ]
+   },
+   "response": {
+    "id": 25,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1793911539,
+      "start": 1793825139
+     },
+     "db_start_time": 1788223788,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 26,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 268697640
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run/268697640"
+     }
+    ]
+   },
+   "response": {
+    "id": 27,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 268697640,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run/268697640"
+     }
+    ]
+   },
+   "response": {
+    "id": 28,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1793911539,
+      "start": 1793825139
+     },
+     "db_start_time": 1788223788,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "case-sensitive": false,
+      "device": [
+       {
+        "devid": "FGT0000000000001"
+       }
+      ],
+      "filter": "",
+      "limit": 1,
+      "logtype": "traffic",
+      "offset": 0,
+      "time-order": "desc",
+      "time-range": {
+       "end": "2026-11-05T12:45:39",
+       "start": "2026-11-04T12:45:39"
+      },
+      "url": "/logview/adom/root/logsearch"
+     }
+    ]
+   },
+   "response": {
+    "id": 29,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 778043433
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 1,
+      "offset": 0,
+      "url": "/logview/adom/root/logsearch/778043433"
+     }
+    ]
+   },
+   "response": {
+    "id": 30,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 100,
+     "return-lines": 0,
+     "scanned-logs": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "tid": 778043433,
+     "total-count": 0,
+     "total-use-time": 4
+    }
+   }
+  }
+ ]
+}

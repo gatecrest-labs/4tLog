@@ -45,6 +45,15 @@ uv run pytest -q
 uv run python wsgi.py
 ```
 
+## FortiAnalyzer Version Compatibility
+
+- `FAZClient.version` reports the appliance release; Admin -> API Self-Test (`app/faz_selftest.py`)
+  runs the read-only calls the app depends on and shows which work on the connected
+  FortiAnalyzer. Run it after a FortiAnalyzer upgrade or a token change.
+- Fixtures: `scripts/record_faz_fixture.py` records a scrubbed capture into
+  `tests/fixtures/faz_<version>/`; `tests/test_faz_replay_fixtures.py` replays every one. The
+  repository is public, so read a capture before committing it.
+
 ## Contributor Expectations
 
 - Keep changes focused and add tests for behavior changes.

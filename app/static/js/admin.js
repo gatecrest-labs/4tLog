@@ -29,6 +29,65 @@
     });
   });
 
+  // ── API Self-Test (explicit click only) ─────────────────────────────────────
+  function renderFazSelftest(report) {
+    const box = document.getElementById('fazSelftestResult');
+    box.innerHTML = '';
+    const s = report.summary || {};
+    box.appendChild(el('p', {
+      text: `FortiAnalyzer ${report.faz_version || 'version unknown'} (${report.target || ''}) — ` +
+        `${s.ok || 0} ok, ${s.denied || 0} denied, ${s.error || 0} error, ${s.skipped || 0} skipped`,
+    }));
+    const table = el('table', { class: 'data-table' });
+    const head = el('tr', {});
+    ['Status', 'Check', 'Feature that depends on it', 'Detail', 'ms'].forEach((h) => head.appendChild(el('th', { text: h })));
+    table.appendChild(el('thead', {})).appendChild(head);
+    const body = el('tbody', {});
+    (report.checks || []).forEach((c) => {
+      const tr = el('tr', {});
+      tr.appendChild(el('td', { class: `st-${c.status}`, text: c.status.toUpperCase() }));
+      tr.appendChild(el('td', { text: c.label }));
+      tr.appendChild(el('td', { text: c.feature }));
+      tr.appendChild(el('td', { text: (c.code != null ? `[${c.code}] ` : '') + (c.message || '') }));
+      tr.appendChild(el('td', { text: String(c.ms) }));
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    box.appendChild(el('div', { class: 'table-wrapper' })).appendChild(table);
+  }
+
+  async function runFazSelftest() {
+    const btn = document.getElementById('btnFazSelftest');
+    const box = document.getElementById('fazSelftestResult');
+    btn.disabled = true;
+    box.textContent = 'Running…';
+    try {
+      const label = document.getElementById('fazSelftestTarget').value;
+      const resp = await fetch('/admin/api/faz-selftest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(label ? { label } : {}),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { box.textContent = data.error || 'Self-test failed.'; return; }
+      renderFazSelftest(data);
+    } catch (e) {
+      box.textContent = 'Self-test failed: ' + e;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function loadFazSelftestTargets() {
+    const sel = document.getElementById('fazSelftestTarget');
+    try {
+      const resp = await fetch('/admin/api/faz-targets');
+      (await resp.json()).forEach((t) => sel.appendChild(el('option', { value: t.label, text: t.label })));
+    } catch (e) { /* the button still works against the default target */ }
+  }
+  document.getElementById('btnFazSelftest').addEventListener('click', runFazSelftest);
+  loadFazSelftestTargets();
+
   // ── Groups ─────────────────────────────────────────────────────────────────
   function renderGroups() {
     const tbody = document.getElementById('groupsTbody');

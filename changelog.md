@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-11-05
+
+### Fixed
+
+- **FortiAnalyzer 8.0.2 compatibility.** FortiView runs are now always scoped to a device
+  set (`All_FortiGate` by default; `FAZClient.run_fortiview(..., devices=[...])` to
+  override). The 7.6.7 spec marks `device` optional, but 8.0.2 rejects an unscoped run with
+  `-32005 No eligible device(s)`, which broke every Threat/Admin-access metric.
+- The Threat poll no longer discards a whole target when the appliance rejects the
+  `type==ips` filter on `top-threats` / `top-countries` (8.0.2 answers `-32002 filter 'type'
+  not supported`). Just those two lists (`top_signatures`, `top_source_countries`) are left
+  empty and a WARN is logged; there is deliberately no unfiltered fallback, which would show
+  all-traffic data as IPS data. Any other FortiView error still fails the target.
+- `FAZError` now carries the appliance error code (`.code`).
+
+### Added
+
+- `FAZClient.version` (`FAZVersion`, orders on major.minor.patch, compares with tuples):
+  read lazily from `/sys/status`, `None` if unavailable.
+- **Admin -> API Self-Test** (`POST /admin/api/faz-selftest`, `app/faz_selftest.py`): runs the
+  read-only calls the app makes (status, log view, devices, log stats, alert counts, every
+  FortiView view, a one-row log search) and reports ok / denied (-11) / error / skipped with
+  the feature that depends on each. Runs only on an explicit click.
+- Recorded FortiAnalyzer fixtures: `FAZ_RECORD_FILE` / `scripts/record_faz_fixture.py` capture
+  scrubbed JSON-RPC traffic (secrets, device credentials, IPv4s, serials, UUIDs, e-mails,
+  supplied literals); `app/faz_recorder.py::ReplayTransport` replays it so tests run the real
+  client, the self-test and the threat poll offline. First fixture: `tests/fixtures/faz_8.0.2`
+  (a lab appliance that receives no logs, so FortiView/log-search rows are empty: it pins
+  request acceptance, not row field names).
+
+### Known open items
+
+- FortiView row field names (`srccountry`, `login_fail_num`, `e_time`, `end_time`, `dvid`, ...)
+  are still unconfirmed against live data. The vendored spec's `top-countries` columns list
+  `dstcountry`, not `srccountry`.
+- The IPS-only filter has no accepted form for `top-countries` on 8.0.2 (`type`, `logtype`
+  and `threattype_s` are all rejected); `top-threats` accepts `threattype_s`, but its value
+  vocabulary is unverified, so it is not used.
+
 ## 2026-09-12
 
 ### Added
