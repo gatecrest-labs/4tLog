@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-11-13
+
+### Added
+
+- **SD-WAN tab** (`/sdwan`, tab key `sdwan`): per-interface latency, jitter, packet loss,
+  SLA status and bandwidth with a 24h trend, from FortiAnalyzer's SD-WAN FortiView views.
+  A new collector poller (`app/sdwan_cache.py`, `SDWAN_POLL_INTERVAL`, default 300s) polls
+  `sdwan-dev-stats`, `sdwan-intf-sla-status-line`, `sdwan-perf-stats-line` and
+  `sdwan-intf-bandwidth-line` per target; each view and each target fails independently. No
+  SD-WAN data is shown as its own state, never as healthy. Row field names/units are
+  unconfirmed until a FortiAnalyzer with SD-WAN data can be captured.
+- Admin → API Self-Test checks the four SD-WAN views; the 8.0.2 replay fixture was
+  re-recorded to include them.
+
+### Fixed
+
+- Web workers kept serving the first collector snapshot they read, so the Dashboard (and
+  threat/log stats) went stale until the container restarted; each read now follows the
+  collector's newer snapshot.
+- `tzdata` is now a regular dependency: slim container images ship no timezone database, so
+  FortiAnalyzer-local time conversion silently fell back to UTC.
+- nginx re-resolves the `app` upstream, so rebuilding the app container no longer causes 502s
+  until nginx is restarted.
+
 ## 2026-11-05
 
 ### Fixed

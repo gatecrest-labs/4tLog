@@ -10,22 +10,19 @@
     ]
    },
    "response": {
-    "cid": 250,
+    "cid": 1715,
     "id": 4,
     "result": [
      {
       "data": [
        {
-        "adm_pass": [
-         "ENC",
-         "SH2k7kv1KdqNqtJ/Y6C5izCr9OZ8g8MJC9XtrZunczjz9xBEb0ZtP4QdKR5atI="
-        ],
+        "adm_pass": "<redacted>",
         "adm_usr": "",
         "app_ver": "",
         "auto_mgmt": 0,
         "av_ver": "",
         "beta": -1,
-        "branch_pt": 3704,
+        "branch_pt": 251,
         "build": 251,
         "checksum": "",
         "cluster_worker": [],
@@ -67,7 +64,7 @@
         "ip": "10.250.0.1",
         "ips_ext": 0,
         "ips_ver": "",
-        "last_checked": 1783469788,
+        "last_checked": 1794599834,
         "last_resync": 0,
         "latitude": "0.0",
         "lic_flags": 0,
@@ -93,7 +90,7 @@
         "name": "FortiWiFi-71G",
         "node_flags": 0,
         "nsxt_service_name": "",
-        "oid": 198,
+        "oid": 215,
         "onboard_rule": null,
         "opts": 0,
         "os_type": 0,
@@ -161,7 +158,7 @@
     ]
    },
    "response": {
-    "cid": 251,
+    "cid": 1716,
     "id": 5,
     "result": [
      {
@@ -170,14 +167,14 @@
        "BIOS version": "04000002",
        "Branch Point": "0198",
        "Build": "0198",
-       "Current Time": "Thu Nov 05 12:45:39 PST 2026",
+       "Current Time": "Fri Nov 13 12:50:45 PST 2026",
        "Daylight Time Saving": "Yes",
-       "Disk Usage": "Free 135.29GB, Total 146.58GB",
+       "Disk Usage": "Free 134.30GB, Total 146.58GB",
        "FIPS Mode": "Disabled",
        "Hostname": "FAZ-LAB",
        "License Status": "Valid",
        "Major": 8,
-       "Max Number of Admin Domains": 5,
+       "Max Number of Admin Domains": 10,
        "Minor": 0,
        "Patch": 2,
        "Platform Full Name": "FortiAnalyzer-VM64-KVM",
@@ -208,7 +205,7 @@
     ]
    },
    "response": {
-    "cid": 252,
+    "cid": 1717,
     "id": 6,
     "result": [
      {
@@ -217,14 +214,14 @@
        "BIOS version": "04000002",
        "Branch Point": "0198",
        "Build": "0198",
-       "Current Time": "Thu Nov 05 12:45:39 PST 2026",
+       "Current Time": "Fri Nov 13 12:50:45 PST 2026",
        "Daylight Time Saving": "Yes",
-       "Disk Usage": "Free 135.29GB, Total 146.58GB",
+       "Disk Usage": "Free 134.30GB, Total 146.58GB",
        "FIPS Mode": "Disabled",
        "Hostname": "FAZ-LAB",
        "License Status": "Valid",
        "Major": 8,
-       "Max Number of Admin Domains": 5,
+       "Max Number of Admin Domains": 10,
        "Minor": 0,
        "Patch": 2,
        "Platform Full Name": "FortiAnalyzer-VM64-KVM",
@@ -4003,22 +4000,19 @@
     ]
    },
    "response": {
-    "cid": 255,
+    "cid": 1720,
     "id": 9,
     "result": [
      {
       "data": [
        {
-        "adm_pass": [
-         "ENC",
-         "SH2iDHpxPiJzUNK+v+d9gr5ts7KMqEi+2mb0+IbyiBhnhKWiWw2/buJ6sJ3/yo="
-        ],
+        "adm_pass": "<redacted>",
         "adm_usr": "",
         "app_ver": "",
         "auto_mgmt": 0,
         "av_ver": "",
         "beta": -1,
-        "branch_pt": 3704,
+        "branch_pt": 251,
         "build": 251,
         "checksum": "",
         "cluster_worker": [],
@@ -4060,7 +4054,7 @@
         "ip": "10.250.0.1",
         "ips_ext": 0,
         "ips_ver": "",
-        "last_checked": 1783469788,
+        "last_checked": 1794599834,
         "last_resync": 0,
         "latitude": "0.0",
         "lic_flags": 0,
@@ -4086,7 +4080,7 @@
         "name": "FortiWiFi-71G",
         "node_flags": 0,
         "nsxt_service_name": "",
-        "oid": 198,
+        "oid": 215,
         "onboard_rule": null,
         "opts": 0,
         "os_type": 0,
@@ -4169,13 +4163,17 @@
         "log-interval-dev-no-logging": 15,
         "log-upload-interval-dev-no-logging": 360,
         "logging-mode": 0,
-        "logstat-info": "0,0,0,0,0,0,0",
-        "status": 1,
+        "logstat-info": "1794603045,0,0,0,0,0,1",
+        "status": 2,
         "vdoms": [
          {
           "adom-quota-MB": 51200,
-          "log-db-size": 0,
-          "log-disk-size": 28049408,
+          "last-log-time": "2026-11-13 12:50:17 -0800",
+          "last-log-timestamp": 1794603017,
+          "log-db-size": 5777547,
+          "log-disk-size": 2108879,
+          "lograte": 0.733333,
+          "logstat-info": "1794603045,0",
           "vdom": "root"
          }
         ]
@@ -4183,7 +4181,7 @@
       ],
       "log-interval-dev-no-logging-realtime": 900,
       "log-interval-dev-no-logging-upload": 21600,
-      "system-timestamp": 1793911540
+      "system-timestamp": 1794603046
      }
     }
    }
@@ -4205,11 +4203,11 @@
     "result": {
      "data": [
       {
-       "count": "139",
+       "count": "165",
        "severity": "medium"
       },
       {
-       "count": "99",
+       "count": "100",
        "severity": "low"
       }
      ]
@@ -4229,8 +4227,8 @@
       ],
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/top-type/run"
      }
@@ -4240,7 +4238,7 @@
     "id": 12,
     "jsonrpc": "2.0",
     "result": {
-     "tid": 1700986916
+     "tid": 324141240
     }
    }
   },
@@ -4252,7 +4250,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/top-type/run/1700986916"
+      "url": "/fortiview/adom/root/top-type/run/324141240"
      }
     ]
    },
@@ -4261,9 +4259,8 @@
     "jsonrpc": "2.0",
     "result": {
      "data": [],
-     "db_start_time": 1788223788,
      "percentage": 0,
-     "request-id": 1700986916,
+     "request-id": 324141240,
      "return-lines": 0,
      "status": {
       "code": 0,
@@ -4280,7 +4277,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/top-type/run/1700986916"
+      "url": "/fortiview/adom/root/top-type/run/324141240"
      }
     ]
    },
@@ -4290,10 +4287,10 @@
     "result": {
      "data": [],
      "data-time-range": {
-      "end": 1793911539,
-      "start": 1793825139
+      "end": 1794603045,
+      "start": 1794516645
      },
-     "db_start_time": 1788223788,
+     "db_start_time": 1789562320,
      "percentage": 100,
      "return-lines": 0,
      "status": {
@@ -4319,8 +4316,8 @@
       "filter": "type==ips",
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/top-threats/run"
      }
@@ -4349,8 +4346,8 @@
       "filter": "type==ips",
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/top-countries/run"
      }
@@ -4378,8 +4375,8 @@
       ],
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/admin-logins/run"
      }
@@ -4389,7 +4386,7 @@
     "id": 17,
     "jsonrpc": "2.0",
     "result": {
-     "tid": 624033829
+     "tid": 1793261753
     }
    }
   },
@@ -4401,7 +4398,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/admin-logins/run/624033829"
+      "url": "/fortiview/adom/root/admin-logins/run/1793261753"
      }
     ]
    },
@@ -4411,7 +4408,7 @@
     "result": {
      "data": [],
      "percentage": 0,
-     "request-id": 624033829,
+     "request-id": 1793261753,
      "return-lines": 0,
      "status": {
       "code": 0,
@@ -4428,7 +4425,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/admin-logins/run/624033829"
+      "url": "/fortiview/adom/root/admin-logins/run/1793261753"
      }
     ]
    },
@@ -4438,10 +4435,10 @@
     "result": {
      "data": [],
      "data-time-range": {
-      "end": 1793911539,
-      "start": 1793825139
+      "end": 1794603045,
+      "start": 1794516645
      },
-     "db_start_time": 1788223788,
+     "db_start_time": 1789562320,
      "percentage": 100,
      "return-lines": 0,
      "status": {
@@ -4466,8 +4463,8 @@
       ],
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/failed-authentication-attempts/run"
      }
@@ -4477,7 +4474,7 @@
     "id": 20,
     "jsonrpc": "2.0",
     "result": {
-     "tid": 1326645286
+     "tid": 394068154
     }
    }
   },
@@ -4489,7 +4486,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/failed-authentication-attempts/run/1326645286"
+      "url": "/fortiview/adom/root/failed-authentication-attempts/run/394068154"
      }
     ]
    },
@@ -4499,7 +4496,7 @@
     "result": {
      "data": [],
      "percentage": 0,
-     "request-id": 1326645286,
+     "request-id": 394068154,
      "return-lines": 0,
      "status": {
       "code": 0,
@@ -4516,7 +4513,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/failed-authentication-attempts/run/1326645286"
+      "url": "/fortiview/adom/root/failed-authentication-attempts/run/394068154"
      }
     ]
    },
@@ -4526,10 +4523,10 @@
     "result": {
      "data": [],
      "data-time-range": {
-      "end": 1793911539,
-      "start": 1793825139
+      "end": 1794603045,
+      "start": 1794516645
      },
-     "db_start_time": 1788223788,
+     "db_start_time": 1789562320,
      "percentage": 100,
      "return-lines": 0,
      "status": {
@@ -4554,8 +4551,8 @@
       ],
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/site-to-site-ipsec/run"
      }
@@ -4565,7 +4562,7 @@
     "id": 23,
     "jsonrpc": "2.0",
     "result": {
-     "tid": 1918566439
+     "tid": 6291643
     }
    }
   },
@@ -4577,7 +4574,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/site-to-site-ipsec/run/1918566439"
+      "url": "/fortiview/adom/root/site-to-site-ipsec/run/6291643"
      }
     ]
    },
@@ -4587,7 +4584,7 @@
     "result": {
      "data": [],
      "percentage": 0,
-     "request-id": 1918566439,
+     "request-id": 6291643,
      "return-lines": 0,
      "status": {
       "code": 0,
@@ -4604,7 +4601,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/site-to-site-ipsec/run/1918566439"
+      "url": "/fortiview/adom/root/site-to-site-ipsec/run/6291643"
      }
     ]
    },
@@ -4614,10 +4611,10 @@
     "result": {
      "data": [],
      "data-time-range": {
-      "end": 1793911539,
-      "start": 1793825139
+      "end": 1794603045,
+      "start": 1794516645
      },
-     "db_start_time": 1788223788,
+     "db_start_time": 1789562320,
      "percentage": 100,
      "return-lines": 0,
      "status": {
@@ -4642,8 +4639,8 @@
       ],
       "limit": 5,
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/fortiview/adom/root/ssl-dialup-ipsec/run"
      }
@@ -4653,7 +4650,7 @@
     "id": 26,
     "jsonrpc": "2.0",
     "result": {
-     "tid": 268697640
+     "tid": 236650684
     }
    }
   },
@@ -4665,7 +4662,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run/268697640"
+      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run/236650684"
      }
     ]
    },
@@ -4675,7 +4672,7 @@
     "result": {
      "data": [],
      "percentage": 0,
-     "request-id": 268697640,
+     "request-id": 236650684,
      "return-lines": 0,
      "status": {
       "code": 0,
@@ -4692,7 +4689,7 @@
       "apiver": 3,
       "limit": 5,
       "offset": 0,
-      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run/268697640"
+      "url": "/fortiview/adom/root/ssl-dialup-ipsec/run/236650684"
      }
     ]
    },
@@ -4702,10 +4699,474 @@
     "result": {
      "data": [],
      "data-time-range": {
-      "end": 1793911539,
-      "start": 1793825139
+      "end": 1794603045,
+      "start": 1794516645
      },
-     "db_start_time": 1788223788,
+     "db_start_time": 1789562320,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
+      },
+      "url": "/fortiview/adom/root/sdwan-dev-stats/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 29,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 1820131517
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-dev-stats/run/1820131517"
+     }
+    ]
+   },
+   "response": {
+    "id": 30,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 1820131517,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-dev-stats/run/1820131517"
+     }
+    ]
+   },
+   "response": {
+    "id": 31,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1794603045,
+      "start": 1794516645
+     },
+     "db_start_time": 1789562320,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
+      },
+      "url": "/fortiview/adom/root/sdwan-intf-sla-status-line/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 32,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 212861118
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-sla-status-line/run/212861118"
+     }
+    ]
+   },
+   "response": {
+    "id": 33,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 212861118,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-sla-status-line/run/212861118"
+     }
+    ]
+   },
+   "response": {
+    "id": 34,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1794603045,
+      "start": 1794516645
+     },
+     "db_start_time": 1789562320,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
+      },
+      "url": "/fortiview/adom/root/sdwan-perf-stats-line/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 35,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 1482621119
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-perf-stats-line/run/1482621119"
+     }
+    ]
+   },
+   "response": {
+    "id": 36,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 1482621119,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-perf-stats-line/run/1482621119"
+     }
+    ]
+   },
+   "response": {
+    "id": 37,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1794603045,
+      "start": 1794516645
+     },
+     "db_start_time": 1789562320,
+     "percentage": 100,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "timezone": "US/Pacific",
+     "timezone-index": 4
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "add",
+    "params": [
+     {
+      "apiver": 3,
+      "device": [
+       {
+        "devid": "All_FortiGate"
+       }
+      ],
+      "limit": 5,
+      "time-range": {
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
+      },
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run"
+     }
+    ]
+   },
+   "response": {
+    "id": 38,
+    "jsonrpc": "2.0",
+    "result": {
+     "tid": 1390543040
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run/1390543040"
+     }
+    ]
+   },
+   "response": {
+    "id": 39,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "percentage": 0,
+     "request-id": 1390543040,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run/1390543040"
+     }
+    ]
+   },
+   "response": {
+    "id": 40,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "db_start_time": 1789562320,
+     "percentage": 0,
+     "request-id": 1390543040,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run/1390543040"
+     }
+    ]
+   },
+   "response": {
+    "id": 41,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "db_start_time": 1789562320,
+     "percentage": 0,
+     "request-id": 1390543040,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run/1390543040"
+     }
+    ]
+   },
+   "response": {
+    "id": 42,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "db_start_time": 1789562320,
+     "percentage": 0,
+     "request-id": 1390543040,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run/1390543040"
+     }
+    ]
+   },
+   "response": {
+    "id": 43,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "db_start_time": 1789562320,
+     "percentage": 0,
+     "request-id": 1390543040,
+     "return-lines": 0,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     }
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 5,
+      "offset": 0,
+      "url": "/fortiview/adom/root/sdwan-intf-bandwidth-line/run/1390543040"
+     }
+    ]
+   },
+   "response": {
+    "id": 44,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [],
+     "data-time-range": {
+      "end": 1794603045,
+      "start": 1794516645
+     },
+     "db_start_time": 1789562320,
      "percentage": 100,
      "return-lines": 0,
      "status": {
@@ -4735,18 +5196,18 @@
       "offset": 0,
       "time-order": "desc",
       "time-range": {
-       "end": "2026-11-05T12:45:39",
-       "start": "2026-11-04T12:45:39"
+       "end": "2026-11-13T12:50:45",
+       "start": "2026-11-12T12:50:45"
       },
       "url": "/logview/adom/root/logsearch"
      }
     ]
    },
    "response": {
-    "id": 29,
+    "id": 45,
     "jsonrpc": "2.0",
     "result": {
-     "tid": 778043433
+     "tid": 368902337
     }
    }
   },
@@ -4758,25 +5219,128 @@
       "apiver": 3,
       "limit": 1,
       "offset": 0,
-      "url": "/logview/adom/root/logsearch/778043433"
+      "url": "/logview/adom/root/logsearch/368902337"
      }
     ]
    },
    "response": {
-    "id": 30,
+    "id": 46,
     "jsonrpc": "2.0",
     "result": {
      "data": [],
-     "percentage": 100,
+     "percentage": 0,
      "return-lines": 0,
      "scanned-logs": 0,
      "status": {
       "code": 0,
       "message": "succeeded"
      },
-     "tid": 778043433,
+     "tid": 368902337,
      "total-count": 0,
-     "total-use-time": 4
+     "total-use-time": 0
+    }
+   }
+  },
+  {
+   "request": {
+    "method": "get",
+    "params": [
+     {
+      "apiver": 3,
+      "limit": 1,
+      "offset": 0,
+      "url": "/logview/adom/root/logsearch/368902337"
+     }
+    ]
+   },
+   "response": {
+    "id": 47,
+    "jsonrpc": "2.0",
+    "result": {
+     "data": [
+      {
+       "action": "accept",
+       "ap": "FWF71G-WIFI0",
+       "app": "DNS",
+       "appact": "detected",
+       "appcat": "Network.Service",
+       "appid": "16195",
+       "applist": "block-high-risk",
+       "apprisk": "elevated",
+       "apsn": "FGT0000000000001",
+       "channel": "56",
+       "date": "2026-11-13",
+       "devid": "FGT0000000000001",
+       "devname": "FortiWiFi-71G",
+       "devtype": "Unknown",
+       "dstcity": "Reserved",
+       "dstcountry": "Reserved",
+       "dstepid": "101",
+       "dsteuid": "3",
+       "dstgeoid": "1000000000",
+       "dstintf": "wan1",
+       "dstintfrole": "wan",
+       "dstip": "10.250.0.3",
+       "dstport": "53",
+       "dtime": "2026-11-13 14:50:45",
+       "duration": "180",
+       "epid": "3",
+       "euid": "3",
+       "eventtime": "1794603045489916260",
+       "id": "7707761387593793536",
+       "itime": "2026-11-13 12:50:45",
+       "itime_t": "1794603045",
+       "level": "notice",
+       "logflag": "1",
+       "logid": "0000000013",
+       "logver": "800020251",
+       "mastersrcmac": "02:00:00:00:00:01",
+       "osname": "Unknown",
+       "policyid": "2",
+       "policyname": "Wifi",
+       "policytype": "policy",
+       "poluuid": "00000000-0000-4000-8000-000000000002",
+       "proto": "17",
+       "radioband": "802.11ax (5G)",
+       "rcvdbyte": "93",
+       "rcvdpkt": "1",
+       "sentbyte": "77",
+       "sentpkt": "1",
+       "service": "DNS",
+       "sessionid": "1463157",
+       "signal": "-61",
+       "snr": "34",
+       "srccity": "Reserved",
+       "srccountry": "Reserved",
+       "srcgeoid": "1000000000",
+       "srcintf": "SSID-LAB",
+       "srcintfrole": "lan",
+       "srcip": "10.250.0.2",
+       "srcmac": "02:00:00:00:00:01",
+       "srcname": "Mac",
+       "srcport": "65443",
+       "srcserver": "0",
+       "srcssid": "SSID-LAB",
+       "subtype": "forward",
+       "time": "14:50:45",
+       "trandisp": "snat",
+       "transip": "10.250.0.4",
+       "transport": "65443",
+       "type": "traffic",
+       "tz": "-0600",
+       "vd": "root"
+      }
+     ],
+     "percentage": 100,
+     "return-lines": 1,
+     "scanned-logs": 2501,
+     "status": {
+      "code": 0,
+      "message": "succeeded"
+     },
+     "tid": 368902337,
+     "total-count": 2484,
+     "total-use-time": 1355
     }
    }
   }
