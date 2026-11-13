@@ -107,3 +107,12 @@ def test_nav_hides_sd_wan_tab_without_permission(client):
 
     assert resp.status_code == 200
     assert b"/sdwan" not in resp.data
+
+
+def test_sdwan_page_has_root_and_script(client):
+    _login(client)
+
+    html = client.get("/sdwan").get_data(as_text=True)
+
+    assert 'id="sdwanRoot"' in html
+    assert "js/sdwan.js" in html
