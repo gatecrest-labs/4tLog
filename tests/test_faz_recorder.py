@@ -258,3 +258,26 @@ def test_loose_urls_are_regular_expressions(tmp_path):
     assert got["result"][0]["data"] == {"tid": 1}
     with pytest.raises(ReplayMiss):
         replay.post(_body("add", "/fortiview/adom/root/top-type/run/9", w="b"))
+
+
+def test_secret_key_with_a_list_value_is_redacted():
+    # /dvmdb device lists return adm_pass as ["ENC", "<hash>"], not a string.
+    out = _roundtrip({"adm_pass": ["ENC", "SH2abcdef"], "adm_usr": "", "empty": {"adm_pass": []}})
+    assert out["adm_pass"] == "<redacted>"
+    assert out["adm_usr"] == ""
+    assert out["empty"]["adm_pass"] == []  # nothing to hide
+
+
+def test_mac_addresses_are_replaced_consistently():
+    out = _roundtrip(
+        {
+            "srcmac": "36:61:fe:f7:2b:b7",
+            "mastersrcmac": "36:61:FE:F7:2B:B7",
+            "other": "aa-bb-cc-dd-ee-ff",
+            "msg": "client 36:61:fe:f7:2b:b7 joined",
+        }
+    )
+    assert "36:61" not in str(out) and "aa-bb" not in str(out)
+    assert out["srcmac"] == out["mastersrcmac"]  # same MAC, same stand-in
+    assert out["srcmac"] != out["other"]
+    assert out["srcmac"] in out["msg"]
