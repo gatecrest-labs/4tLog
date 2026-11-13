@@ -88,26 +88,29 @@ def get_cached() -> dict:
     """Snapshot of the latest poll: {"logging_devices": [...], "silent_devices": [...],
     "silent_details": [...], "collected_at": iso-str | None}.
 
-    Read-through: if this process's in-memory cache is still at its
-    startup/empty state (collected_at is None — true for every web worker
-    under the collector/web split, since web workers never poll), fall
-    back to the collector's last-written snapshot in app.collector_store.
-    A successful fallback also repopulates the in-memory dict so
-    subsequent calls in this process skip the SQLite read."""
-    with _lock:
-        if _cache.get("collected_at") is not None:
-            return dict(_cache)
-
+    Read-through: every call compares the collector's last-written snapshot
+    (app.collector_store) with this process's in-memory one and uses the
+    newer (a web worker never polls, so it must keep following the
+    collector)."""
     from app import collector_store
+
+    with _lock:
+        in_memory = dict(_cache)
 
     stored = collector_store.read_cache(CACHE_KEY)
     if stored is not None:
-        with _lock:
-            _cache.update(stored)
-            return dict(_cache)
+        # A web worker never polls, so the collector keeps writing newer
+        # snapshots after this process first reads one. Always compare, and
+        # prefer the stored snapshot unless this process's own (inline-mode)
+        # poller already produced something newer.
+        mem_at = in_memory.get("collected_at")
+        stored_at = stored.get("collected_at")
+        if mem_at is None or (stored_at is not None and stored_at > mem_at):
+            with _lock:
+                _cache.update(stored)
+                return dict(_cache)
 
-    with _lock:
-        return dict(_cache)
+    return in_memory
 
 
 def _now() -> str:

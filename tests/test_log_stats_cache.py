@@ -281,3 +281,33 @@ def test_build_silent_details_caps_at_50():
     assert len(details) == 50
     # Most-stale-first: lowest timestamps (0..49) survive the cap.
     assert [d["devid"] for d in details] == [str(i) for i in range(50)]
+
+
+def test_get_cached_picks_up_newer_collector_snapshot_after_first_read():
+    import app.log_stats_cache as cache_mod
+    from app import collector_store
+
+    base = {"logging_devices": [], "silent_devices": [], "silent_details": []}
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY, {**base, "collected_at": "2026-11-13T17:00:00+00:00"}
+    )
+    assert cache_mod.get_cached()["collected_at"] == "2026-11-13T17:00:00+00:00"
+
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY, {**base, "collected_at": "2026-11-13T17:05:00+00:00"}
+    )
+
+    assert cache_mod.get_cached()["collected_at"] == "2026-11-13T17:05:00+00:00"
+
+
+def test_get_cached_keeps_in_memory_snapshot_newer_than_stored():
+    import app.log_stats_cache as cache_mod
+    from app import collector_store
+
+    base = {"logging_devices": [], "silent_devices": [], "silent_details": []}
+    cache_mod._cache.update({**base, "collected_at": "2026-11-13T18:00:00+00:00"})
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY, {**base, "collected_at": "2026-11-13T17:00:00+00:00"}
+    )
+
+    assert cache_mod.get_cached()["collected_at"] == "2026-11-13T18:00:00+00:00"

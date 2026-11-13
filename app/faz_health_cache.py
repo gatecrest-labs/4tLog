@@ -262,21 +262,25 @@ def get_all_cached() -> list[dict]:
     order. A target with no cache entry yet (first poll still pending)
     shows as status 'gray' rather than being omitted.
 
-    Read-through: if this process's in-memory cache is still empty (true
-    for every web worker under the collector/web split — it never polls
-    itself), fall back to the collector's last-written snapshot in
-    app.collector_store and repopulate the in-memory dict from it."""
+    Read-through: every call merges the collector's last-written snapshot
+    from app.collector_store into the in-memory dict, per target, keeping
+    whichever entry is newer (a web worker under the collector/web split
+    never polls itself, so it must keep following the collector)."""
+    from app import collector_store
+
+    stored = collector_store.read_cache(CACHE_KEY)
     with _lock:
-        cache_snapshot = dict(_cache)
-
-    if not cache_snapshot:
-        from app import collector_store
-
-        stored = collector_store.read_cache(CACHE_KEY)
         if stored:
-            with _lock:
-                _cache.update(stored)
-                cache_snapshot = dict(_cache)
+            # Web workers never poll: the collector keeps writing newer
+            # snapshots, so merge per target on every read (keeping any
+            # entry this process polled itself that is newer).
+            for label, entry in stored.items():
+                mine = _cache.get(label)
+                if mine is None or (entry.get("last_updated") or "") > (
+                    mine.get("last_updated") or ""
+                ):
+                    _cache[label] = entry
+        cache_snapshot = dict(_cache)
 
     result = []
     for target in list_targets():

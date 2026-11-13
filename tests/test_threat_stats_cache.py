@@ -718,3 +718,36 @@ def test_other_fortiview_failures_still_fail_the_target(targets_file, history_db
 
     cache_mod.poll_all_targets()
     assert cache_mod.get_cached()["collected_at"] is None
+
+
+def test_get_cached_picks_up_newer_collector_snapshot_after_first_read():
+    import app.threat_stats_cache as cache_mod
+    from app import collector_store
+
+    first = dict(
+        cache_mod._EMPTY_CACHE, alerts_unacked_total=1, collected_at="2026-11-13T17:00:00+00:00"
+    )
+    collector_store.write_cache(cache_mod.CACHE_KEY, first)
+    assert cache_mod.get_cached()["alerts_unacked_total"] == 1
+
+    second = dict(first, alerts_unacked_total=2, collected_at="2026-11-13T17:05:00+00:00")
+    collector_store.write_cache(cache_mod.CACHE_KEY, second)
+
+    assert cache_mod.get_cached()["alerts_unacked_total"] == 2
+
+
+def test_get_cached_keeps_in_memory_snapshot_newer_than_stored():
+    import app.threat_stats_cache as cache_mod
+    from app import collector_store
+
+    cache_mod._cache.update(
+        dict(
+            cache_mod._EMPTY_CACHE, alerts_unacked_total=5, collected_at="2026-11-13T18:00:00+00:00"
+        )
+    )
+    older = dict(
+        cache_mod._EMPTY_CACHE, alerts_unacked_total=1, collected_at="2026-11-13T17:00:00+00:00"
+    )
+    collector_store.write_cache(cache_mod.CACHE_KEY, older)
+
+    assert cache_mod.get_cached()["alerts_unacked_total"] == 5

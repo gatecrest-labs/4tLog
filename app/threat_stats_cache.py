@@ -45,23 +45,28 @@ CACHE_KEY = "threat_stats"
 
 
 def get_cached() -> dict:
-    """Read-through: falls back to app.collector_store's last-written
-    snapshot when this process's in-memory cache is still empty (see
+    """Read-through: uses app.collector_store's last-written snapshot
+    whenever it is newer than this process's in-memory one (see
     app/log_stats_cache.py::get_cached() for the identical pattern)."""
-    with _lock:
-        if _cache.get("collected_at") is not None:
-            return dict(_cache)
-
     from app import collector_store
+
+    with _lock:
+        in_memory = dict(_cache)
 
     stored = collector_store.read_cache(CACHE_KEY)
     if stored is not None:
-        with _lock:
-            _cache.update(stored)
-            return dict(_cache)
+        # A web worker never polls, so the collector keeps writing newer
+        # snapshots after this process first reads one. Always compare, and
+        # prefer the stored snapshot unless this process's own (inline-mode)
+        # poller already produced something newer.
+        mem_at = in_memory.get("collected_at")
+        stored_at = stored.get("collected_at")
+        if mem_at is None or (stored_at is not None and stored_at > mem_at):
+            with _lock:
+                _cache.update(stored)
+                return dict(_cache)
 
-    with _lock:
-        return dict(_cache)
+    return in_memory
 
 
 def _now() -> str:
