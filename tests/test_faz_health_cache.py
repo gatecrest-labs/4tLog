@@ -236,3 +236,58 @@ def test_get_all_cached_reads_through_to_collector_store_when_in_memory_empty(
     assert entries[0]["status"] == "green"
     # Read-through also repopulates the in-memory dict.
     assert cache_mod._cache.get("Primary", {}).get("status") == "green"
+
+
+def test_get_all_cached_picks_up_newer_collector_snapshot_after_first_read(targets_file):
+    """A web worker must not freeze on the first snapshot it read: the
+    collector keeps writing newer ones to SQLite."""
+    import app.faz_health_cache as cache_mod
+    from app import collector_store
+
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY,
+        {
+            "Primary": {
+                "label": "Primary",
+                "status": "red",
+                "last_updated": "2026-11-13T17:54:57+00:00",
+            }
+        },
+    )
+    assert cache_mod.get_all_cached()[0]["status"] == "red"
+
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY,
+        {
+            "Primary": {
+                "label": "Primary",
+                "status": "green",
+                "last_updated": "2026-11-13T17:55:57+00:00",
+            }
+        },
+    )
+
+    assert cache_mod.get_all_cached()[0]["status"] == "green"
+
+
+def test_get_all_cached_keeps_in_memory_entry_newer_than_stored(targets_file):
+    import app.faz_health_cache as cache_mod
+    from app import collector_store
+
+    cache_mod._cache["Primary"] = {
+        "label": "Primary",
+        "status": "green",
+        "last_updated": "2026-11-13T18:00:00+00:00",
+    }
+    collector_store.write_cache(
+        cache_mod.CACHE_KEY,
+        {
+            "Primary": {
+                "label": "Primary",
+                "status": "red",
+                "last_updated": "2026-11-13T17:00:00+00:00",
+            }
+        },
+    )
+
+    assert cache_mod.get_all_cached()[0]["status"] == "green"

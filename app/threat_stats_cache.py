@@ -45,23 +45,28 @@ CACHE_KEY = "threat_stats"
 
 
 def get_cached() -> dict:
-    """Read-through: falls back to app.collector_store's last-written
-    snapshot when this process's in-memory cache is still empty (see
+    """Read-through: uses app.collector_store's last-written snapshot
+    whenever it is newer than this process's in-memory one (see
     app/log_stats_cache.py::get_cached() for the identical pattern)."""
-    with _lock:
-        if _cache.get("collected_at") is not None:
-            return dict(_cache)
-
     from app import collector_store
+
+    with _lock:
+        in_memory = dict(_cache)
 
     stored = collector_store.read_cache(CACHE_KEY)
     if stored is not None:
-        with _lock:
-            _cache.update(stored)
-            return dict(_cache)
+        # A web worker never polls, so the collector keeps writing newer
+        # snapshots after this process first reads one. Always compare, and
+        # prefer the stored snapshot unless this process's own (inline-mode)
+        # poller already produced something newer.
+        mem_at = in_memory.get("collected_at")
+        stored_at = stored.get("collected_at")
+        if mem_at is None or (stored_at is not None and stored_at > mem_at):
+            with _lock:
+                _cache.update(stored)
+                return dict(_cache)
 
-    with _lock:
-        return dict(_cache)
+    return in_memory
 
 
 def _now() -> str:
@@ -148,6 +153,36 @@ def _merge_top_lists(lists: list[list[dict]], key: str, limit: int = 5) -> list[
     return [{key: name, "count": count} for name, count in ranked[:limit]]
 
 
+_INVALID_PARAMS = -32002
+
+
+def _fortiview_filtered(client, view: str, time_range, **kwargs) -> list[dict]:
+    """run_fortiview for a view whose *filter* may be rejected by the appliance.
+
+    FortiAnalyzer 8.0.2 answers ``type==ips`` on top-threats / top-countries
+    with -32002 "filter 'type' not supported" (confirmed live; the 7.6.7 spec's
+    filterable fields for those views do not include ``type`` either). That
+    must blank just these lists, not discard the whole target's poll, and it
+    must not fall back to an unfiltered query: "top countries" for ALL traffic
+    shown as "top IPS source countries" would be wrong data. Any other error
+    (permissions, connectivity, timeouts) still propagates.
+    """
+    from app.app_logger import app_log
+    from app.faz_client import FAZError
+
+    try:
+        return client.run_fortiview(client.adom, view, time_range, **kwargs)
+    except FAZError as exc:
+        if exc.code != _INVALID_PARAMS:
+            raise
+        app_log(
+            "WARN",
+            "threat_stats_cache",
+            f"FortiView '{view}' rejected its filter, leaving that list empty: {exc}",
+        )
+        return []
+
+
 def _poll_one_target(client, now: datetime.datetime) -> dict:
     """Collect one target's threat stats. Raises FAZError/Exception on any
     failure — the caller decides whether to skip this target or abort."""
@@ -169,11 +204,11 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
     ips_detections_24h = int(ips_row.get("count", 0) or 0) if ips_row else 0
     ips_blocked_24h = int(ips_row.get("blockedsessions", 0) or 0) if ips_row else 0
 
-    signature_rows = client.run_fortiview(
-        client.adom, "top-threats", time_range, limit=5, filter="type==ips"
+    signature_rows = _fortiview_filtered(
+        client, "top-threats", time_range, limit=5, filter="type==ips"
     )
-    country_rows = client.run_fortiview(
-        client.adom, "top-countries", time_range, limit=5, filter="type==ips"
+    country_rows = _fortiview_filtered(
+        client, "top-countries", time_range, limit=5, filter="type==ips"
     )
 
     # NOTE: "failed-authentication-attempts" (used below for

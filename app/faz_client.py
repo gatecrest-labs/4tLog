@@ -15,6 +15,8 @@ against 192.168.64.4) support the Phase 3 Log Search tab.
 """
 
 import datetime
+import functools
+import os
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -30,7 +32,14 @@ _EXTRA_FILTER_FIELD_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 class FAZError(Exception):
     """Raised when FortiAnalyzer returns a non-zero status code, a JSON-RPC
-    error envelope, or an unexpected response shape."""
+    error envelope, or an unexpected response shape.
+
+    ``code`` is FortiAnalyzer's own error code when it supplied one (e.g. -11
+    no permission, -32002 invalid params, -32005 server error), else None."""
+
+    def __init__(self, message: str = "", code: int | None = None):
+        super().__init__(message)
+        self.code = code
 
 
 class FAZSearchTimeout(FAZError):
@@ -55,6 +64,67 @@ def summarize_connection_error(exc: Exception) -> str:
     return "Connection failed"
 
 
+_FAZ_VERSION_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:\s*[-,]?\s*build\s*0*(\d+))?", re.IGNORECASE)
+
+
+@functools.total_ordering
+class FAZVersion:
+    """A parsed FortiAnalyzer release, e.g. ``v8.0.2-build0198``.
+
+    Orders on (major, minor, patch) only and compares against plain tuples, so
+    ``client.version >= (7, 6)`` works. The build number is informational.
+    """
+
+    __slots__ = ("build", "major", "minor", "patch")
+
+    def __init__(self, major: int, minor: int, patch: int, build: int | None = None):
+        self.major, self.minor, self.patch, self.build = major, minor, patch, build
+
+    @property
+    def train(self) -> str:
+        """Release train as ``"major.minor"`` (e.g. ``"8.0"``)."""
+        return f"{self.major}.{self.minor}"
+
+    @property
+    def _key(self) -> tuple:
+        return (self.major, self.minor, self.patch)
+
+    @staticmethod
+    def _other_key(other):
+        if isinstance(other, FAZVersion):
+            return other._key
+        if isinstance(other, tuple):
+            return other
+        return None
+
+    def __eq__(self, other):
+        key = self._other_key(other)
+        return NotImplemented if key is None else self._key == key
+
+    def __lt__(self, other):
+        key = self._other_key(other)
+        return NotImplemented if key is None else self._key < key
+
+    def __hash__(self):
+        return hash(self._key)
+
+    def __repr__(self):
+        return f"FAZVersion({self.major}.{self.minor}.{self.patch}, build={self.build})"
+
+
+def parse_faz_version(raw) -> "FAZVersion | None":
+    """Parse the ``Version`` field of FortiAnalyzer ``/sys/status``
+    (``v8.0.2-build0198 261006 (GA.F)`` or ``v7.4.5,build2360,240702 (GA)``).
+    Returns None when unparseable."""
+    if not isinstance(raw, str):
+        return None
+    m = _FAZ_VERSION_RE.search(raw)
+    if not m:
+        return None
+    major, minor, patch, build = m.groups()
+    return FAZVersion(int(major), int(minor), int(patch), int(build) if build else None)
+
+
 class FAZClient:
     def __init__(
         self,
@@ -76,8 +146,31 @@ class FAZClient:
         self.base_url = f"https://{host}:{port}/jsonrpc"
         self._req_id = 0
         self._http = requests.Session()
+        self._version: FAZVersion | None = None
+        # Opt-in traffic capture for building test fixtures (see faz_recorder).
+        self._recorder = None
+        record_file = os.environ.get("FAZ_RECORD_FILE")
+        if record_file:
+            from app.faz_recorder import Recorder
+
+            self._recorder = Recorder(record_file)
         if not verify_ssl:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    @property
+    def version(self) -> "FAZVersion | None":
+        """The FortiAnalyzer's own release, fetched lazily and cached on success.
+
+        None (never raises) if ``/sys/status`` is unreachable, so callers must
+        treat "unknown version" as "use the most compatible behaviour".
+        """
+        if self._version is None:
+            try:
+                raw = self.get_sys_status().get("Version")
+            except Exception:
+                return None
+            self._version = parse_faz_version(raw)
+        return self._version
 
     def _next_id(self) -> int:
         self._req_id += 1
@@ -96,12 +189,19 @@ class FAZClient:
             timeout=self.timeout,
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        if self._recorder is not None:
+            self._recorder.record(body, data)
+        return data
 
     @staticmethod
     def _unwrap_result(data: dict) -> dict:
         if "error" in data:
-            raise FAZError(f"FortiAnalyzer error: {data['error']}")
+            err = data["error"]
+            raise FAZError(
+                f"FortiAnalyzer error: {err}",
+                code=err.get("code") if isinstance(err, dict) else None,
+            )
         result = data.get("result")
         if isinstance(result, list):
             result = result[0] if result else {}
@@ -114,7 +214,9 @@ class FAZClient:
         # failure, so it must not be treated as an implicit error code.
         status = result.get("status")
         if status is not None and status.get("code", 0) != 0:
-            raise FAZError(status.get("message", "Unknown FortiAnalyzer error"))
+            raise FAZError(
+                status.get("message", "Unknown FortiAnalyzer error"), code=status.get("code")
+            )
         return result
 
     def login(self) -> "FAZClient":
@@ -405,6 +507,7 @@ class FAZClient:
         filter: str | None = None,
         poll_interval: float = 2.0,
         timeout: float = 60.0,
+        devices: list[dict] | None = None,
     ) -> list[dict]:
         """Run a FortiView report and poll it to completion, returning its
         result rows. Request/poll shape confirmed against the vendored spec
@@ -413,7 +516,13 @@ class FAZClient:
         inside each returned row are NOT documented there (they vary by
         view/report-by and the spec's row schema is a generic
         {"field","value"} placeholder) and have not been confirmed live;
-        callers must treat row keys defensively. Same submit->poll->fetch
+        callers must treat row keys defensively.
+
+        ``devices`` is the FortiView device scope (default: every FortiGate,
+        ``All_FortiGate``). The spec marks ``device`` optional, but
+        FortiAnalyzer 8.0.2 rejects an unscoped run with -32005 "No eligible
+        device(s)" (confirmed live); sending the scope works on 8.0.2 and is
+        the documented form on 7.6. Same submit->poll->fetch
         shape as search_logs(), ported to FortiView's /run and /run/<tid>
         resources instead of /logsearch."""
         start, end = time_range
@@ -427,6 +536,7 @@ class FAZClient:
                     "apiver": 3,
                     "time-range": {"start": start, "end": end},
                     "limit": limit,
+                    "device": devices or [{"devid": "All_FortiGate"}],
                     **({"filter": filter} if filter else {}),
                 }
             ],

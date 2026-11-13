@@ -667,3 +667,87 @@ def test_poll_all_targets_vpn_fields_zero_when_no_sessions(targets_file, history
     assert cached["ipsec_tunnels_total"] == 0
     assert cached["ipsec_tunnels_down"] == 0
     assert cached["ssl_vpn_users_now"] == 0
+
+
+def test_poll_survives_a_fortiview_filter_the_appliance_rejects(
+    targets_file, history_db, monkeypatch
+):
+    # FortiAnalyzer 8.0.2 rejects `type==ips` on top-threats / top-countries with
+    # -32002. That must blank only those two lists, not discard the whole poll.
+    import app.threat_stats_cache as cache_mod
+    from app.faz_client import FAZError
+
+    rows = {
+        "top-type": [{"type": "IPS", "count": 100, "blockedsessions": 80}],
+        "admin-logins": [{"fortigate": "fw1", "login_num": 3, "login_fail_num": 1}],
+        "failed-authentication-attempts": [],
+        "site-to-site-ipsec": [],
+        "ssl-dialup-ipsec": [],
+    }
+
+    def fake_run_fortiview(self, adom, view, time_range, limit=1000, filter=None, **_kw):
+        if filter == "type==ips":
+            raise FAZError("Invalid params: filter 'type' not supported.", code=-32002)
+        return rows[view]
+
+    monkeypatch.setattr("app.faz_client.FAZClient.get_alert_counts", lambda self, adom, f: 0)
+    monkeypatch.setattr("app.faz_client.FAZClient.run_fortiview", fake_run_fortiview)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+
+    cache_mod.poll_all_targets()
+
+    cached = cache_mod.get_cached()
+    assert cached["collected_at"] is not None
+    assert cached["ips_detections_24h"] == 100
+    assert cached["failed_admin_logins_24h"] == 1
+    assert cached["top_signatures"] == []
+    assert cached["top_source_countries"] == []
+
+
+def test_other_fortiview_failures_still_fail_the_target(targets_file, history_db, monkeypatch):
+    # Only "this filter is not supported" is tolerated; e.g. a permission error is not.
+    import app.threat_stats_cache as cache_mod
+    from app.faz_client import FAZError
+
+    def fake_run_fortiview(self, adom, view, time_range, limit=1000, filter=None, **_kw):
+        raise FAZError("No permission", code=-11)
+
+    monkeypatch.setattr("app.faz_client.FAZClient.get_alert_counts", lambda self, adom, f: 0)
+    monkeypatch.setattr("app.faz_client.FAZClient.run_fortiview", fake_run_fortiview)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+
+    cache_mod.poll_all_targets()
+    assert cache_mod.get_cached()["collected_at"] is None
+
+
+def test_get_cached_picks_up_newer_collector_snapshot_after_first_read():
+    import app.threat_stats_cache as cache_mod
+    from app import collector_store
+
+    first = dict(
+        cache_mod._EMPTY_CACHE, alerts_unacked_total=1, collected_at="2026-11-13T17:00:00+00:00"
+    )
+    collector_store.write_cache(cache_mod.CACHE_KEY, first)
+    assert cache_mod.get_cached()["alerts_unacked_total"] == 1
+
+    second = dict(first, alerts_unacked_total=2, collected_at="2026-11-13T17:05:00+00:00")
+    collector_store.write_cache(cache_mod.CACHE_KEY, second)
+
+    assert cache_mod.get_cached()["alerts_unacked_total"] == 2
+
+
+def test_get_cached_keeps_in_memory_snapshot_newer_than_stored():
+    import app.threat_stats_cache as cache_mod
+    from app import collector_store
+
+    cache_mod._cache.update(
+        dict(
+            cache_mod._EMPTY_CACHE, alerts_unacked_total=5, collected_at="2026-11-13T18:00:00+00:00"
+        )
+    )
+    older = dict(
+        cache_mod._EMPTY_CACHE, alerts_unacked_total=1, collected_at="2026-11-13T17:00:00+00:00"
+    )
+    collector_store.write_cache(cache_mod.CACHE_KEY, older)
+
+    assert cache_mod.get_cached()["alerts_unacked_total"] == 5

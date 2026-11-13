@@ -569,6 +569,40 @@ def test_run_fortiview_passes_filter_when_given(monkeypatch):
     assert calls[0]["json"]["params"][0]["filter"] == "type==ips"
 
 
+def test_run_fortiview_scopes_to_all_fortigates_by_default(monkeypatch):
+    # FortiAnalyzer 8.0.2 rejects an unscoped FortiView run with
+    # -32005 "No eligible device(s)"; the spec marks `device` optional.
+    client, calls = _client(
+        monkeypatch,
+        [
+            {"jsonrpc": "2.0", "id": 1, "result": {"tid": 1}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"percentage": 100, "data": [], "status": {"code": 0, "message": "OK"}},
+            },
+        ],
+    )
+    client.run_fortiview("root", "top-type", ("a", "b"))
+    assert calls[0]["json"]["params"][0]["device"] == [{"devid": "All_FortiGate"}]
+
+
+def test_run_fortiview_device_scope_can_be_overridden(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [
+            {"jsonrpc": "2.0", "id": 1, "result": {"tid": 1}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"percentage": 100, "data": [], "status": {"code": 0, "message": "OK"}},
+            },
+        ],
+    )
+    client.run_fortiview("root", "top-type", ("a", "b"), devices=[{"devid": "FGT0001"}])
+    assert calls[0]["json"]["params"][0]["device"] == [{"devid": "FGT0001"}]
+
+
 def test_run_fortiview_raises_on_timeout(monkeypatch):
     from app.faz_client import FAZError
 
@@ -594,3 +628,56 @@ def test_run_fortiview_raises_on_timeout(monkeypatch):
             ("2026-09-10T00:00:00+00:00", "2026-09-11T00:00:00+00:00"),
             timeout=5.0,
         )
+
+
+def test_faz_error_carries_the_json_rpc_error_code(monkeypatch):
+    from app.faz_client import FAZError
+
+    client, _ = _client(
+        monkeypatch,
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                    "code": -32002,
+                    "message": "Invalid params: filter 'type' not supported.",
+                },
+            }
+        ],
+    )
+    with pytest.raises(FAZError) as exc:
+        client.get_sys_status()
+    assert exc.value.code == -32002
+
+
+def test_faz_error_carries_the_status_code_from_result(monkeypatch):
+    from app.faz_client import FAZError
+
+    client, _ = _client(
+        monkeypatch,
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": [{"status": {"code": -11, "message": "No permission"}}],
+            }
+        ],
+    )
+    with pytest.raises(FAZError) as exc:
+        client.get_sys_status()
+    assert exc.value.code == -11
+
+
+def test_faz_error_code_defaults_to_none():
+    from app.faz_client import FAZError
+
+    assert FAZError("boom").code is None
+
+
+def test_tzdata_package_is_installed():
+    """Slim container images ship no system tz database, so zoneinfo needs the
+    tzdata package; without it local_time_range silently returns UTC."""
+    import importlib.util
+
+    assert importlib.util.find_spec("tzdata") is not None

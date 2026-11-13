@@ -19,6 +19,9 @@ FAZ Targets API (JSON):
                                            ...snmp overrides}
   DELETE /admin/api/faz-targets/<label>
 
+FAZ API self-test (read-only; runs only when an admin clicks the button):
+  POST   /admin/api/faz-selftest          {"label": str (optional, default first target)}
+
 Tab registry:
   GET    /admin/api/tabs             known tab keys + display names
 
@@ -153,6 +156,42 @@ def api_groups_delete(name: str):
         return jsonify({"error": f"Group '{name}' not found"}), 404
     app_log("INFO", "admin", "Group deleted", by=session["user"], group=name)
     return jsonify({"deleted": name})
+
+
+# ── FAZ API self-test ──────────────────────────────────────────────────────────
+
+
+@bp.route("/api/faz-selftest", methods=["POST"])
+@_admin_required
+def api_faz_selftest():
+    """Run the read-only FortiAnalyzer compatibility self-test against one target."""
+    data = request.get_json(silent=True) or {}
+    label = (data.get("label") or "").strip()
+    target = get_target(label) if label else next(iter(list_targets()), None)
+    if not target:
+        return jsonify(
+            {"error": "No such FAZ target" if label else "No FAZ targets configured"}
+        ), 404
+    # Imported here so the admin blueprint stays importable without FAZ config.
+    from app import faz_selftest
+    from app.config import Config
+    from app.faz_client import FAZClient
+
+    try:
+        with FAZClient(
+            host=target.get("host", ""),
+            token=target.get("token", ""),
+            adom=target.get("adom", "root"),
+            verify_ssl=Config.FAZ_VERIFY_SSL,
+            timeout=Config.FAZ_REQUEST_TIMEOUT,
+        ) as client:
+            report = faz_selftest.run_selftest(client)
+    except Exception as exc:
+        app_log("WARN", "admin", f"FAZ self-test failed: {exc}", by=session["user"])
+        return jsonify({"error": f"Self-test could not run: {exc}"}), 502
+    report["target"] = target.get("label", "")
+    app_log("INFO", "admin", "FAZ self-test run", by=session["user"], target=report["target"])
+    return jsonify(report)
 
 
 # ── FAZ Targets API ────────────────────────────────────────────────────────────
