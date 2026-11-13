@@ -106,6 +106,14 @@ class Config:
         os.environ.get("THREAT_STATS_POLL_DISABLED", "false").lower() == "true"
     )
 
+    # SD-WAN link health polling (app/sdwan_cache.py) — FortiView SD-WAN views
+    # over a fixed 24h window.
+    SDWAN_POLL_INTERVAL = int(os.environ.get("SDWAN_POLL_INTERVAL", "300"))
+
+    # Set by tests/conftest.py to skip starting the background SD-WAN
+    # poller (real network calls) during the test suite.
+    SDWAN_POLL_DISABLED = os.environ.get("SDWAN_POLL_DISABLED", "false").lower() == "true"
+
     # Set by tests/conftest.py to skip starting the background health
     # poller (real network/SNMP calls) during the test suite.
     FAZ_HEALTH_POLL_DISABLED = os.environ.get("FAZ_HEALTH_POLL_DISABLED", "false").lower() == "true"

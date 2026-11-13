@@ -47,3 +47,24 @@ def test_log_search_defaults(monkeypatch):
     assert config_mod.Config.LOG_SEARCH_MAX_RESULTS == 1000
     assert config_mod.Config.LOG_SEARCH_POLL_INTERVAL == 2.0
     assert config_mod.Config.LOG_SEARCH_TIMEOUT == 60.0
+
+
+def test_sdwan_poll_settings_defaults_and_overrides(monkeypatch):
+    import app.config as config_mod
+
+    monkeypatch.setenv("SECRET_KEY", "a-real-secret")
+    monkeypatch.delenv("SDWAN_POLL_INTERVAL", raising=False)
+    monkeypatch.delenv("SDWAN_POLL_DISABLED", raising=False)
+    importlib.reload(config_mod)
+    assert config_mod.Config.SDWAN_POLL_INTERVAL == 300
+    assert config_mod.Config.SDWAN_POLL_DISABLED is False
+
+    monkeypatch.setenv("SDWAN_POLL_INTERVAL", "120")
+    monkeypatch.setenv("SDWAN_POLL_DISABLED", "true")
+    importlib.reload(config_mod)
+    assert config_mod.Config.SDWAN_POLL_INTERVAL == 120
+    assert config_mod.Config.SDWAN_POLL_DISABLED is True
+
+    monkeypatch.delenv("SDWAN_POLL_INTERVAL")
+    monkeypatch.setenv("SDWAN_POLL_DISABLED", "true")  # conftest default for later tests
+    importlib.reload(config_mod)
