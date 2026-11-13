@@ -25,7 +25,8 @@ MAX_SERIES_POINTS = 48
 # Candidate key names per logical field, in preference order (lower-case).
 _ALIASES: dict[str, tuple[str, ...]] = {
     "interface": ("interface", "intf"),
-    "device": ("dvid", "devid", "dev"),
+    "device": ("dvid", "devid", "dev", "devname", "device"),
+    "check": ("sla",),  # health-check name (unconfirmed): keeps checks apart
     "time": ("time", "timescale"),
     "latency": ("latency",),
     "jitter": ("jitter",),
@@ -55,6 +56,15 @@ def _num(value) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _time_key(time: str) -> tuple:
+    """Order numeric times as numbers ("999" < "1000"), anything else as text."""
+    try:
+        number = float(time)
+    except ValueError:
+        return (1, 0.0, time)
+    return (0, number, "") if math.isfinite(number) else (1, 0.0, time)
 
 
 def _stat(points: list[tuple[str, float]]) -> dict | None:
@@ -109,13 +119,14 @@ def worst_first_key(entry: dict) -> tuple:
         -latency,
         entry["device"],
         entry["interface"],
+        entry["check"] or "",
     )
 
 
 def parse_interfaces(view_rows: dict[str, list[dict]]) -> list[dict]:
     """Normalize ``{view name: raw rows}`` into per-interface entries, worst first."""
-    # (device, interface) -> metric -> [(time, value)]
-    grouped: dict[tuple[str, str], dict[str, list[tuple[str, float]]]] = {}
+    # (device, interface, health check) -> metric -> [(time, value)]
+    grouped: dict[tuple[str, str, str], dict[str, list[tuple[str, float]]]] = {}
 
     for view, rows in view_rows.items():
         for row in rows or []:
@@ -126,7 +137,12 @@ def parse_interfaces(view_rows: dict[str, list[dict]]) -> list[dict]:
             if interface is None or time is None:
                 continue
             device = _lookup(row, "device")
-            key = (str(device) if device is not None else "", str(interface))
+            check = _lookup(row, "check")
+            key = (
+                str(device) if device is not None else "",
+                str(interface),
+                str(check) if check is not None else "",
+            )
             metrics = grouped.setdefault(key, {})
             for metric in _METRICS:
                 value = _num(_lookup(row, metric))
@@ -138,12 +154,13 @@ def parse_interfaces(view_rows: dict[str, list[dict]]) -> list[dict]:
                     metrics.setdefault("sla", []).append((str(time), value))
 
     entries = []
-    for (device, interface), metrics in grouped.items():
-        ordered = {m: sorted(pts, key=lambda p: p[0]) for m, pts in metrics.items()}
+    for (device, interface, check), metrics in grouped.items():
+        ordered = {m: sorted(pts, key=lambda p: _time_key(p[0])) for m, pts in metrics.items()}
         sla_status, sla_pct = _sla(ordered.get("sla", []))
         entry = {
             "device": device,
             "interface": interface,
+            "check": check or None,
             "sla_status": sla_status,
             "sla_met_pct": sla_pct,
             "series": {m: _downsample(ordered.get(m, [])) for m in _METRICS},

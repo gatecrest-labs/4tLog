@@ -147,3 +147,58 @@ def test_entries_sorted_worst_first():
     assert order[0] == "bad"  # SLA fail first
     assert order.index("lossy") < order.index("slow") < order.index("good")
     assert order[-1] == "nostats"  # no stats last
+
+
+def test_devname_and_device_aliases_keep_devices_apart():
+    rows = [
+        {"devname": "FGT-A", "interface": "wan1", "time": "t1", "latency": 10},
+        {"device": "FGT-B", "interface": "wan1", "time": "t1", "latency": 90},
+    ]
+
+    result = parse_interfaces({PERF: rows})
+
+    assert sorted(e["device"] for e in result) == ["FGT-A", "FGT-B"]
+    assert len(result) == 2  # never merged into one blank-device row
+
+
+def test_numeric_times_order_numerically_not_lexicographically():
+    rows = [
+        {"dvid": "A", "interface": "wan1", "time": "999", "latency": 5},
+        {"dvid": "A", "interface": "wan1", "time": "1000", "latency": 50},
+    ]
+
+    entry = parse_interfaces({PERF: rows})[0]
+
+    assert entry["latency"]["latest"] == 50.0  # "999" < "1000" as numbers
+    assert [t for t, _ in entry["series"]["latency"]] == ["999", "1000"]
+
+
+def test_health_checks_on_one_interface_are_not_blended():
+    rows = [
+        {"dvid": "A", "interface": "wan1", "time": "t1", "sla": "Default_Google", "latency": 10},
+        {"dvid": "A", "interface": "wan1", "time": "t1", "sla": "Default_Office", "latency": 200},
+    ]
+
+    result = parse_interfaces({PERF: rows})
+
+    assert len(result) == 2
+    by_check = {e["check"]: e for e in result}
+    assert by_check["Default_Google"]["latency"]["latest"] == 10.0
+    assert by_check["Default_Office"]["latency"]["latest"] == 200.0
+
+
+def test_check_is_none_when_rows_carry_no_health_check_name():
+    entry = parse_interfaces({PERF: [_perf("t1", latency=5)]})[0]
+
+    assert entry["check"] is None
+
+
+def test_non_finite_times_sort_after_real_numbers_deterministically():
+    rows = [
+        {"dvid": "A", "interface": "wan1", "time": t, "latency": i}
+        for i, t in enumerate(["nan", "2", "inf", "1"])
+    ]
+
+    entry = parse_interfaces({PERF: rows})[0]
+
+    assert [t for t, _ in entry["series"]["latency"]] == ["1", "2", "inf", "nan"]
