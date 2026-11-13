@@ -9,8 +9,12 @@
   A new collector poller (`app/sdwan_cache.py`, `SDWAN_POLL_INTERVAL`, default 300s) polls
   `sdwan-dev-stats`, `sdwan-intf-sla-status-line`, `sdwan-perf-stats-line` and
   `sdwan-intf-bandwidth-line` per target; each view and each target fails independently. No
-  SD-WAN data is shown as its own state, never as healthy. Row field names/units are
-  unconfirmed until a FortiAnalyzer with SD-WAN data can be captured.
+  SD-WAN data is its own state, never shown as healthy; a target whose views all failed (e.g.
+  a token without FortiView access) or returned rows 4tlog cannot interpret says so instead
+  (the row keys received are logged). Each target shows when it was collected and how old that
+  is; a view that hits the 1000-row limit is flagged as truncated; devices and health checks on
+  the same interface are kept apart. Row field names/units are unconfirmed until a
+  FortiAnalyzer with SD-WAN data can be captured (the lab has none).
 - Admin → API Self-Test checks the four SD-WAN views; the 8.0.2 replay fixture was
   re-recorded to include them.
 
@@ -23,6 +27,11 @@
   FortiAnalyzer-local time conversion silently fell back to UTC.
 - nginx re-resolves the `app` upstream, so rebuilding the app container no longer causes 502s
   until nginx is restarted.
+- The FAZ fixture recorder (`scripts/record_faz_fixture.py`) now redacts list-valued secrets
+  (`adm_pass` comes back as `["ENC", "<hash>"]`, which was left in the capture) and replaces
+  MAC addresses; the 8.0.2 fixture was re-recorded with it. The encrypted `adm_pass` value in
+  the earlier 8.0.2 capture is still in git history; rotate the lab device's admin password if
+  that matters.
 
 ## 2026-11-05
 
