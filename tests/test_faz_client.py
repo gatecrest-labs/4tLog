@@ -673,3 +673,11 @@ def test_faz_error_code_defaults_to_none():
     from app.faz_client import FAZError
 
     assert FAZError("boom").code is None
+
+
+def test_tzdata_package_is_installed():
+    """Slim container images ship no system tz database, so zoneinfo needs the
+    tzdata package; without it local_time_range silently returns UTC."""
+    import importlib.util
+
+    assert importlib.util.find_spec("tzdata") is not None

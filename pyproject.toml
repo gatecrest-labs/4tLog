@@ -15,6 +15,9 @@ dependencies = [
     "cryptography>=50.0.0",
     "psutil>=6.0",
     "pyjwt>=2.10.0",
+    # IANA timezone database for zoneinfo: slim container images and some CI
+    # runners ship none, which silently broke FAZ-local time conversion.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
