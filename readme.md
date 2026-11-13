@@ -58,7 +58,9 @@ Project documentation:
   (`sdwan-dev-stats`, `sdwan-intf-sla-status-line`, `sdwan-perf-stats-line`,
   `sdwan-intf-bandwidth-line`); pages only read its cache. It needs SD-WAN with
   performance-SLA health checks and logging enabled on the FortiGate — without
-  that the tab shows a "no SD-WAN data" state (never "healthy"). A view a
+  that the tab shows a "no SD-WAN data" state (never "healthy"); if the FortiAnalyzer
+  returns rows 4tlog cannot interpret, or every view fails (e.g. a token without
+  FortiView access), it says so instead. A view a
   FortiAnalyzer release lacks is skipped (8.0.x removed `sdwan-intf-sla-status`,
   `sdwan-link-view` and `sdwan-intf-traffic-line`, which 4tlog does not use).
   Grant it to groups with the `sdwan` tab key. The row field names and units

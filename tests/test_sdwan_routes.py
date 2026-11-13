@@ -70,6 +70,7 @@ def test_api_returns_cached_targets_for_admin(client, monkeypatch):
     body = resp.get_json()
     assert [t["label"] for t in body["targets"]] == ["A", "B"]
     assert body["collected_at"] == "2026-11-13T10:00:00+00:00"
+    assert body["poll_interval"] == 300  # lets the page judge staleness
 
 
 def test_api_filters_targets_by_allowed_adoms(client, monkeypatch):
@@ -88,7 +89,11 @@ def test_api_empty_cache_returns_empty_targets_list(client, monkeypatch):
     )
     _login(client)
 
-    assert client.get("/api/sdwan").get_json() == {"targets": [], "collected_at": None}
+    assert client.get("/api/sdwan").get_json() == {
+        "targets": [],
+        "collected_at": None,
+        "poll_interval": 300,
+    }
 
 
 def test_nav_shows_sd_wan_tab_for_permitted_user(client):

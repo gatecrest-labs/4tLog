@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, render_template, session
 
 from app import registry
+from app.config import Config
 from app.decorators import tab_required
 from app.groups import get_allowed_adoms
 from app.sdwan_cache import get_cached
@@ -25,4 +26,10 @@ def api_sdwan():
     targets = snapshot.get("targets", [])
     if allowed is not None:
         targets = [t for t in targets if t.get("label") in allowed]
-    return jsonify({"targets": targets, "collected_at": snapshot.get("collected_at")})
+    return jsonify(
+        {
+            "targets": targets,
+            "collected_at": snapshot.get("collected_at"),
+            "poll_interval": Config.SDWAN_POLL_INTERVAL,
+        }
+    )
