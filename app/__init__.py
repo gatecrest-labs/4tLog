@@ -9,6 +9,7 @@ from app.security import csrf_error_response, ensure_csrf_token, validate_csrf_r
 _BLUEPRINT_MODULES: list[str] = [
     "app.routes.auth_routes",
     "app.routes.dashboard_routes",
+    "app.routes.sdwan_routes",
     "app.routes.log_search_routes",
     "app.routes.admin_routes",
     "app.routes.external_api_routes",

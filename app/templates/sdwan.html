@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}SD-WAN — 4tlog{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>SD-WAN Link Health</h2>
+    <span class="last-updated" id="lastUpdated"></span>
+  </div>
+  <div class="page-header-actions">
+    <select id="autoRefresh" class="form-select-sm">
+      <option value="0">Manual</option>
+      <option value="30">Every 30 sec</option>
+      <option value="60" selected>Every 1 min</option>
+      <option value="300">Every 5 min</option>
+    </select>
+    <button class="btn btn-primary" id="refreshBtn">&#8635; Refresh</button>
+  </div>
+</div>
+
+<div id="sdwanRoot">
+  <div class="loading-placeholder">Loading SD-WAN link health…</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sdwan.js') }}?v=1"></script>
+{% endblock %}

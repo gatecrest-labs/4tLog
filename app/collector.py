@@ -1,5 +1,5 @@
 """Standalone collector process — owns every BackgroundScheduler poller
-(FAZ health, log stats, threat stats, host metrics) so a `gunicorn`-served
+(FAZ health, log stats, threat stats, SD-WAN, host metrics) so a `gunicorn`-served
 web process never has to.
 
 Run with:
@@ -33,6 +33,7 @@ def start_all_schedulers() -> None:
     from app.host_metrics_history import init_db as init_host_metrics_db
     from app.log_stats_cache import init_scheduler as init_log_stats_scheduler
     from app.log_stats_history import init_db as init_log_stats_db
+    from app.sdwan_cache import init_scheduler as init_sdwan_scheduler
     from app.threat_stats_cache import init_scheduler as init_threat_stats_scheduler
     from app.threat_stats_history import init_db as init_threat_stats_db
 
@@ -43,6 +44,7 @@ def start_all_schedulers() -> None:
     init_faz_health_scheduler(None)
     init_log_stats_scheduler(None)
     init_threat_stats_scheduler(None)
+    init_sdwan_scheduler(None)
     init_host_metrics_scheduler(None)
 
 

@@ -50,6 +50,23 @@ Project documentation:
   the same `adom_restrict`/`allowed_adoms` group fields as ADOM access
   control. See "Reading the health cards" below for what each card's color
   means.
+- **SD-WAN Tab**: link health from FortiAnalyzer's SD-WAN FortiView views —
+  per device and interface, latency, jitter, packet loss, SLA pass/fail and
+  in/out bandwidth over the last 24h, with a latency trend, worst links first.
+  Backed by a collector poller (`app/sdwan_cache.py`, `SDWAN_POLL_INTERVAL` in
+  `.env.example`, default 300s) that runs four views per target
+  (`sdwan-dev-stats`, `sdwan-intf-sla-status-line`, `sdwan-perf-stats-line`,
+  `sdwan-intf-bandwidth-line`); pages only read its cache. It needs SD-WAN with
+  performance-SLA health checks and logging enabled on the FortiGate — without
+  that the tab shows a "no SD-WAN data" state (never "healthy"); if the FortiAnalyzer
+  returns rows 4tlog cannot interpret, or every view fails (e.g. a token without
+  FortiView access), it says so instead. A view a
+  FortiAnalyzer release lacks is skipped (8.0.x removed `sdwan-intf-sla-status`,
+  `sdwan-link-view` and `sdwan-intf-traffic-line`, which 4tlog does not use).
+  Grant it to groups with the `sdwan` tab key. The row field names and units
+  of these views are not yet confirmed against real SD-WAN data (the lab had
+  none); expect a follow-up once a real capture exists. Admin → API Self-Test
+  checks the four views.
 - **Log Search Tab**: targeted FAZ log search — source/destination IP
   (required, no ANY/ANY; either side may be `ANY`/`ALL` or left blank to mean
   "no filter on this field"), optional port/service and advanced field

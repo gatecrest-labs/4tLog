@@ -56,6 +56,7 @@ _IPV4 = re.compile(r"(?<![\d.])(\d{1,3})(?:\.\d{1,3}){3}(?![\d.])")
 _UUID = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
 )
+_MAC = re.compile(r"(?<![0-9A-Fa-f:-])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:-])")
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 # Fortinet style serials: FGT60FTK21091234, FAZVM0A17001234, FAZ-VM0A17001234
 _SERIAL = re.compile(r"\b(?=[A-Z0-9-]*\d)(?:F[A-Z0-9]{2,5}|FMG-VM|FAZ-VM)[0-9A-Z]{8,}\b")
@@ -70,6 +71,7 @@ class Scrubber:
         self._ips: dict[str, str] = {}
         self._serials: dict[str, str] = {}
         self._emails: dict[str, str] = {}
+        self._macs: dict[str, str] = {}
         self._uuids: dict[str, str] = {}
 
     def scrub(self, obj):
@@ -83,7 +85,9 @@ class Scrubber:
             for k, v in obj.items():
                 key = self._text(k) if isinstance(k, str) else k
                 if isinstance(k, str) and k.lower() in _SECRET_KEYS:
-                    out[key] = REDACTED if isinstance(v, str) and v else v
+                    # str and list values (adm_pass is ["ENC", "<hash>"]); an empty
+                    # value has nothing to hide and stays as-is.
+                    out[key] = REDACTED if isinstance(v, (str, list)) and v else v
                 else:
                     out[key] = self._walk(v)
             return out
@@ -101,6 +105,12 @@ class Scrubber:
         s = _UUID.sub(
             lambda m: self._map(
                 self._uuids, m.group(0).lower(), "00000000-0000-4000-8000-{n:012d}"
+            ),
+            s,
+        )
+        s = _MAC.sub(
+            lambda m: self._map(
+                self._macs, m.group(0).lower().replace("-", ":"), "02:00:00:00:00:{n:02x}"
             ),
             s,
         )

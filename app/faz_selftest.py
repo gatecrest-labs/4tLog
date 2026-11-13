@@ -20,6 +20,7 @@ import datetime
 import time
 
 from app.faz_client import FAZError
+from app.sdwan_cache import VIEWS as SDWAN_VIEWS
 
 NO_PERMISSION = -11  # "No permission for the resource"
 
@@ -147,6 +148,16 @@ _CHECKS = [
         ("time_range",),
         _fortiview("ssl-dialup-ipsec"),
     ),
+    *[
+        (
+            view.replace("-", "_"),
+            f"FortiView {view}",
+            "SD-WAN tab: link health (a view this release lacks is left out of the tab)",
+            ("time_range",),
+            _fortiview(view),
+        )
+        for view in SDWAN_VIEWS
+    ],
     (
         "log_search",
         "Log search (1 row, last 24h)",

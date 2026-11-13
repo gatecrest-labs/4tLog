@@ -156,3 +156,42 @@ def test_core_check_failures_are_reported_as_errors(name):
     key = {"system_status": "sys_status"}.get(name, name)
     report = run_selftest(FakeClient(fail={key: FAZError("down")}))
     assert _by_id(report)[name]["status"] == "error"
+
+
+SDWAN_CHECK_IDS = {
+    "sdwan_dev_stats": "sdwan-dev-stats",
+    "sdwan_intf_sla_status_line": "sdwan-intf-sla-status-line",
+    "sdwan_perf_stats_line": "sdwan-perf-stats-line",
+    "sdwan_intf_bandwidth_line": "sdwan-intf-bandwidth-line",
+}
+
+
+def test_selftest_includes_the_four_sdwan_view_checks():
+    from app.faz_selftest import run_selftest
+
+    client = FakeClient()
+    checks = _by_id(run_selftest(client))
+
+    for check_id, view in SDWAN_CHECK_IDS.items():
+        assert checks[check_id]["status"] == "ok", check_id
+        assert checks[check_id]["feature"].startswith("SD-WAN tab")
+        assert f"fortiview:{view}" in client.calls
+
+
+def test_selftest_reports_a_missing_sdwan_view_as_error_without_hiding_the_rest():
+    from app.faz_selftest import run_selftest
+
+    client = FakeClient(
+        fail={
+            "fortiview:sdwan-perf-stats-line": FAZError(
+                "Cannot find FortiView 'sdwan-perf-stats-line'", code=-32005
+            )
+        }
+    )
+
+    checks = _by_id(run_selftest(client))
+
+    assert checks["sdwan_perf_stats_line"]["status"] == "error"
+    assert checks["sdwan_perf_stats_line"]["code"] == -32005
+    for check_id in SDWAN_CHECK_IDS.keys() - {"sdwan_perf_stats_line"}:
+        assert checks[check_id]["status"] == "ok", check_id

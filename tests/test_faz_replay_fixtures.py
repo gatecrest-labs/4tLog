@@ -34,7 +34,7 @@ LOOSE = (
 EXPECTED = {
     "faz_8.0.2": (
         "8.0",
-        {"ok": 12, "denied": 0, "error": 2, "skipped": 0},
+        {"ok": 16, "denied": 0, "error": 2, "skipped": 0},
         {"fortiview_top_threats", "fortiview_top_countries"},
     ),
 }
@@ -114,5 +114,5 @@ def test_client_sends_a_device_scope_on_every_fortiview_submit():
         for b in sent
         if b["method"] == "add" and b["params"][0]["url"].startswith("/fortiview/")
     ]
-    assert len(submits) == 7
+    assert len(submits) == 11  # 7 threat views + 4 SD-WAN views
     assert all(p["device"] == [{"devid": "All_FortiGate"}] for p in submits)
