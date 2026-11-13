@@ -141,3 +141,47 @@ def test_push_to_unknown_group_returns_400(app, client):
         headers={"Authorization": f"Bearer {_token(app)}"},
     )
     assert response.status_code == 400
+
+
+def test_manifest_requires_manifest_read_scope(app, client):
+    assert client.get("/4tsuite/manifest").status_code == 403
+    response = client.get("/4tsuite/manifest", headers={"Authorization": f"Bearer {_token(app)}"})
+    assert response.status_code == 403
+
+
+def test_manifest_describes_app(app, client):
+    token = _mint(app.config["_TEST_PRIV_KEY"], scope="manifest_read")
+
+    response = client.get("/4tsuite/manifest", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["app_id"] == "4tlog"
+    assert body["protocol_version"] == 1
+    assert "dashboard" in body["tabs"]
+    assert body["groups"] == ["operators"]
+
+
+def test_push_with_malformed_body_returns_400(app, client):
+    response = client.post(
+        "/4tsuite/groups",
+        json={"group": "operators"},
+        headers={"Authorization": f"Bearer {_token(app)}"},
+    )
+    assert response.status_code == 400
+
+
+def test_manifest_advertises_revocations_only_when_a_checker_is_configured(app, monkeypatch):
+    from app import create_app
+
+    token = _mint(app.config["_TEST_PRIV_KEY"], scope="manifest_read")
+    headers = {"Authorization": f"Bearer {token}"}
+    monkeypatch.delenv("TSUITE_REVOCATIONS_URL", raising=False)
+    monkeypatch.delenv("TSUITE_REVOCATIONS_TOKEN", raising=False)
+    plain = create_app().test_client().get("/4tsuite/manifest", headers=headers).get_json()
+    assert plain["capabilities"] == []
+
+    monkeypatch.setenv("TSUITE_REVOCATIONS_URL", "https://suite.example:8400")
+    monkeypatch.setenv("TSUITE_REVOCATIONS_TOKEN", "tok")
+    configured = create_app().test_client().get("/4tsuite/manifest", headers=headers).get_json()
+    assert configured["capabilities"] == ["revocations"]

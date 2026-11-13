@@ -98,3 +98,118 @@ def test_sso_session_survives_a_second_authenticated_request(app, client):
     assert response.status_code == 200
     with client.session_transaction() as sess:
         assert sess.get("user") == "alice"
+
+
+def test_zero_grant_sso_user_sees_banner_in_an_authenticated_shell(app, client):
+    """Reference behavior the other sub-apps match: authenticated, nothing granted."""
+    token = _mint(app.config["_TEST_PRIV_KEY"], sub="mallory")  # in no group
+    response = client.get(f"/sso/login?token={token}", follow_redirects=True)
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "Your account has no tabs assigned. Contact an administrator." in body
+    assert "mallory" in body  # username shown in the nav
+    assert "/logout" in body  # working logout form
+
+
+def _login_sso(app, client, sub="alice"):
+    client.get(f"/sso/login?token={_mint(app.config['_TEST_PRIV_KEY'], sub=sub)}")
+
+
+def test_sso_login_records_login_time(app, client):
+    _login_sso(app, client)
+    with client.session_transaction() as sess:
+        assert isinstance(sess["sso_login_at"], float)
+
+
+def test_revoked_sso_session_is_cleared_and_redirected(app, client):
+    state = {"valid": True}
+    app.extensions["tsuite_session_checker"] = lambda u, t: state["valid"]
+    _login_sso(app, client)
+    assert client.get("/", follow_redirects=False).status_code == 200
+    state["valid"] = False
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+    with client.session_transaction() as sess:
+        assert "user" not in sess
+
+
+def test_revoked_sso_session_gets_401_json_on_api_paths(app, client):
+    app.extensions["tsuite_session_checker"] = lambda u, t: False
+    _login_sso(app, client)
+    response = client.get("/api/log-search/targets")
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "Not authenticated"
+
+
+def test_local_session_is_never_checked(app, client):
+    def explode(username, login_at):
+        raise AssertionError("checker must not run for local sessions")
+
+    app.extensions["tsuite_session_checker"] = explode
+    with client.session_transaction() as sess:
+        sess["user"] = "alice"
+        sess["role"] = "sso"  # no sso_login_at: not an SSO-established session
+        sess["login_at"] = int(time.time())
+    assert client.get("/", follow_redirects=False).status_code != 500
+
+
+def test_no_checker_leaves_sso_sessions_alone(app, client):
+    app.extensions["tsuite_session_checker"] = None
+    _login_sso(app, client)
+    assert client.get("/", follow_redirects=False).status_code == 200
+
+
+def _csrf(client):
+    client.get("/login")
+    with client.session_transaction() as sess:
+        return sess.get("_csrf_token", "")
+
+
+def _local_login(client, password="Str0ng!Passw0rd"):
+    return client.post(
+        "/login",
+        data={"username": "bob", "password": password, "csrf_token": _csrf(client)},
+    )
+
+
+@pytest.fixture
+def local_user(tmp_path, monkeypatch):
+    import app.auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "USERS_FILE", tmp_path / "users.json")
+    auth_mod.add_user("bob", "Str0ng!Passw0rd", role="admin")
+
+
+def test_stale_sso_marker_does_not_survive_logout_and_local_login(app, client, local_user):
+    """Regression guard: a local session must never inherit sso_login_at."""
+    _login_sso(app, client)
+    client.get("/")  # before_request mints a CSRF token for the fresh session
+    with client.session_transaction() as sess:
+        assert "sso_login_at" in sess
+        csrf = sess["_csrf_token"]
+    client.post("/logout", data={"csrf_token": csrf})
+    with client.session_transaction() as sess:
+        assert "sso_login_at" not in sess
+
+    def explode(username, login_at):
+        raise AssertionError("checker must not run for local sessions")
+
+    app.extensions["tsuite_session_checker"] = explode
+    _local_login(client)
+    with client.session_transaction() as sess:
+        assert sess["user"] == "bob"
+        assert "sso_login_at" not in sess
+    assert client.get("/", follow_redirects=False).status_code != 500
+
+
+def test_local_login_over_a_live_sso_session_drops_the_sso_marker(app, client, local_user):
+    _login_sso(app, client)
+    app.extensions["tsuite_session_checker"] = lambda u, t: (_ for _ in ()).throw(
+        AssertionError("checker must not run for local sessions")
+    )
+    _local_login(client)
+    with client.session_transaction() as sess:
+        assert sess["user"] == "bob"
+        assert "sso_login_at" not in sess
+    assert client.get("/", follow_redirects=False).status_code != 500

@@ -12,7 +12,6 @@ _BLUEPRINT_MODULES: list[str] = [
     "app.routes.log_search_routes",
     "app.routes.admin_routes",
     "app.routes.external_api_routes",
-    "app.routes.sync_routes",
 ]
 
 
@@ -68,6 +67,13 @@ def create_app() -> Flask:
         mod = importlib.import_module(module_path)
         if hasattr(mod, "bp"):
             app.register_blueprint(mod.bp)
+
+    from app.routes.sync_routes import make_blueprint
+    from app.tsuite_adapter import session_checker_from_env
+
+    checker = session_checker_from_env()
+    app.extensions["tsuite_session_checker"] = checker
+    app.register_blueprint(make_blueprint(checker))
 
     from app import groups, registry
 
