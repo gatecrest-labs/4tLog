@@ -34,6 +34,7 @@ _PARSED_VIEWS = frozenset(VIEWS) - {"sdwan-dev-stats"}
 
 CACHE_KEY = "sdwan_stats"
 WINDOW = datetime.timedelta(hours=24)
+ROW_LIMIT = 1000
 
 _lock = threading.RLock()
 _EMPTY_CACHE: dict = {"targets": [], "collected_at": None}
@@ -77,12 +78,20 @@ def _poll_view(client, view: str, window: tuple[str, str]) -> tuple[dict, list[d
     from app.faz_client import FAZError
 
     try:
-        rows = client.run_fortiview(client.adom, view, window, limit=1000)
+        rows = client.run_fortiview(client.adom, view, window, limit=ROW_LIMIT)
     except FAZError as exc:
         status = "unsupported" if _is_unsupported(exc) else "error"
-        return {"status": status, "rows": 0, "error": str(exc)}, []
+        return {"status": status, "rows": 0, "error": str(exc), "truncated": False}, []
     status = "ok" if rows else "empty"
-    return {"status": status, "rows": len(rows), "error": None}, rows
+    # At the limit the appliance may have dropped rows: flag it instead of
+    # presenting a possibly partial window as complete.
+    entry = {
+        "status": status,
+        "rows": len(rows),
+        "error": None,
+        "truncated": len(rows) >= ROW_LIMIT,
+    }
+    return entry, rows
 
 
 def _poll_target(target: dict, now: datetime.datetime) -> dict:
@@ -117,9 +126,45 @@ def _poll_target(target: dict, now: datetime.datetime) -> dict:
                 parse_input[view] = rows
 
     entry["interfaces"] = parse_interfaces(parse_input)
-    if any(v["rows"] for v in entry["views"].values()):
-        entry["state"] = "ok"
+    _set_state(entry, parse_input)
     return entry
+
+
+def _set_state(entry: dict, parse_input: dict[str, list[dict]]) -> None:
+    """Decide the target's state from what the views returned.
+
+    ok            -- at least one interface was understood
+    unrecognized  -- rows came back but none could be interpreted (row keys are
+                     unconfirmed, so this is the likely first-contact failure)
+    error         -- nothing usable and at least one view failed (permissions,
+                     timeouts...): never tell the operator to enable logging
+    no_data       -- every view was empty or unsupported
+    """
+    views = entry["views"]
+    if entry["interfaces"]:
+        entry["state"] = "ok"
+    elif any(v["rows"] for v in views.values()):
+        entry["state"] = "unrecognized"
+        _log_unrecognized(entry, parse_input)
+    elif any(v["status"] == "error" for v in views.values()):
+        entry["state"] = "error"
+        entry["error"] = "; ".join(
+            f"{name}: {v['error']}" for name, v in views.items() if v["status"] == "error"
+        )
+    else:
+        entry["state"] = "no_data"
+
+
+def _log_unrecognized(entry: dict, parse_input: dict[str, list[dict]]) -> None:
+    from app.app_logger import app_log
+
+    for view, rows in parse_input.items():
+        keys = sorted({str(k) for row in rows[:5] if isinstance(row, dict) for k in row})
+        app_log(
+            "WARN",
+            "sdwan_cache",
+            f"SD-WAN rows not recognised for {entry['label']}: {view} row keys {keys}",
+        )
 
 
 def poll_all_targets() -> None:

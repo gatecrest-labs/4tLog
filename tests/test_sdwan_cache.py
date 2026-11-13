@@ -74,7 +74,12 @@ def test_poll_populates_snapshot_and_writes_collector_store(targets_file, monkey
     (target,) = snap["targets"]
     assert target["label"] == "Primary"
     assert target["state"] == "ok"
-    assert target["views"][PERF] == {"status": "ok", "rows": 2, "error": None}
+    assert target["views"][PERF] == {
+        "status": "ok",
+        "rows": 2,
+        "error": None,
+        "truncated": False,
+    }
     assert target["views"][SLA]["status"] == "empty"
     assert target["interfaces"][0]["interface"] == "wan1"
     assert collector_store.read_cache(cache_mod.CACHE_KEY) == snap
@@ -200,3 +205,90 @@ def test_get_cached_keeps_in_memory_snapshot_newer_than_stored():
     )
 
     assert cache_mod.get_cached()["collected_at"] == "2026-11-13T18:00:00+00:00"
+
+
+def test_all_views_error_is_error_state_not_no_data(targets_file, monkeypatch):
+    """A token without FortiView rights must not be told to enable SLA logging."""
+    import app.sdwan_cache as cache_mod
+    from app.faz_client import FAZError
+
+    def fake(self, adom, view, time_range, limit=1000, **_kw):
+        raise FAZError("No permission for the resource", code=-11)
+
+    _stub(monkeypatch, fake)
+
+    cache_mod.poll_all_targets()
+
+    (target,) = cache_mod.get_cached()["targets"]
+    assert target["state"] == "error"
+    assert "No permission for the resource" in target["error"]
+    assert PERF in target["error"]  # names the view that failed
+
+
+def test_some_views_error_but_others_empty_is_still_error_state(targets_file, monkeypatch):
+    import app.sdwan_cache as cache_mod
+    from app.faz_client import FAZError
+
+    def fake(self, adom, view, time_range, limit=1000, **_kw):
+        if view == BW:
+            raise FAZError("boom", code=-32603)
+        return []
+
+    _stub(monkeypatch, fake)
+
+    cache_mod.poll_all_targets()
+
+    (target,) = cache_mod.get_cached()["targets"]
+    assert target["state"] == "error"
+
+
+def test_rows_that_parse_to_nothing_are_unrecognized_not_no_data(targets_file, monkeypatch):
+    import app.sdwan_cache as cache_mod
+
+    logged = []
+    monkeypatch.setattr("app.app_logger.app_log", lambda *a, **k: logged.append(a))
+
+    def fake(self, adom, view, time_range, limit=1000, **_kw):
+        return [{"surprise_key": 1, "other": 2}] if view == PERF else []
+
+    _stub(monkeypatch, fake)
+
+    cache_mod.poll_all_targets()
+
+    (target,) = cache_mod.get_cached()["targets"]
+    assert target["state"] == "unrecognized"
+    assert target["interfaces"] == []
+    assert any("surprise_key" in str(a) for a in logged)  # key names logged for the follow-up
+
+
+def test_only_dev_stats_rows_is_unrecognized(targets_file, monkeypatch):
+    import app.sdwan_cache as cache_mod
+
+    def fake(self, adom, view, time_range, limit=1000, **_kw):
+        return [{"anything": 1}] if view == DEV else []
+
+    _stub(monkeypatch, fake)
+
+    cache_mod.poll_all_targets()
+
+    (target,) = cache_mod.get_cached()["targets"]
+    assert target["state"] == "unrecognized"
+
+
+def test_view_that_hits_the_row_limit_is_flagged_truncated(targets_file, monkeypatch):
+    import app.sdwan_cache as cache_mod
+
+    rows = [
+        {"dvid": "A", "interface": "wan1", "time": f"t{i:04d}", "latency": i} for i in range(1000)
+    ]
+
+    def fake(self, adom, view, time_range, limit=1000, **_kw):
+        return rows if view == PERF else _perf_rows()[:1] if view == SLA else []
+
+    _stub(monkeypatch, fake)
+
+    cache_mod.poll_all_targets()
+
+    (target,) = cache_mod.get_cached()["targets"]
+    assert target["views"][PERF]["truncated"] is True
+    assert target["views"][SLA]["truncated"] is False
