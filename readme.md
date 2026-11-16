@@ -16,6 +16,9 @@ optional port/service and advanced field filters, time range) with a
 paginated results table (client-side, page size 10/25/50/100, up to the
 configured result cap) and client-side CSV/JSON export.
 
+**No FortiAnalyzer? Try [demo mode](#demo-mode):** one command runs the whole
+app on synthetic data for a fictional company, with nothing to configure.
+
 > Note: This is an independent open-source project and is not affiliated with, endorsed by, or supported by Fortinet, Inc. FortiManager is a trademark of Fortinet, Inc.
 
 > Note: This a work in progress. It will change as I continue to build it out. Any recommendations are encouraged. 
@@ -128,6 +131,9 @@ Project documentation:
   permitted tabs
 - **Deployment**: Docker (with TLS via an Nginx reverse-proxy sidecar
   container) and RHEL bare-metal (Gunicorn/Nginx/systemd)
+- **Demo mode**: `DEMO_MODE=true` runs the whole app on a built-in synthetic
+  FortiAnalyzer with seeded users and targets and writes disabled (see
+  [Demo mode](#demo-mode))
 
 ## Reading the health cards
 
@@ -147,6 +153,81 @@ those numbers — only apply when `SNMP_ENABLED=true` and SNMP credentials are
 configured. Without SNMP, a card is green whenever it's reachable (no
 CPU/mem numbers to flag a warning), gray before the first poll, or offline
 if the appliance can't be reached at all.
+
+## Demo mode
+
+Demo mode runs 4tlog with no FortiAnalyzer at all. A built-in synthetic
+FortiAnalyzer answers every call the app makes, with data for the fictional
+Gatecrest Labs: two FortiAnalyzers (HQ on 7.6, Branches on 7.4) managing seven
+FortiGates, plus a powered-off DR appliance. No `.env`, `users.json` or other
+local files are needed.
+
+With Docker (one container, port bound to localhost only):
+
+```bash
+docker compose -f docker-compose.demo.yml up -d --build   # http://localhost:8100
+docker compose -f docker-compose.demo.yml down            # when you're done
+```
+
+Or straight from the checkout:
+
+```bash
+uv sync
+DEMO_MODE=true PORT=8100 uv run python wsgi.py            # http://localhost:8100
+```
+
+On a Mac, or to try a branch before it's merged, follow
+[docs/local-demo-mac.md](docs/local-demo-mac.md): prerequisites, checking out the
+branch, updating the container after new commits, cleanup and troubleshooting.
+The demo stack uses its own image tag (`4tlog:demo`) and Compose project, so it
+runs alongside a real 4tlog stack without replacing its image or containers.
+
+Sign in as `demo-admin` (every tab, including Admin) or `demo-analyst` (a
+group restricted to the Branches FortiAnalyzer, to show tab and ADOM access
+control). The password for both is `gatecrest-demo`; the login page shows them.
+
+What to look at:
+
+- **Dashboard**: HQ is green, Branches is yellow (CPU above `CPU_WARN`), DR is
+  offline with "Connection refused".
+- **SD-WAN**: `GC-BR-EAST` `wan2` fails its SLA (latency and loss over the last
+  three hours) and is listed first. `GC-BR-WEST` has stopped logging, so it has
+  no SD-WAN rows.
+- **Log Search**: traffic, attack, webfilter, app-ctrl and event logs. HQ uses
+  `10.10.0.0/16`, the branches `10.20.0.0/16` (one `/24` per branch); external
+  peers are in the documentation ranges `192.0.2.0/24`, `198.51.100.0/24` and
+  `203.0.113.0/24`. Try Branches, source `10.20.3.0/24`, port `443`.
+- **Admin → API Self-Test**: all 18 checks pass on HQ and Branches; DR shows
+  what an unreachable FortiAnalyzer looks like.
+
+What demo mode changes:
+
+- **Data**: users, groups, targets, settings and API tokens come from the seed
+  files in `app/demo_data/`. Your own `users.json`, `faz_targets.json` and so
+  on are never read or written. SQLite files go to `.demo-data/` unless
+  `DATA_DIR` is set.
+- **No real FortiAnalyzer, ever**: every target must be a built-in
+  `*.demo.invalid` host (a reserved name that never resolves). A client for any
+  other host is refused before it sends a request, and fixture recording
+  (`FAZ_RECORD_FILE`) is off.
+- **No SNMP**: health cards get synthetic CPU and memory readings.
+- **Writes off**: every change through the Admin API (targets, groups,
+  settings, tokens, log level) answers 403, and 4tSuite group pushes are
+  refused. The read-only API self-test still runs. The external API stays off.
+- **Simpler to start**: `SECRET_KEY` is optional (a random key per start, so
+  sessions end on restart), and the pollers run in the web process
+  (`RUN_SCHEDULERS` defaults to `inline`).
+- A banner on every page says it is a demo.
+
+The data is generated (`app/demo_faz.py`), deterministic per host, view and
+time, so a reload shows the same numbers and the charts move slowly over the
+day. Its response shapes, the `/sys/status` fields and the traffic log field
+list come from the recorded FortiAnalyzer fixture in `tests/fixtures/`. Every
+name, serial and address is made up.
+
+Demo mode is plain HTTP with published passwords: don't expose it to the
+internet without a TLS proxy in front. Leave `DEMO_MODE` unset for a real
+deployment.
 
 ## Quick start (development)
 

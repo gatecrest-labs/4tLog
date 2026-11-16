@@ -54,6 +54,13 @@ def main() -> None:
         "collector",
         "Starting collector process (FAZ health/log stats/threat stats/host metrics)",
     )
+    from app.config import Config
+
+    if Config.DEMO_MODE:
+        from app import demo
+
+        demo.activate()
+        app_log("INFO", "collector", "Demo mode: polling the synthetic FortiAnalyzer only")
     start_all_schedulers()
     try:
         while True:

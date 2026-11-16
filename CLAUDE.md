@@ -43,7 +43,11 @@ uv sync
 uv run ruff check .
 uv run pytest -q
 uv run python wsgi.py
+DEMO_MODE=true PORT=8100 uv run python wsgi.py   # no FortiAnalyzer needed
 ```
+
+Demo mode (`app/demo.py`, `app/demo_faz.py`, seeds in `app/demo_data/`) must never reach a
+real FortiAnalyzer and never write configuration; `tests/test_demo_mode.py` pins both.
 
 ## FortiAnalyzer Version Compatibility
 

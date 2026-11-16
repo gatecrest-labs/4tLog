@@ -20,6 +20,17 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.from_object(Config)
 
+    if Config.DEMO_MODE:
+        from app import demo
+
+        demo.activate()
+
+        @app.before_request
+        def _demo_read_only():
+            if demo.blocked_write(request.method, request.path, request.endpoint):
+                return jsonify({"error": demo.BLOCKED_MESSAGE}), 403
+            return None
+
     @app.before_request
     def _security_filters():
         ensure_csrf_token()
@@ -92,6 +103,7 @@ def create_app() -> Flask:
             "allowed_tabs": allowed,
             "nav_registry": registry.get_registry(),
             "csrf_token": ensure_csrf_token(),
+            "demo_mode": Config.DEMO_MODE,
         }
 
     # DB tables must exist regardless of which process polls into them — a
