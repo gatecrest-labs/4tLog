@@ -162,16 +162,25 @@ Gatecrest Labs: two FortiAnalyzers (HQ on 7.6, Branches on 7.4) managing seven
 FortiGates, plus a powered-off DR appliance. No `.env`, `users.json` or other
 local files are needed.
 
+With Docker (one container, port bound to localhost only):
+
+```bash
+docker compose -f docker-compose.demo.yml up -d --build   # http://localhost:8100
+docker compose -f docker-compose.demo.yml down            # when you're done
+```
+
+Or straight from the checkout:
+
 ```bash
 uv sync
-DEMO_MODE=true PORT=5000 uv run python wsgi.py          # http://localhost:5000
+DEMO_MODE=true PORT=8100 uv run python wsgi.py            # http://localhost:8100
 ```
 
-Or with Docker (builds the normal image, runs it in demo mode):
-
-```bash
-docker compose -f docker-compose.demo.yml up --build    # http://localhost:8100
-```
+On a Mac, or to try a branch before it's merged, follow
+[docs/local-demo-mac.md](docs/local-demo-mac.md): prerequisites, checking out the
+branch, updating the container after new commits, cleanup and troubleshooting.
+The demo stack uses its own image tag (`4tlog:demo`) and Compose project, so it
+runs alongside a real 4tlog stack without replacing its image or containers.
 
 Sign in as `demo-admin` (every tab, including Admin) or `demo-analyst` (a
 group restricted to the Branches FortiAnalyzer, to show tab and ADOM access

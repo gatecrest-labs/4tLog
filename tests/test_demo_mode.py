@@ -523,3 +523,27 @@ def test_demo_mode_generates_a_throwaway_secret_key(monkeypatch):
     monkeypatch.setattr(config, "DEMO_MODE", False)
     with pytest.raises(RuntimeError):
         config._require_secret_key()
+
+
+def test_demo_compose_stays_apart_from_the_real_stack():
+    """The demo stack must not replace the real stack's image, share its
+    Compose project, or publish its public-password login beyond localhost."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    demo = (root / "docker-compose.demo.yml").read_text()
+    real = (root / "docker-compose.yml").read_text()
+    lines = [line.split("#", 1)[0].strip() for line in demo.splitlines()]
+
+    assert "name: 4tlog-demo" in lines
+    demo_images = {line.split(":", 1)[1].strip() for line in lines if line.startswith("image:")}
+    real_images = {
+        line.split(":", 1)[1].strip()
+        for line in (raw.split("#", 1)[0].strip() for raw in real.splitlines())
+        if line.startswith("image:")
+    }
+    assert demo_images == {"4tlog:demo"}
+    assert not demo_images & real_images
+    ports = [line for line in lines if line.startswith('- "') and ':8100"' in line]
+    assert ports and all(p.startswith('- "127.0.0.1:') for p in ports)
+    assert "- DEMO_MODE=true" in lines
