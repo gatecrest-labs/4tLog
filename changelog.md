@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-11-16
+
+### Added
+
+- **Demo mode** (`DEMO_MODE=true`): runs the whole app with no FortiAnalyzer, on a built-in
+  synthetic one (`app/demo_faz.py`) for the fictional Gatecrest Labs: two FortiAnalyzers
+  (7.6 and 7.4), seven FortiGates and an offline DR appliance, so the Dashboard shows green,
+  yellow and offline cards, the SD-WAN tab a failing link and a silent device, Log Search
+  generated traffic/attack/webfilter/app-ctrl/event logs, and the API self-test 18 passing
+  checks. Data is deterministic per host, view and time; response shapes, `/sys/status` fields
+  and the traffic field list are seeded from the 8.0.2 fixture. Users, groups, targets,
+  settings and tokens come from `app/demo_data/`, never the operator's own files.
+- Demo mode never contacts a real FortiAnalyzer: `FAZClient` refuses any host that is not a
+  built-in `*.demo.invalid` host before sending a request, fixture recording is off, and SNMP
+  readings are synthetic.
+- Demo mode is read-only: Admin API changes (targets, groups, settings, tokens, log level) and
+  4tSuite group pushes answer 403; the API self-test still runs. A banner on every page, and the
+  demo sign-ins (`demo-admin` / `demo-analyst`, password `gatecrest-demo`) on the login page.
+- `docker-compose.demo.yml`: one container on http://localhost:8100 (bound to `127.0.0.1`,
+  `DEMO_PORT` to change it), needing no `.env` or local JSON files. It has its own Compose
+  project (`4tlog-demo`) and image tag (`4tlog:demo`), so it runs beside a real stack without
+  replacing its image or containers. In demo mode `SECRET_KEY` is optional, `RUN_SCHEDULERS`
+  defaults to `inline` and `DATA_DIR` to `.demo-data/`.
+- `docs/local-demo-mac.md`: step-by-step guide to running the demo on a Mac, with Docker or
+  `uv`: prerequisites, checking out a branch, updating the container, cleanup, troubleshooting.
+- `tests/test_demo_mode.py`: refusing real targets, seeds, disabled writes, the banner, ADOM
+  restriction, and the synthetic FortiAnalyzer through the real pollers and routes.
+
+### Changed
+
+- An empty `DATA_DIR` now falls back to the default location instead of the working directory.
+
 ## 2026-11-13
 
 ### Added

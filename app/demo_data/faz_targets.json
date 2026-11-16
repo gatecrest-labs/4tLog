@@ -1,0 +1,23 @@
+[
+  {
+    "label": "Gatecrest HQ",
+    "host": "faz-hq.demo.invalid",
+    "adom": "root",
+    "token": "demo",
+    "threat_poll_enabled": true
+  },
+  {
+    "label": "Gatecrest Branches",
+    "host": "faz-branches.demo.invalid",
+    "adom": "branches",
+    "token": "demo",
+    "threat_poll_enabled": true
+  },
+  {
+    "label": "Gatecrest DR",
+    "host": "faz-dr.demo.invalid",
+    "adom": "root",
+    "token": "demo",
+    "threat_poll_enabled": false
+  }
+]

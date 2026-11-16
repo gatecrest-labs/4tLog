@@ -111,6 +111,11 @@ async def _snmp_get(host: str, oids: list[str], creds: dict) -> list[float]:
 
 def _poll_snmp(target: dict) -> tuple[float | None, float | None, str]:
     """Returns (cpu, mem, snmp_status)."""
+    if Config.DEMO_MODE:
+        from app.demo_faz import snmp_reading
+
+        reading = snmp_reading(target.get("host", ""))
+        return (*reading, "ok") if reading else (None, None, "error")
     if not Config.SNMP_ENABLED:
         return None, None, "disabled"
     creds = _resolve_snmp_creds(target)

@@ -1,6 +1,8 @@
 """Application configuration loaded from environment / .env file."""
 
 import os
+import secrets
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -9,9 +11,20 @@ if os.environ.get("APP_LOAD_DOTENV", "true").lower() == "true":
     load_dotenv()
 
 
+_ROOT = Path(__file__).resolve().parent.parent
+
+# Demo mode (app/demo.py): synthetic FortiAnalyzer data, seeded users and
+# targets, writes disabled. Never contacts a real FortiAnalyzer.
+DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
+
+
 def _require_secret_key() -> str:
     val = os.environ.get("SECRET_KEY", "")
     if not val or val == "change-me-in-production":
+        if DEMO_MODE:
+            # A throwaway key: demo sessions end when the process restarts.
+            print("[config] DEMO_MODE: SECRET_KEY not set, using a random one", file=sys.stderr)
+            return secrets.token_hex(32)
         raise RuntimeError(
             "SECRET_KEY is not set or is the insecure default. "
             "Generate one with: uv run python manage_users.py secret"
@@ -20,6 +33,7 @@ def _require_secret_key() -> str:
 
 
 class Config:
+    DEMO_MODE = DEMO_MODE
     SECRET_KEY = _require_secret_key()
     # Browser cookies are scoped by domain+path, not by port (RFC 6265).
     # Without a unique name here, this collides with any other Flask app's
@@ -48,7 +62,8 @@ class Config:
     # collector_state.db) lives — default matches where they've always
     # lived (the repo root), overridable so docker-compose can point both
     # the "web" and "collector" services at one shared volume.
-    DATA_DIR = os.environ.get("DATA_DIR", str(Path(__file__).resolve().parent.parent))
+    # Demo mode keeps its SQLite files apart from a real deployment's.
+    DATA_DIR = os.environ.get("DATA_DIR") or str(_ROOT / ".demo-data" if DEMO_MODE else _ROOT)
 
     # "inline" reproduces the historical single-process behavior (this app
     # starts and owns every BackgroundScheduler poller itself) — useful for
@@ -56,7 +71,8 @@ class Config:
     # this process starts no schedulers; a separate `python -m
     # app.collector` process owns them instead, and this process reads
     # poll results via each cache module's SQLite read-through fallback.
-    RUN_SCHEDULERS = os.environ.get("RUN_SCHEDULERS", "collector")
+    # Demo mode defaults to "inline" so a single process is the whole demo.
+    RUN_SCHEDULERS = os.environ.get("RUN_SCHEDULERS", "inline" if DEMO_MODE else "collector")
 
     # FortiAnalyzer client (app/faz_client.py)
     FAZ_VERIFY_SSL = os.environ.get("FAZ_VERIFY_SSL", "false").lower() == "true"

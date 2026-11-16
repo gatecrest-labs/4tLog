@@ -1,0 +1,10 @@
+{
+  "demo-admin": {
+    "password_hash": "$2b$12$sr8E/8Fn7qYcliiEE8V3y.uTzlwLISJSD8WVc7DV33RaoRVDAlL8.",
+    "role": "admin"
+  },
+  "demo-analyst": {
+    "password_hash": "$2b$12$sr8E/8Fn7qYcliiEE8V3y.uTzlwLISJSD8WVc7DV33RaoRVDAlL8.",
+    "role": "viewer"
+  }
+}

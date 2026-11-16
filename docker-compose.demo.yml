@@ -1,0 +1,40 @@
+# Demo stack: 4tlog in demo mode, on synthetic FortiAnalyzer data.
+#
+#   docker compose -f docker-compose.demo.yml up --build
+#   open http://localhost:8100  (demo-admin / gatecrest-demo)
+#
+# Step-by-step (macOS included): docs/local-demo-mac.md.
+#
+# A separate file (not a profile in docker-compose.yml) so the demo needs none
+# of the real stack's local files: no .env, users.json, faz_targets.json or
+# certs. One container runs the web app and every poller (RUN_SCHEDULERS
+# defaults to "inline" in demo mode). It never contacts a real FortiAnalyzer:
+# demo mode refuses any target that is not a built-in *.demo.invalid host, and
+# every write through the Admin API is disabled.
+#
+# It stays apart from a real 4tlog stack in the same checkout: its own
+# project name (so `down` never touches the real containers), its own image
+# tag (so building it never replaces 4tlog:latest), and no shared volumes.
+# The port binds to 127.0.0.1 only, because the demo passwords are public:
+# set DEMO_PORT to use another host port.
+name: 4tlog-demo
+
+services:
+  demo:
+    build: .
+    image: 4tlog:demo
+    container_name: 4tlog-demo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DEMO_PORT:-8100}:8100"
+    environment:
+      - DEMO_MODE=true
+      - DATA_DIR=/app/data
+      # SECRET_KEY unset: demo mode generates a throwaway key per start.
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8100/login', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
