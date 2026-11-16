@@ -40,3 +40,7 @@ sso_public_key.pem
 
 graphify-out
 .worktrees/
+
+# Demo mode: the seed files are committed (public, synthetic); its SQLite files are not
+!app/demo_data/*.json
+.demo-data/

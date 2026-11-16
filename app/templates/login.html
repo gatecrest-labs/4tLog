@@ -6,6 +6,12 @@
   <div class="login-card">
     <h1 class="login-title">4tlog</h1>
     <p class="login-subtitle">FortiAnalyzer Log Search</p>
+    {% if demo_mode %}
+    <div class="login-demo-hint">
+      Demo sign-ins: <code>demo-admin</code> (admin) or <code>demo-analyst</code>
+      (branches only), password <code>gatecrest-demo</code>.
+    </div>
+    {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}
       <div class="alert alert-{{ cat }}">{{ msg }}</div>

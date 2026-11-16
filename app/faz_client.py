@@ -125,6 +125,12 @@ def parse_faz_version(raw) -> "FAZVersion | None":
     return FAZVersion(int(major), int(minor), int(patch), int(build) if build else None)
 
 
+def _demo_mode() -> bool:
+    from app.config import Config
+
+    return bool(getattr(Config, "DEMO_MODE", False))
+
+
 class FAZClient:
     def __init__(
         self,
@@ -147,8 +153,20 @@ class FAZClient:
         self._req_id = 0
         self._http = requests.Session()
         self._version: FAZVersion | None = None
-        # Opt-in traffic capture for building test fixtures (see faz_recorder).
         self._recorder = None
+        if _demo_mode():
+            # Demo mode never leaves the process: answer from the synthetic
+            # FortiAnalyzer, and refuse any host that is not a demo host.
+            from app.demo_faz import DemoFAZ, is_demo_host
+
+            if not is_demo_host(host):
+                raise FAZError(
+                    f"Demo mode: refusing to contact {host!r}; demo mode only uses the "
+                    "built-in synthetic FortiAnalyzer (*.demo.invalid targets)."
+                )
+            self._post = DemoFAZ(host).post
+            return
+        # Opt-in traffic capture for building test fixtures (see faz_recorder).
         record_file = os.environ.get("FAZ_RECORD_FILE")
         if record_file:
             from app.faz_recorder import Recorder

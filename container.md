@@ -3,6 +3,10 @@
 This covers running 4tlog as a container via Docker Compose — the
 alternative to the RHEL bare-metal path in `docs/deployment.md`.
 
+To try the app without a FortiAnalyzer, run the demo instead:
+`docker compose -f docker-compose.demo.yml up --build` (see
+[readme.md](readme.md#demo-mode)).
+
 ## Prerequisites
 
 - Docker Engine 20.10+
