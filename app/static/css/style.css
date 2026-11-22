@@ -2815,3 +2815,20 @@ rect.ct-other, .ct-swatch.ct-other { fill: var(--status-unknown); background: va
 .ct-num-denied { color: var(--status-red); }
 .ct-pick { cursor: pointer; }
 .ct-pick.ct-active td { background: var(--surface-alt); font-weight: 600; }
+
+/* Connection Timeline: the picture for a selected peer */
+.ct-peer-path { border-top: 1px solid var(--border); margin-top: 1.25rem; padding-top: .5rem; }
+.ct-path-role { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; padding: .75rem 1rem; }
+.ct-path-role h4 { font-size: .95rem; margin: 0 0 .5rem; }
+.ct-path-ip { fill: var(--surface-alt); stroke: var(--accent); stroke-width: 1.5; }
+.ct-path-ip-text { fill: var(--text); font-size: 13px; font-weight: 700; }
+.ct-path-fw { fill: var(--surface-alt); stroke: var(--border); stroke-width: 1.5; }
+.ct-path-fw-text { fill: var(--text); font-size: 12px; font-weight: 600; }
+.ct-path-sub { fill: var(--text-muted); font-size: 10px; }
+.ct-path-line { stroke: var(--text-muted); stroke-width: 1.5; }
+.ct-path-arrowhead { fill: var(--text-muted); }
+.ct-path-ports { font-size: .85rem; margin: .5rem 0; }
+.ct-port-chip { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 999px; display: inline-block; margin: 0 .2rem .2rem 0; padding: .05rem .55rem; }
+.ct-path-summary { font-size: .85rem; margin: .75rem 0 .25rem; }
+.ct-path-graph { display: block; }
+.ct-path-table { margin-top: .75rem; }

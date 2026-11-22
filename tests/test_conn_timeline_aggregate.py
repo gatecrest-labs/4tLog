@@ -229,3 +229,21 @@ def test_policy_lane_index_follows_the_sorted_lanes():
     assert out["lanes"][by_name["Late-Policy"]]["devname"] == "LATE"
     for flow in out["flows"]:
         assert out["policies"][flow[5]]["lane"] == flow[0]
+
+
+def test_paths_record_role_firewall_port_and_exact_first_and_last_seen():
+    host = "10.10.20.50"
+    t = Timeline(host, "either", START, NOW)
+    t.add(_row(10))
+    t.add(_row(40))
+    t.add(_row(30, srcip="10.10.1.9", dstip=host, dstport="3389", service="RDP"))
+    out = t.to_dict()
+    assert out["path_fields"] == [
+        "peer", "role", "lane", "port", "bucket", "count", "first_ts", "last_ts",
+    ]  # fmt: skip
+    base = int(START.timestamp())
+    peers = out["peers"]
+    ssh = [p for p in out["paths"] if p[0] == peers.index("10.10.30.10")]
+    rdp = [p for p in out["paths"] if p[0] == peers.index("10.10.1.9")]
+    assert ssh == [[peers.index("10.10.30.10"), 0, 0, 0, 0, 2, base + 10, base + 40]]
+    assert [p[1] for p in rdp] == [1]  # host was the destination

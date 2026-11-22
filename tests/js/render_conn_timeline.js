@@ -9,7 +9,7 @@ vm.createContext(ctx);
 const src = fs.readFileSync(process.argv[2], 'utf8');
 vm.runInContext(src + `
 ;globalThis.__ct = { summarize, renderChart, renderCoverage, renderHeader, renderFilter,
-  renderTopTable, renderPolicies, renderDetail, logSearchLinks, visibleLanes };`, ctx);
+  renderTopTable, renderPolicies, renderDetail, logSearchLinks, visibleLanes, renderPeerPath, peerPaths };`, ctx);
 const ct = ctx.__ct;
 
 const cases = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -33,6 +33,7 @@ for (const c of cases) {
     portsTable: ct.renderTopTable(summary.ports, 'port', filter.port),
     policiesTable: ct.renderPolicies(c.result, summary),
     detail: sel ? ct.renderDetail(c.result, filter, sel) : null,
+    peerPath: ct.renderPeerPath(c.result, filter),
     links: sel ? ct.logSearchLinks(c.result, sel.lane, sel.bucket, sel.verdict, filter) : null,
   };
 }

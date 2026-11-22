@@ -194,6 +194,10 @@ class Timeline:
         self.step = bucket_seconds(self.end_ts - self.start_ts)
         self.n_buckets = max(1, -(-(self.end_ts - self.start_ts) // self.step))
         self.flows: dict[tuple, int] = {}
+        # (peer, role, lane, port, bucket) -> [count, first_ts, last_ts]. Role 0 means the
+        # host was the source of the connection, 1 the destination; the picture for a
+        # selected peer needs it because "either direction" mixes both.
+        self.paths: dict[tuple, list[int]] = {}
         self._lanes: dict[tuple, int] = {}
         self.lanes: list[dict] = []
         self._peers: dict[str, int] = {}
@@ -289,6 +293,21 @@ class Timeline:
         key = (lane, bucket, verdict(row.get("action")), p, o, y)
         self.flows[key] = self.flows.get(key, 0) + 1
 
+        if self.direction == "src":
+            role = 0
+        elif self.direction == "dst":
+            role = 1
+        else:
+            role = 0 if _norm_ip(row.get("srcip")) == self.host else 1
+        pkey = (p, role, lane, o, bucket)
+        seen = self.paths.get(pkey)
+        if seen is None:
+            self.paths[pkey] = [1, ts, ts]
+        else:
+            seen[0] += 1
+            seen[1] = min(seen[1], ts)
+            seen[2] = max(seen[2], ts)
+
     def to_dict(self) -> dict:
         lanes = sorted(range(len(self.lanes)), key=lambda i: (self.lanes[i]["first_seen"], i))
         order = {old: new for new, old in enumerate(lanes)}
@@ -308,6 +327,9 @@ class Timeline:
         flows = sorted(
             [order[k[0]], k[1], k[2], k[3], k[4], k[5], count] for k, count in self.flows.items()
         )
+        paths = sorted(
+            [k[0], k[1], order[k[2]], k[3], k[4], v[0], v[1], v[2]] for k, v in self.paths.items()
+        )
         return {
             "start": _iso(self.start_ts),
             "end": _iso(self.end_ts),
@@ -319,6 +341,17 @@ class Timeline:
             "policies": policies,
             "flow_fields": ["lane", "bucket", "verdict", "peer", "port", "policy", "count"],
             "flows": flows,
+            "path_fields": [
+                "peer",
+                "role",
+                "lane",
+                "port",
+                "bucket",
+                "count",
+                "first_ts",
+                "last_ts",
+            ],  # fmt: skip
+            "paths": paths,
             "rows": self.rows,
             "untimed_rows": self.untimed,
             "unmatched_rows": self.unmatched,
