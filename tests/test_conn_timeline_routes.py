@@ -140,8 +140,8 @@ def test_build_defaults_to_one_hour_and_returns_the_result(app, faz):
 
 
 def test_truncated_build_is_audited(app, faz, monkeypatch):
-    from app.app_logger import clear_log_entries, get_log_entries
     import app.routes.conn_timeline_routes as routes
+    from app.app_logger import clear_log_entries, get_log_entries
 
     # tests/test_config.py reloads app.config: patch the class the routes use.
     monkeypatch.setattr(routes.Config, "CONN_TIMELINE_MAX_ROWS", 500)
