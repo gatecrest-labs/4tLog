@@ -77,6 +77,17 @@ Project documentation:
   (client-side, page size 10/25/50/100, Source/Destination IP columns pinned
   first, up to the configured result cap), CSV/JSON export of the
   currently-loaded results
+- **Connection Timeline Tab** (`/conn-timeline`, tab key `conn_timeline`):
+  enter one IP address and a time window (1 hour by default, 7 days at most)
+  and see which firewalls logged it, as one swim lane per firewall/VDOM with
+  allowed and denied traffic over time, plus top peers, top ports and the
+  policies (ID and name) that matched. Built from raw traffic logs, paged out
+  of FortiAnalyzer in a background job, at most 20,000 rows per build; the page
+  says whether it saw every matched log or only the first part. Click a bar to
+  open Log Search on exactly that slice. IP addresses only, no hostname
+  lookups. Every build is audited in the app log. Settings:
+  `CONN_TIMELINE_*` in `.env.example`. `scripts/check_faz_paging.py` checks,
+  read-only, how a FortiAnalyzer pages a large log search.
 - **External API**: read-only `GET /external/api/executive/summary` for
   4tExecutive, gated by a bearer token and an enable flag — both now
   manageable from **Admin → External API** (toggle the enable checkbox,
@@ -197,6 +208,11 @@ What to look at:
   `10.10.0.0/16`, the branches `10.20.0.0/16` (one `/24` per branch); external
   peers are in the documentation ranges `192.0.2.0/24`, `198.51.100.0/24` and
   `203.0.113.0/24`. Try Branches, source `10.20.3.0/24`, port `443`.
+- **Connection Timeline**: shortcuts on the page fill in three hosts. HQ's
+  jump server `10.10.20.50` crosses two firewalls and has a denied SMB burst
+  every three hours; HQ's DNS server `10.10.10.53` logs over 1,000 rows an
+  hour (try 7 days to see a partial timeline); the Branches camera
+  `10.20.2.40` is denied when it calls out to the internet.
 - **Admin → API Self-Test**: all 18 checks pass on HQ and Branches; DR shows
   what an unreachable FortiAnalyzer looks like.
 

@@ -101,6 +101,24 @@ class Config:
     LOG_SEARCH_POLL_INTERVAL = float(os.environ.get("LOG_SEARCH_POLL_INTERVAL", "2.0"))
     LOG_SEARCH_TIMEOUT = float(os.environ.get("LOG_SEARCH_TIMEOUT", "60.0"))
 
+    # Connection Timeline tab (app/conn_timeline.py, app/conn_timeline_job.py).
+    # Window: 1 hour by default, 7 days at most. A build rolls up at most
+    # MAX_ROWS raw logs (fetched PAGE_SIZE at a time, the spec's maximum per
+    # fetch) and stops at DEADLINE_SECS, under gunicorn's 120s timeout, marking
+    # what it has as partial. At most MAX_JOBS builds run app-wide, and
+    # MAX_JOBS_PER_USER per user; results are dropped JOB_LIFETIME_SECS after
+    # a build ends.
+    CONN_TIMELINE_DEFAULT_WINDOW = os.environ.get("CONN_TIMELINE_DEFAULT_WINDOW", "1h")
+    CONN_TIMELINE_MAX_WINDOW_HOURS = float(os.environ.get("CONN_TIMELINE_MAX_WINDOW_HOURS", "168"))
+    CONN_TIMELINE_MAX_ROWS = int(os.environ.get("CONN_TIMELINE_MAX_ROWS", "20000"))
+    CONN_TIMELINE_PAGE_SIZE = int(os.environ.get("CONN_TIMELINE_PAGE_SIZE", "500"))
+    CONN_TIMELINE_DEADLINE_SECS = float(os.environ.get("CONN_TIMELINE_DEADLINE_SECS", "90"))
+    CONN_TIMELINE_MAX_JOBS = int(os.environ.get("CONN_TIMELINE_MAX_JOBS", "2"))
+    CONN_TIMELINE_MAX_JOBS_PER_USER = int(os.environ.get("CONN_TIMELINE_MAX_JOBS_PER_USER", "1"))
+    CONN_TIMELINE_JOB_LIFETIME_SECS = float(
+        os.environ.get("CONN_TIMELINE_JOB_LIFETIME_SECS", "600")
+    )
+
     # Log stats polling (app/log_stats_cache.py) — silent-device detection
     # and log volume, independent cadence from the SNMP health poll since
     # logstats is a cheap JSON-RPC call with no SNMP round-trip.
