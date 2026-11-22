@@ -362,6 +362,153 @@ function renderDetail(result, filter, sel) {
     `<div class="ct-detail-links">${links}</div>`;
 }
 
+// ── Selected-peer picture ────────────────────────────────────────────────────
+// Source IP, the firewalls in the middle, destination IP and the ports seen,
+// plus a small graph of when the traffic was there. Built from result.paths
+// (one row per peer, role, firewall, port and bucket), so it is separate for
+// "host talked to peer" and "peer talked to host".
+
+const ROLE_NAMES = ['host is the source', 'host is the destination'];
+
+function fmtDuration(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
+function peerPaths(result, filter) {
+  if (!filter || filter.peer == null || !result.paths) return [];
+  const roles = [0, 1].map((role) => ({
+    role,
+    total: 0,
+    lanes: new Map(),
+    ports: new Map(),
+    buckets: new Array(result.buckets).fill(0),
+    first: null,
+    last: null,
+  }));
+  for (const [peer, role, lane, port, bucket, count, first, last] of result.paths) {
+    if (peer !== filter.peer) continue;
+    if (filter.port != null && port !== filter.port) continue;
+    const r = roles[role];
+    r.total += count;
+    r.lanes.set(lane, (r.lanes.get(lane) || 0) + count);
+    r.ports.set(port, (r.ports.get(port) || 0) + count);
+    r.buckets[bucket] += count;
+    if (r.first == null || first < r.first) r.first = first;
+    if (r.last == null || last > r.last) r.last = last;
+  }
+  return roles.filter((r) => r.total > 0).map((r) => ({
+    ...r,
+    lanes: [...r.lanes.entries()].map(([idx, count]) => ({ idx, count })).sort((a, b) => b.count - a.count || a.idx - b.idx),
+    ports: [...r.ports.entries()].map(([idx, count]) => ({ idx, count })).sort((a, b) => b.count - a.count || a.idx - b.idx),
+  }));
+}
+
+// Log Search on this peer over the whole timeline window, for one firewall.
+// Opened in a new window, so it is a plain link.
+function peerDetailsHref(result, role, peerIdx, laneIdx, portIdx) {
+  const p = new URLSearchParams();
+  const peer = result.peers[peerIdx];
+  p.set('target', result.target);
+  p.set('logtype', 'traffic');
+  p.set('device', result.lanes[laneIdx].devid || 'All_FortiGate');
+  p.set('start', new Date(Date.parse(result.start)).toISOString());
+  p.set('end', new Date(Date.parse(result.end)).toISOString());
+  p.set(role === 0 ? 'src' : 'dst', result.host);
+  p.set(role === 0 ? 'dst' : 'src', peer);
+  if (portIdx != null) p.set('ports', logSearchPortValue(result.ports[portIdx]));
+  p.set('run', '1');
+  return `/log-search?${p.toString()}`;
+}
+
+function renderPathDiagram(result, rp, srcIp, dstIp) {
+  const MAX_FW = 6;
+  const MAX_PORTS = 6;
+  const fws = rp.lanes.slice(0, MAX_FW);
+  const extraFw = rp.lanes.length - fws.length;
+  const rowH = 44;
+  const boxH = 34;
+  const height = Math.max(fws.length, 1) * rowH + 16;
+  const midY = height / 2;
+  const W = 760;
+  const ipW = 170;
+  const fwX = 300;
+  const fwW = 200;
+  const parts = [`<svg class="ct-path-svg" viewBox="0 0 ${W} ${height}" width="100%" role="img" aria-label="${escHtml(srcIp)} to ${escHtml(dstIp)} through ${fws.length} firewall(s)">`];
+  parts.push('<defs><marker id="ctArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ct-path-arrowhead"/></marker></defs>');
+  parts.push(`<rect class="ct-path-ip" x="0" y="${midY - 22}" width="${ipW}" height="44" rx="6"/><text class="ct-path-ip-text" x="${ipW / 2}" y="${midY - 3}" text-anchor="middle">${escHtml(srcIp)}</text><text class="ct-path-sub" x="${ipW / 2}" y="${midY + 12}" text-anchor="middle">source</text>`);
+  parts.push(`<rect class="ct-path-ip" x="${W - ipW}" y="${midY - 22}" width="${ipW}" height="44" rx="6"/><text class="ct-path-ip-text" x="${W - ipW / 2}" y="${midY - 3}" text-anchor="middle">${escHtml(dstIp)}</text><text class="ct-path-sub" x="${W - ipW / 2}" y="${midY + 12}" text-anchor="middle">destination</text>`);
+  fws.forEach((fw, i) => {
+    const cy = 8 + i * rowH + rowH / 2 - 4;
+    const label = result.lanes[fw.idx].label;
+    parts.push(`<line class="ct-path-line" x1="${ipW}" y1="${midY}" x2="${fwX}" y2="${cy}" marker-end="url(#ctArrow)"/>`);
+    parts.push(`<line class="ct-path-line" x1="${fwX + fwW}" y1="${cy}" x2="${W - ipW}" y2="${midY}" marker-end="url(#ctArrow)"/>`);
+    parts.push(`<rect class="ct-path-fw" x="${fwX}" y="${cy - boxH / 2}" width="${fwW}" height="${boxH}" rx="6"/>`);
+    parts.push(`<text class="ct-path-fw-text" x="${fwX + fwW / 2}" y="${cy - 2}" text-anchor="middle">${escHtml(label.length > 26 ? `${label.slice(0, 25)}…` : label)}<title>${escHtml(label)}</title></text>`);
+    parts.push(`<text class="ct-path-sub" x="${fwX + fwW / 2}" y="${cy + 11}" text-anchor="middle">${fmtCount(fw.count)} connection log(s)</text>`);
+  });
+  parts.push('</svg>');
+  const ports = rp.ports.slice(0, MAX_PORTS)
+    .map((o) => `<span class="ct-port-chip">${escHtml(result.ports[o.idx].label)}${result.ports[o.idx].service ? ` <span class="text-muted">${escHtml(result.ports[o.idx].service)}</span>` : ''} <span class="text-muted">×${fmtCount(o.count)}</span></span>`)
+    .join(' ');
+  const morePorts = rp.ports.length > MAX_PORTS ? ` <span class="text-muted">+${rp.ports.length - MAX_PORTS} more</span>` : '';
+  const moreFw = extraFw > 0 ? `<div class="text-muted">${extraFw} quieter firewall(s) not drawn; see the Policies table.</div>` : '';
+  return `<div class="ct-path-diagram">${parts.join('')}</div>${moreFw}<div class="ct-path-ports"><strong>Ports seen:</strong> ${ports}${morePorts}</div>`;
+}
+
+function renderPathGraph(result, rp) {
+  const W = 760;
+  const H = 70;
+  const padL = 4;
+  const n = result.buckets;
+  const cw = (W - padL * 2) / n;
+  const max = Math.max(...rp.buckets, 1);
+  const startMs = Date.parse(result.start);
+  const spanMs = Date.parse(result.end) - startMs;
+  const bars = [];
+  rp.buckets.forEach((c, b) => {
+    if (!c) return;
+    const h = Math.max((c / max) * (H - 14), 2);
+    const r = bucketRange(result, b);
+    bars.push(`<rect class="ct-allowed" x="${(padL + b * cw).toFixed(2)}" y="${(H - 12 - h).toFixed(2)}" width="${Math.max(cw - 1, 1).toFixed(2)}" height="${h.toFixed(2)}"><title>${escHtml(`${fmtTimeSec(r.start)} to ${fmtTimeSec(r.end)}: ${fmtCount(c)} log(s)`)}</title></rect>`);
+  });
+  const withDate = spanMs > 24 * 3600 * 1000;
+  const axis = `<line class="ct-tick" x1="${padL}" y1="${H - 12}" x2="${W - padL}" y2="${H - 12}"/>` +
+    `<text class="ct-axis" x="${padL}" y="${H - 1}">${escHtml(fmtTime(startMs, withDate))}</text>` +
+    `<text class="ct-axis" x="${W - padL}" y="${H - 1}" text-anchor="end">${escHtml(fmtTime(startMs + spanMs, withDate))}</text>`;
+  const firstMs = rp.first * 1000;
+  const lastMs = rp.last * 1000;
+  const active = rp.buckets.filter((c) => c > 0).length;
+  const summary = `First seen ${escHtml(fmtTimeSec(firstMs))}, last seen ${escHtml(fmtTimeSec(lastMs))}` +
+    ` (${escHtml(fmtDuration(lastMs - firstMs))} span), active in ${active} of ${n} intervals`;
+  return `<div class="ct-path-summary">${summary}</div>` +
+    `<svg class="ct-path-graph" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="How long this traffic has been seen">${bars.join('')}${axis}</svg>`;
+}
+
+function renderPeerPath(result, filter) {
+  const roles = peerPaths(result, filter);
+  if (!roles.length) return '';
+  const peerIp = result.peers[filter.peer];
+  const sections = roles.map((rp) => {
+    const srcIp = rp.role === 0 ? result.host : peerIp;
+    const dstIp = rp.role === 0 ? peerIp : result.host;
+    const rows = rp.lanes.map((fw) => {
+      const href = peerDetailsHref(result, rp.role, filter.peer, fw.idx, filter.port);
+      return `<tr><td>${escHtml(result.lanes[fw.idx].label)}</td><td class="ct-num">${fmtCount(fw.count)}</td>` +
+        `<td><a class="btn btn-sm btn-secondary ct-details" href="${escHtml(href)}" target="_blank" rel="noopener">Details</a></td></tr>`;
+    }).join('');
+    return `<div class="ct-path-role"><h4>${escHtml(srcIp)} → ${escHtml(dstIp)} <span class="text-muted">(${ROLE_NAMES[rp.role]})</span></h4>` +
+      renderPathDiagram(result, rp, srcIp, dstIp) + renderPathGraph(result, rp) +
+      `<table class="data-table ct-table ct-path-table"><thead><tr><th>Firewall</th><th>Logs</th><th>Log Search</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }).join('');
+  return `<h3 class="ct-section-title">Path for ${escHtml(peerIp)}</h3>${sections}`;
+}
+
 // ── Page controller ──────────────────────────────────────────────────────────
 
 function initPage() {
@@ -423,6 +570,9 @@ function initPage() {
     $('ctPeers').innerHTML = renderTopTable(summary.peers, 'peer', state.filter.peer);
     $('ctPorts').innerHTML = renderTopTable(summary.ports, 'port', state.filter.port);
     $('ctPolicies').innerHTML = renderPolicies(result, summary);
+    const pathHtml = renderPeerPath(result, state.filter);
+    $('ctPeerPath').innerHTML = pathHtml;
+    $('ctPeerPath').classList.toggle('hidden', !pathHtml);
     const detail = $('ctDetail');
     if (state.selected) {
       detail.innerHTML = renderDetail(result, state.filter, state.selected);

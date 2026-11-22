@@ -226,3 +226,53 @@ def test_allowed_link_excludes_every_deny_action_and_carries_the_filters():
         "action!=dropped",
         "action!=ip-conn",
     ]
+
+
+def _peer_case(result, peer_ip, port_label=None):
+    peer = result["peers"].index(peer_ip)
+    flt = {"peer": peer, "port": None}
+    if port_label:
+        flt["port"] = [p["label"] for p in result["ports"]].index(port_label)
+    return {"name": "p", "result": result, "filter": flt}
+
+
+def test_no_picture_until_a_peer_is_selected():
+    out = _render([{"name": "p", "result": _result(ROWS)}])["p"]
+    assert out["peerPath"] == ""
+
+
+def test_peer_picture_shows_ips_firewalls_ports_and_duration():
+    result = _result(ROWS)
+    out = _render([_peer_case(result, "10.10.30.10")])["p"]["peerPath"]
+    assert f"{HOST} → 10.10.30.10" in out
+    assert "GC-HQ-CORE" in out
+    assert "22/tcp" in out and "SSH" in out
+    assert "First seen" in out and "last seen" in out
+    assert 'class="ct-path-graph"' in out
+
+
+def test_peer_picture_separates_the_two_directions():
+    result = _result(ROWS)  # RDP row: 10.10.1.9 -> HOST
+    out = _render([_peer_case(result, "10.10.1.9")])["p"]["peerPath"]
+    assert f"10.10.1.9 → {HOST}" in out
+    assert "3389/tcp" in out
+    assert f"{HOST} → 10.10.1.9" not in out
+
+
+def test_details_link_opens_log_search_in_a_new_window():
+    result = _result(ROWS)
+    out = _render([_peer_case(result, "10.10.30.10", "22/tcp")])["p"]["peerPath"]
+    assert 'target="_blank"' in out and 'rel="noopener"' in out
+    href = out.split('class="btn btn-sm btn-secondary ct-details" href="')[1].split('"')[0]
+    href = href.replace("&amp;", "&")
+    q = parse_qs(urlparse(href).query)
+    assert urlparse(href).path == "/log-search"
+    assert q["src"] == [HOST] and q["dst"] == ["10.10.30.10"]
+    assert q["device"] == ["FGVM01"] and q["ports"] == ["tcp:22"] and q["run"] == ["1"]
+    assert q["start"] == ["2026-11-22T11:00:00.000Z"] and q["end"] == ["2026-11-22T12:00:00.000Z"]
+
+
+def test_peer_picture_escapes_untrusted_strings():
+    result = _result([_row(5, devname=EVIL, dstip="10.9.9.9")])
+    out = _render([_peer_case(result, "10.9.9.9")])["p"]["peerPath"]
+    assert "<img" not in out and "&lt;img" in out
