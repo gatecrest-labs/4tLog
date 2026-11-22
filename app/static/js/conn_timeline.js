@@ -195,13 +195,19 @@ function renderChart(result, summary, opts) {
   });
 
   const cov = result.coverage || {};
-  if (!cov.complete && cov.through) {
-    const through = Date.parse(cov.through);
+  if (!cov.complete && cov.reason !== 'running') {
+    // Time ranges that were not fetched: the gaps (parallel builds can leave several),
+    // or everything after "through" for an older result.
     const startMs = Date.parse(result.start);
-    const frac = (through - startMs) / (Date.parse(result.end) - startMs);
-    if (frac < 1) {
-      const x = labelW + Math.max(frac, 0) * chartW;
-      parts.push(`<rect class="ct-not-fetched" x="${x.toFixed(2)}" y="0" width="${(labelW + chartW - x).toFixed(2)}" height="${lanes.length * laneH}"><title>Not fetched: after ${escHtml(fmtTimeSec(through))}</title></rect>`);
+    const spanMs = Date.parse(result.end) - startMs;
+    const gaps = Array.isArray(cov.gaps) && cov.gaps.length
+      ? cov.gaps.map((g) => [Date.parse(g[0]), Date.parse(g[1])])
+      : (cov.through ? [[Date.parse(cov.through), Date.parse(result.end)]] : []);
+    for (const [from, to] of gaps) {
+      const x0 = labelW + Math.min(Math.max((from - startMs) / spanMs, 0), 1) * chartW;
+      const x1 = labelW + Math.min(Math.max((to - startMs) / spanMs, 0), 1) * chartW;
+      if (x1 - x0 < 0.5) continue;
+      parts.push(`<rect class="ct-not-fetched" x="${x0.toFixed(2)}" y="0" width="${(x1 - x0).toFixed(2)}" height="${lanes.length * laneH}"><title>Not fetched: ${escHtml(fmtTimeSec(from))} to ${escHtml(fmtTimeSec(to))}</title></rect>`);
     }
   }
 
@@ -233,6 +239,10 @@ function renderHeader(result) {
 
 function renderCoverage(result) {
   const cov = result.coverage || {};
+  if (cov.reason === 'running') {
+    const of = cov.matched != null ? ` of ${fmtCount(cov.matched)}${cov.matched_final ? '' : '+'} matched` : '';
+    return `<div class="ct-coverage alert alert-info">Still fetching: ${fmtCount(cov.fetched)}${of} log(s) so far. This picture fills in as more arrive.</div>`;
+  }
   const matched = cov.matched;
   if (cov.complete) {
     const n = matched != null ? matched : cov.fetched;
@@ -241,8 +251,8 @@ function renderCoverage(result) {
   const of = matched != null ? ` of ${fmtCount(matched)}${cov.matched_final ? '' : '+'} matched` : '';
   const through = cov.through ? ` (through ${escHtml(fmtTimeSec(Date.parse(cov.through)))})` : '';
   const why = REASONS[cov.reason] || 'a limit';
-  return `<div class="ct-coverage alert alert-warning">Partial: built from the first ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
-    'Time after that is greyed out. Narrow the window, pick one firewall, or show allowed or denied only to see all of it.</div>';
+  return `<div class="ct-coverage alert alert-warning">Partial: built from ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
+    'Time not covered is greyed out. Narrow the window, pick one firewall, or show allowed or denied only to see all of it.</div>';
 }
 
 function renderFilter(result, filter) {
@@ -582,6 +592,16 @@ function initPage() {
     }
   }
 
+  // Draw what has arrived so far. Firewall rows can reorder as more logs come in, so
+  // a selected slice is kept only while its firewall is still on the same row.
+  function applyPartial(partial) {
+    const sel = state.selected;
+    const label = sel && state.result ? state.result.lanes[sel.lane] && state.result.lanes[sel.lane].label : null;
+    state.result = partial;
+    if (sel && !(partial.lanes[sel.lane] && partial.lanes[sel.lane].label === label)) state.selected = null;
+    render();
+  }
+
   function setBusy(busy, text) {
     $('ctBuildBtn').disabled = busy;
     $('ctCancelBtn').classList.toggle('hidden', !busy);
@@ -604,6 +624,7 @@ function initPage() {
       if (!resp.ok) throw new Error(body.error || 'Timeline lookup failed.');
       if (body.status === 'running') {
         setBusy(true, progressText(body.progress));
+        if (body.partial) applyPartial(body.partial);
         state.timer = setTimeout(poll, 1000);
         return;
       }
@@ -611,10 +632,8 @@ function initPage() {
       setBusy(false, '');
       if (body.status === 'failed') { showError(body.error || 'Timeline failed.'); return; }
       if (body.result) {
-        state.result = body.result;
-        state.filter = { peer: null, port: null };
+        state.result = body.result;  // the filter chosen while it filled in stays
         state.selected = null;
-        state.showAll = false;
         render();
       }
       if (body.status === 'cancelled') $('ctProgress').textContent = 'Cancelled. Showing what was fetched.';
@@ -640,6 +659,11 @@ function initPage() {
     ev.preventDefault();
     showError('');
     if (state.jobId) return;
+    state.result = null;
+    state.filter = { peer: null, port: null };
+    state.selected = null;
+    state.showAll = false;
+    $('ctResult').classList.add('hidden');
     const payload = {
       target: $('ctTarget').value,
       host: $('ctHost').value.trim(),

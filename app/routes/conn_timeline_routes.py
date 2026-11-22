@@ -128,6 +128,23 @@ def api_devices():
     return jsonify(devices)
 
 
+def _decorate(timeline: Timeline, spec: dict, coverage: dict) -> dict:
+    result = timeline.to_dict()
+    result.update(
+        {
+            "target": spec["target"],
+            "host": spec["host"],
+            "direction": spec["direction"],
+            "direction_label": DIRECTIONS[spec["direction"]],
+            "device": spec["device"],
+            "verdict_filter": spec["verdict"],
+            "preset": spec["preset"],
+            "coverage": coverage,
+        }
+    )
+    return result
+
+
 def _run_build(job, target: dict, spec: dict) -> None:
     """The background half of a build: page the logs, roll them up, audit."""
     user = job.user
@@ -142,6 +159,26 @@ def _run_build(job, target: dict, spec: dict) -> None:
         "filter_expression": spec["filter"],
         "requested_utc": f"{_iso(spec['start'])}..{_iso(spec['end'])}",
     }
+
+    def snapshot() -> None:
+        # Called by collect() with the timeline locked: what has arrived so far.
+        progress = job.progress
+        job.set_partial(
+            _decorate(
+                timeline,
+                spec,
+                {
+                    "complete": False,
+                    "reason": "running",
+                    "fetched": progress.get("fetched", 0),
+                    "matched": progress.get("matched"),
+                    "matched_final": progress.get("matched_final", False),
+                    "gaps": [],
+                    "through": None,
+                },
+            )
+        )
+
     try:
         with _client_for(target) as client:
             local_start, local_end = client.local_time_range(_iso(spec["start"]), _iso(spec["end"]))
@@ -159,6 +196,9 @@ def _run_build(job, target: dict, spec: dict) -> None:
                 poll_interval=Config.LOG_SEARCH_POLL_INTERVAL,
                 on_progress=job.update,
                 is_cancelled=job.is_cancelled,
+                workers=max(1, Config.CONN_TIMELINE_WORKERS),
+                client_factory=lambda: _client_for(target),
+                on_snapshot=snapshot,
             )
     except FAZError as exc:
         job.finish("failed", error=str(exc))
@@ -170,19 +210,7 @@ def _run_build(job, target: dict, spec: dict) -> None:
         app_log("WARN", COMPONENT, "Timeline failed: connection error", error=message, **audit)
         return
 
-    result = timeline.to_dict()
-    result.update(
-        {
-            "target": spec["target"],
-            "host": spec["host"],
-            "direction": spec["direction"],
-            "direction_label": DIRECTIONS[spec["direction"]],
-            "device": spec["device"],
-            "verdict_filter": spec["verdict"],
-            "preset": spec["preset"],
-            "coverage": coverage,
-        }
-    )
+    result = _decorate(timeline, spec, coverage)
     audit.update(matched=coverage["matched"], fetched=coverage["fetched"])
     reason = coverage["reason"]
     if reason == "cancelled":

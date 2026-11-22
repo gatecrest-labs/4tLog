@@ -110,9 +110,13 @@ class Config:
     # a build ends.
     CONN_TIMELINE_DEFAULT_WINDOW = os.environ.get("CONN_TIMELINE_DEFAULT_WINDOW", "1h")
     CONN_TIMELINE_MAX_WINDOW_HOURS = float(os.environ.get("CONN_TIMELINE_MAX_WINDOW_HOURS", "168"))
-    CONN_TIMELINE_MAX_ROWS = int(os.environ.get("CONN_TIMELINE_MAX_ROWS", "20000"))
-    CONN_TIMELINE_PAGE_SIZE = int(os.environ.get("CONN_TIMELINE_PAGE_SIZE", "500"))
-    CONN_TIMELINE_DEADLINE_SECS = float(os.environ.get("CONN_TIMELINE_DEADLINE_SECS", "90"))
+    CONN_TIMELINE_MAX_ROWS = int(os.environ.get("CONN_TIMELINE_MAX_ROWS", "100000"))
+    CONN_TIMELINE_PAGE_SIZE = int(os.environ.get("CONN_TIMELINE_PAGE_SIZE", "1000"))
+    CONN_TIMELINE_DEADLINE_SECS = float(os.environ.get("CONN_TIMELINE_DEADLINE_SECS", "120"))
+    # Time slices of one build searched at once. Each uses its own FortiAnalyzer
+    # connection, so mind the appliance's limit on concurrent log searches
+    # (1 = the old one-search-at-a-time behaviour).
+    CONN_TIMELINE_WORKERS = int(os.environ.get("CONN_TIMELINE_WORKERS", "4"))
     CONN_TIMELINE_MAX_JOBS = int(os.environ.get("CONN_TIMELINE_MAX_JOBS", "2"))
     CONN_TIMELINE_MAX_JOBS_PER_USER = int(os.environ.get("CONN_TIMELINE_MAX_JOBS_PER_USER", "1"))
     CONN_TIMELINE_JOB_LIFETIME_SECS = float(

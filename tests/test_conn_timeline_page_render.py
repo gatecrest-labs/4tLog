@@ -135,7 +135,7 @@ def test_partial_coverage_banner_and_greyed_time():
         "searches": 20,
     }
     out = _render([{"name": "p", "result": _result(ROWS, coverage=coverage)}])["p"]
-    assert "Partial: built from the first 20,000 of 54,321 matched log(s)" in out["coverage"]
+    assert "Partial: built from 20,000 of 54,321 matched log(s)" in out["coverage"]
     assert "the row cap" in out["coverage"]
     assert "ct-not-fetched" in out["chart"]
 
@@ -276,3 +276,37 @@ def test_peer_picture_escapes_untrusted_strings():
     result = _result([_row(5, devname=EVIL, dstip="10.9.9.9")])
     out = _render([_peer_case(result, "10.9.9.9")])["p"]["peerPath"]
     assert "<img" not in out and "&lt;img" in out
+
+
+def test_gaps_from_a_parallel_build_are_each_greyed_out():
+    coverage = {
+        "matched": 900,
+        "matched_final": False,
+        "fetched": 500,
+        "complete": False,
+        "reason": "deadline",
+        "gaps": [
+            ["2026-11-22T11:10:00Z", "2026-11-22T11:20:00Z"],
+            ["2026-11-22T11:40:00Z", "2026-11-22T12:00:00Z"],
+        ],
+        "through": "2026-11-22T11:10:00Z",
+        "searches": 9,
+    }
+    out = _render([{"name": "g", "result": _result(ROWS, coverage=coverage)}])["g"]
+    assert out["chart"].count('class="ct-not-fetched"') == 2
+    assert "of 900+ matched" in out["coverage"]
+
+
+def test_running_build_shows_a_still_fetching_banner_and_no_grey():
+    coverage = {
+        "matched": 5000,
+        "matched_final": False,
+        "fetched": 1200,
+        "complete": False,
+        "reason": "running",
+        "gaps": [],
+        "through": None,
+    }
+    out = _render([{"name": "r", "result": _result(ROWS, coverage=coverage)}])["r"]
+    assert "Still fetching: 1,200 of 5,000+ matched" in out["coverage"]
+    assert "ct-not-fetched" not in out["chart"]

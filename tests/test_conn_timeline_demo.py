@@ -57,7 +57,10 @@ def test_busy_host_pages_past_one_thousand_rows(app, no_network, inline_jobs):  
     assert cov["complete"] is True and cov["matched"] == cov["fetched"]
 
 
-def test_seven_day_window_on_a_busy_host_is_partial(app, no_network, inline_jobs):  # noqa: F811
+def test_seven_day_window_on_a_busy_host_is_partial(app, no_network, inline_jobs, monkeypatch):  # noqa: F811
+    from app.routes import conn_timeline_routes
+
+    monkeypatch.setattr(conn_timeline_routes.Config, "CONN_TIMELINE_MAX_ROWS", 20000)
     client, headers = _login(app)
     result = _build(client, headers, target="Gatecrest HQ", host="10.10.10.53", preset="7d")
     cov = result["coverage"]
