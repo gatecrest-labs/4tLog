@@ -27,8 +27,17 @@ def validate_csrf_request() -> bool:
     return hmac.compare_digest(expected, provided)
 
 
+SESSION_LOST_MESSAGE = "Your session expired or was replaced. Please log in again."
+
+
 def csrf_error_response():
     if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
+        if "login_at" not in session:
+            # The page was loaded under a session that is gone (expired, or its cookie
+            # replaced, e.g. by another app on the same host name): the token it sent can
+            # never match the new empty session, and "CSRF failed" would send the user
+            # hunting for the wrong problem.
+            return jsonify({"error": SESSION_LOST_MESSAGE}), 401
         return jsonify({"error": "CSRF validation failed"}), 400
     return "CSRF validation failed", 400
 
