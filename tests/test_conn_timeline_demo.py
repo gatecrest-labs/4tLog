@@ -143,3 +143,9 @@ def test_featured_hosts_use_private_or_documentation_addresses():
             for key in ("srcip", "dstip"):
                 ip = ipaddress.ip_address(row[key])
                 assert any(ip in n for n in allowed), (host.ip, key, row[key])
+
+
+def test_demo_fortianalyzer_lists_its_adom(app, no_network):  # noqa: F811
+    client, _ = _login(app)
+    body = client.get("/api/conn-timeline/adoms?target=Gatecrest HQ").get_json()
+    assert body["default"] in [a["name"] for a in body["adoms"]]

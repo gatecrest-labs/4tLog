@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-11-22 (later)
+
+### Added
+
+- **Peer path picture** on the Connection Timeline: select a peer and the page draws, below
+  everything, the source IP, the firewall(s) in the middle, the destination IP, the ports seen
+  and a graph of how long the traffic has been present (first and last seen, active intervals),
+  once per direction. Each firewall row has a **Details** button that opens Log Search in a new
+  window for that peer, firewall and the whole timeline window. The roll-up gains a compact
+  `paths` list (peer, role, firewall, port, bucket, count, first/last seen); `flows` is unchanged.
+- **ADOM picker** on Log Search and the Connection Timeline: an ADOM dropdown next to Target,
+  filled from the FortiAnalyzer (`FAZClient.get_adoms`, `GET /api/log-search/adoms` and
+  `/api/conn-timeline/adoms`) and defaulting to the target's configured ADOM. Group limits stay
+  per target, so a group that can use a target can pick any of its ADOMs. The name is checked
+  before it goes into a FortiAnalyzer URL, the chosen ADOM is audited, and timeline links into
+  Log Search carry it (`adom` query parameter).
+- Timeline builds in parallel (`CONN_TIMELINE_WORKERS`, default 4): one probe search over the
+  whole window and, only if the window is big, the rest in time slices searched at once, each on
+  its own FortiAnalyzer connection. A running build offers partial pictures that the page draws
+  as it goes, with a "Still fetching" banner. Coverage reports `gaps`, each time range not
+  fetched, which the chart greys out.
+- Screenshots of the Connection Timeline in the readme (`docs/images/`).
+
+### Changed
+
+- Timeline defaults: fetch size 1,000 (the submit limit), row cap 100,000, time limit 120 s.
+- Fewer round trips per search, from measurements on an 8.0.2 lab appliance (every search costs
+  about 3 s however small, paging past 1,000 rows only returns empty pages): the build restarts
+  at the submit limit instead of probing past it, takes the exact total from the fetch instead
+  of waiting for the count call, and polls a running search quickly.
+- A FortiAnalyzer "API rate limit" error is waited out and retried a few times instead of
+  failing the build.
+
 ## 2026-11-22
 
 ### Added

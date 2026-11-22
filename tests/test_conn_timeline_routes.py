@@ -225,3 +225,39 @@ def test_post_needs_csrf(app, faz):
     client, _ = _login(app)
     resp = client.post("/api/conn-timeline", json={"target": "Primary", "host": "10.1.1.5"})
     assert resp.status_code in (400, 403)
+
+
+def test_build_uses_and_audits_the_chosen_adom(app, faz, monkeypatch):
+    import app.routes.conn_timeline_routes as routes
+    from app.app_logger import clear_log_entries, get_log_entries
+
+    used = []
+    monkeypatch.setattr(routes, "_client_for", lambda target: used.append(target["adom"]) or faz)
+    clear_log_entries()
+    client, headers = _login(app)
+    resp = _start(client, headers, adom="Branches")
+    assert resp.status_code == 202
+    job = client.get(f"/api/conn-timeline/{resp.get_json()['job_id']}").get_json()
+    assert job["result"]["adom"] == "Branches"
+    assert set(used) == {"Branches"}
+    assert any(
+        e["extra"].get("adom") == "Branches" for e in get_log_entries(component="conn_timeline")
+    )
+
+
+def test_build_defaults_to_the_targets_adom_and_rejects_a_bad_one(app, faz):
+    client, headers = _login(app)
+    resp = _start(client, headers)
+    job = client.get(f"/api/conn-timeline/{resp.get_json()['job_id']}").get_json()
+    assert job["result"]["adom"] == "root"
+    assert _start(client, headers, adom="../x").status_code == 400
+
+
+def test_adoms_endpoint_for_the_timeline(app, monkeypatch):
+    monkeypatch.setattr(
+        "app.faz_client.FAZClient.get_adoms", lambda self: [{"name": "root", "desc": ""}]
+    )
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+    client, _ = _login(app)
+    body = client.get("/api/conn-timeline/adoms?target=Primary").get_json()
+    assert body == {"default": "root", "adoms": [{"name": "root", "desc": ""}]}

@@ -300,6 +300,23 @@ class FAZClient:
             return data[0]["field"]
         return []
 
+    def get_adoms(self) -> list[dict]:
+        """The ADOMs on this FortiAnalyzer, from /dvmdb/adom: name and description
+        only (the full records carry more than the picker needs)."""
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "get",
+            "params": [{"url": "/dvmdb/adom"}],
+            "session": None,
+        }
+        data = self._unwrap_result(self._post(body)).get("data", [])
+        return [
+            {"name": d.get("name", ""), "desc": d.get("desc", "") or ""}
+            for d in data
+            if isinstance(d, dict) and d.get("name")
+        ]
+
     def get_devices(self) -> list[dict]:
         """Cheap device list for the ADOM, from /dvmdb/adom/<adom>/device.
 

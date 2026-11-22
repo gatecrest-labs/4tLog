@@ -14,6 +14,11 @@
   </div>
 
   <div class="form-group">
+    <label for="adomSelect">ADOM</label>
+    <select id="adomSelect" class="form-select"></select>
+  </div>
+
+  <div class="form-group">
     <label for="timePreset">Time range</label>
     <select id="timePreset" class="form-select">
       <option value="15m">Last 15 minutes</option>
@@ -129,5 +134,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/log_search.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/log_search.js') }}?v=6"></script>
 {% endblock %}

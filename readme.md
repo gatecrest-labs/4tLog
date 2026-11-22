@@ -82,12 +82,23 @@ Project documentation:
   and see which firewalls logged it, as one swim lane per firewall/VDOM with
   allowed and denied traffic over time, plus top peers, top ports and the
   policies (ID and name) that matched. Built from raw traffic logs, paged out
-  of FortiAnalyzer in a background job, at most 20,000 rows per build; the page
-  says whether it saw every matched log or only the first part. Click a bar to
-  open Log Search on exactly that slice. IP addresses only, no hostname
-  lookups. Every build is audited in the app log. Settings:
-  `CONN_TIMELINE_*` in `.env.example`. `scripts/check_faz_paging.py` checks,
-  read-only, how a FortiAnalyzer pages a large log search.
+  of FortiAnalyzer in a background job, at most 100,000 rows per build. A big
+  window is split into time slices searched in parallel
+  (`CONN_TIMELINE_WORKERS`), and the picture fills in while it builds; the
+  page says whether it saw every matched log and greys out any time it
+  didn't reach. Pick the ADOM next to the target (Log Search has the same
+  picker). Click a bar to open Log Search on exactly that slice. Select a
+  peer to draw its path (source IP, the firewalls in the middle, destination
+  IP, ports seen, and a graph of how long it has been happening), with a
+  Details button per firewall that opens Log Search in a new window. IP
+  addresses only, no hostname lookups. Every build is audited in the app log.
+  Settings: `CONN_TIMELINE_*` in `.env.example`. `scripts/check_faz_paging.py`
+  checks, read-only, how a FortiAnalyzer pages a large log search.
+
+  ![Connection Timeline: one swim lane per firewall, top peers, top ports and policies](docs/images/conn-timeline.jpg)
+
+  ![Selecting a peer: source, firewall, destination, ports seen and how long it has been happening](docs/images/conn-timeline-path.jpg)
+
 - **External API**: read-only `GET /external/api/executive/summary` for
   4tExecutive, gated by a bearer token and an enable flag — both now
   manageable from **Admin → External API** (toggle the enable checkbox,

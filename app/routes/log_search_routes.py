@@ -12,6 +12,7 @@ API (JSON):
 from flask import Blueprint, jsonify, render_template, request, session
 
 from app import registry
+from app.adom import AdomError, parse_adom, with_adom
 from app.app_logger import app_log
 from app.config import Config
 from app.decorators import check_adom_access, tab_required
@@ -54,6 +55,34 @@ def api_targets():
     )
 
 
+@bp.route("/api/log-search/adoms")
+@tab_required("log_search")
+def api_adoms():
+    target_label = request.args.get("target", "")
+    err = check_adom_access(target_label)
+    if err is not None:
+        return err
+    target = get_target(target_label)
+    if target is None:
+        return jsonify({"error": f"Target '{target_label}' not found"}), 404
+    try:
+        with _client_for(target) as client:
+            adoms = client.get_adoms()
+    except FAZError as exc:
+        return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        return jsonify({"error": summarize_connection_error(exc)}), 502
+    return jsonify({"default": target.get("adom", "root"), "adoms": adoms})
+
+
+def _target_in_adom(target: dict):
+    """The target pointed at the ADOM named in the query string, or an error response."""
+    try:
+        return with_adom(target, parse_adom(request.args.get("adom"), target)), None
+    except AdomError as exc:
+        return None, (jsonify({"error": str(exc)}), 400)
+
+
 @bp.route("/api/log-search/fields")
 @tab_required("log_search")
 def api_fields():
@@ -64,6 +93,9 @@ def api_fields():
     target = get_target(target_label)
     if target is None:
         return jsonify({"error": f"Target '{target_label}' not found"}), 404
+    target, err = _target_in_adom(target)
+    if err is not None:
+        return err
     logtype = request.args.get("logtype", "traffic")
     try:
         with _client_for(target) as client:
@@ -85,6 +117,9 @@ def api_devices():
     target = get_target(target_label)
     if target is None:
         return jsonify({"error": f"Target '{target_label}' not found"}), 404
+    target, err = _target_in_adom(target)
+    if err is not None:
+        return err
     try:
         with _client_for(target) as client:
             devices = client.get_devices()
@@ -121,6 +156,11 @@ def api_search():
             target=target_label,
         )
         return jsonify({"error": f"Target '{target_label}' not found"}), 404
+
+    try:
+        target = with_adom(target, parse_adom(data.get("adom"), target))
+    except AdomError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     source_raw = data.get("source_ips", "") or ""
     dest_raw = data.get("destination_ips", "") or ""
@@ -239,6 +279,7 @@ def api_search():
         "Search completed",
         by=user,
         target=target_label,
+        adom=target["adom"],
         filter_expression=filter_expression,
         rows=len(result.get("rows", [])),
         requested_utc=f"{start_time}..{end_time}",

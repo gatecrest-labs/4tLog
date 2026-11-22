@@ -232,6 +232,7 @@ function renderChart(result, summary, opts) {
 function renderHeader(result) {
   return `<strong>${escHtml(result.host)}</strong> · ${escHtml(result.direction_label)} · ${escHtml(windowLabel(result))}` +
     ` <span class="text-muted">on ${escHtml(result.target)}` +
+    (result.adom ? `, ADOM ${escHtml(result.adom)}` : '') +
     (result.device && result.device !== 'All_FortiGate' ? `, firewall ${escHtml(result.device)}` : '') +
     (result.verdict_filter && result.verdict_filter !== 'all' ? `, ${escHtml(result.verdict_filter)} only` : '') +
     '</span>';
@@ -334,6 +335,7 @@ function logSearchLinks(result, lane, bucket, verdict, filter) {
   return sides.map((side) => {
     const p = new URLSearchParams();
     p.set('target', result.target);
+    if (result.adom) p.set('adom', result.adom);
     p.set('logtype', 'traffic');
     p.set('device', laneMeta.devid || 'All_FortiGate');
     p.set('start', new Date(r.start).toISOString());
@@ -425,6 +427,7 @@ function peerDetailsHref(result, role, peerIdx, laneIdx, portIdx) {
   const p = new URLSearchParams();
   const peer = result.peers[peerIdx];
   p.set('target', result.target);
+  if (result.adom) p.set('adom', result.adom);
   p.set('logtype', 'traffic');
   p.set('device', result.lanes[laneIdx].devid || 'All_FortiGate');
   p.set('start', new Date(Date.parse(result.start)).toISOString());
@@ -532,6 +535,32 @@ function initPage() {
     box.classList.toggle('hidden', !msg);
   }
 
+  // The target's configured ADOM, by target label (the ADOM picker's default).
+  let targetAdoms = {};
+
+  async function loadAdoms() {
+    const select = $('ctAdom');
+    const target = $('ctTarget').value;
+    const fallback = targetAdoms[target] || 'root';
+    select.innerHTML = `<option value="${escHtml(fallback)}">${escHtml(fallback)}</option>`;
+    if (target) {
+      try {
+        const resp = await fetch(`/api/conn-timeline/adoms?target=${encodeURIComponent(target)}`);
+        const body = resp.ok ? await resp.json() : null;
+        if (body && Array.isArray(body.adoms) && body.adoms.length) {
+          const def = body.default || fallback;
+          const names = body.adoms.map((a) => a.name);
+          if (!names.includes(def)) names.unshift(def);
+          select.innerHTML = names.map((n) => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+          select.value = def;
+        }
+      } catch {
+        // keep the configured ADOM
+      }
+    }
+    await loadDevices();
+  }
+
   async function loadDevices() {
     const select = $('ctDevice');
     const allOption = '<option value="All_FortiGate" selected>All FortiGates</option>';
@@ -539,7 +568,7 @@ function initPage() {
     select.innerHTML = allOption;
     if (!target) return;
     try {
-      const resp = await fetch(`/api/conn-timeline/devices?target=${encodeURIComponent(target)}`);
+      const resp = await fetch(`/api/conn-timeline/devices?target=${encodeURIComponent(target)}&adom=${encodeURIComponent($('ctAdom').value)}`);
       const devices = resp.ok ? await resp.json() : [];
       if (Array.isArray(devices)) {
         select.innerHTML = allOption + devices.map((d) => `<option value="${escHtml(d.devid)}">${escHtml(d.name || d.devid)}</option>`).join('');
@@ -556,7 +585,8 @@ function initPage() {
       if (resp.status === 401) { location.href = '/login'; return; }
       const targets = await resp.json();
       select.innerHTML = targets.map((t) => `<option value="${escHtml(t.label)}">${escHtml(t.label)} (${escHtml(t.host)})</option>`).join('');
-      await loadDevices();
+      targetAdoms = Object.fromEntries(targets.map((t) => [t.label, t.adom]));
+      await loadAdoms();
     } catch {
       select.innerHTML = '<option value="">(unable to load targets)</option>';
     }
@@ -666,6 +696,7 @@ function initPage() {
     $('ctResult').classList.add('hidden');
     const payload = {
       target: $('ctTarget').value,
+      adom: $('ctAdom').value,
       host: $('ctHost').value.trim(),
       direction: $('ctDirection').value,
       device: $('ctDevice').value,
@@ -722,7 +753,8 @@ function initPage() {
   const presetSelect = $('ctPreset');
   presetSelect.value = form.dataset.defaultPreset || '1h';
   presetSelect.addEventListener('change', () => $('ctCustomRow').classList.toggle('hidden', presetSelect.value !== 'custom'));
-  $('ctTarget').addEventListener('change', loadDevices);
+  $('ctTarget').addEventListener('change', loadAdoms);
+  $('ctAdom').addEventListener('change', loadDevices);
   form.addEventListener('submit', build);
   $('ctCancelBtn').addEventListener('click', cancel);
   $('ctResult').addEventListener('click', onClick);
@@ -730,7 +762,7 @@ function initPage() {
     $('ctHost').value = btn.dataset.ip;
     if ($('ctTarget').value !== btn.dataset.target) {
       $('ctTarget').value = btn.dataset.target;
-      await loadDevices();
+      await loadAdoms();
     }
   }));
   loadTargets();
