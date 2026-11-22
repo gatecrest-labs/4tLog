@@ -363,3 +363,68 @@ def test_devices_endpoint_rejects_disallowed_target(client, app):
     _login(client)
     resp = client.get("/api/log-search/devices?target=Primary")
     assert resp.status_code == 403
+
+
+# ── ADOM picker ──────────────────────────────────────────────────────────────
+
+
+def test_adoms_lists_the_fortianalyzers_adoms_with_the_targets_default(client, monkeypatch):
+    seen = {}
+
+    def fake_adoms(self):
+        seen["adom"] = self.adom
+        return [{"name": "root", "desc": ""}, {"name": "Branches", "desc": "BR"}]
+
+    monkeypatch.setattr("app.faz_client.FAZClient.get_adoms", fake_adoms)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+    _login(client)
+    body = client.get("/api/log-search/adoms?target=Primary").get_json()
+    assert body["default"] == "root"
+    assert [a["name"] for a in body["adoms"]] == ["root", "Branches"]
+
+
+def test_adoms_respects_the_target_restriction(client):
+    _login(client)
+    assert client.get("/api/log-search/adoms?target=Nope").status_code in (403, 404)
+
+
+def test_search_and_devices_use_the_chosen_adom(client, monkeypatch):
+    used = []
+
+    def fake_search_logs(self, **kwargs):
+        used.append(("search", self.adom))
+        return {"rows": [], "fields": [], "truncated": False}
+
+    def fake_devices(self):
+        used.append(("devices", self.adom))
+        return []
+
+    monkeypatch.setattr("app.faz_client.FAZClient.preflight", lambda self: True)
+    monkeypatch.setattr("app.faz_client.FAZClient.local_time_range", lambda self, s, e: (s, e))
+    monkeypatch.setattr("app.faz_client.FAZClient.search_logs", fake_search_logs)
+    monkeypatch.setattr("app.faz_client.FAZClient.get_devices", fake_devices)
+    monkeypatch.setattr("app.faz_client.FAZClient.logout", lambda self: None)
+    _login(client)
+    csrf = _csrf(client)
+    assert client.get("/api/log-search/devices?target=Primary&adom=Branches").status_code == 200
+    assert client.get("/api/log-search/devices?target=Primary").status_code == 200
+    resp = client.post(
+        "/api/log-search",
+        json={
+            "target": "Primary",
+            "adom": "Branches",
+            "start_time": "2026-07-25T00:00:00",
+            "end_time": "2026-07-25T23:59:59",
+            "source_ips": "10.1.1.5",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resp.status_code == 200
+    assert used == [("devices", "Branches"), ("devices", "root"), ("search", "Branches")]
+
+
+@pytest.mark.parametrize("bad", ["../x", "a/b", "a b", "x" * 65, "-lead"])
+def test_a_bad_adom_name_is_rejected(client, bad):
+    _login(client)
+    resp = client.get("/api/log-search/devices", query_string={"target": "Primary", "adom": bad})
+    assert resp.status_code == 400

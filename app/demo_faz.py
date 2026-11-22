@@ -930,6 +930,9 @@ class DemoFAZ:
             return [
                 {"data": self._sys_status(), "status": {"code": 0, "message": "OK"}, "url": url}
             ]
+        if method == "get" and url == "/dvmdb/adom":
+            data = [{"name": self.site.adom, "desc": "Demo ADOM"}]
+            return [{"data": data, "status": {"code": 0, "message": "OK"}, "url": url}]
         m = _ADOM_URL.match(url)
         if not m:
             raise _Error(-6, f"Invalid url: {url}")

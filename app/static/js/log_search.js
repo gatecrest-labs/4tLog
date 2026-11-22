@@ -180,10 +180,40 @@ async function loadTargets() {
       return;
     }
     select.innerHTML = targets.map((t) => `<option value="${escHtml(t.label)}">${escHtml(t.label)} (${escHtml(t.host)})</option>`).join('');
-    await loadDevices();
+    targetAdoms = Object.fromEntries(targets.map((t) => [t.label, t.adom]));
+    await loadAdoms();
   } catch {
     select.innerHTML = '<option value="">(unable to load targets)</option>';
   }
+}
+
+// The target's configured ADOM, by target label (the ADOM picker's default).
+let targetAdoms = {};
+
+// Fill the ADOM picker from the selected target's FortiAnalyzer, defaulting to the
+// target's own ADOM; if the list can't be read, the picker offers just that one.
+async function loadAdoms() {
+  const adomSelect = document.getElementById('adomSelect');
+  const target = document.getElementById('targetSelect').value;
+  const fallback = targetAdoms[target] || 'root';
+  adomSelect.innerHTML = `<option value="${escHtml(fallback)}">${escHtml(fallback)}</option>`;
+  if (!target) return;
+  try {
+    const resp = await fetch(`/api/log-search/adoms?target=${encodeURIComponent(target)}`);
+    if (resp.ok) {
+      const body = await resp.json();
+      if (Array.isArray(body.adoms) && body.adoms.length) {
+        const def = body.default || fallback;
+        const names = body.adoms.map((a) => a.name);
+        if (!names.includes(def)) names.unshift(def);
+        adomSelect.innerHTML = names.map((n) => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+        adomSelect.value = def;
+      }
+    }
+  } catch {
+    // keep the configured ADOM
+  }
+  await loadDevices();
 }
 
 async function loadDevices() {
@@ -195,7 +225,7 @@ async function loadDevices() {
     return;
   }
   try {
-    const resp = await fetch(`/api/log-search/devices?target=${encodeURIComponent(target)}`);
+    const resp = await fetch(`/api/log-search/devices?target=${encodeURIComponent(target)}&adom=${encodeURIComponent(document.getElementById('adomSelect').value)}`);
     if (!resp.ok) { deviceSelect.innerHTML = allOption; return; }
     const devices = await resp.json();
     if (!Array.isArray(devices) || devices.length === 0) {
@@ -378,6 +408,7 @@ async function runSearch(e) {
 
   const payload = {
     target: document.getElementById('targetSelect').value,
+    adom: document.getElementById('adomSelect').value,
     logtype: document.getElementById('logtypeSelect').value,
     device: document.getElementById('deviceInput').value,
     start_time,
@@ -423,7 +454,8 @@ async function runSearch(e) {
 document.getElementById('timePreset').addEventListener('change', function () {
   document.getElementById('customTimeRow').classList.toggle('hidden', this.value !== 'custom');
 });
-document.getElementById('targetSelect').addEventListener('change', loadDevices);
+document.getElementById('targetSelect').addEventListener('change', loadAdoms);
+document.getElementById('adomSelect').addEventListener('change', loadDevices);
 document.getElementById('addFilterBtn').addEventListener('click', addFilterRow);
 document.getElementById('searchForm').addEventListener('submit', runSearch);
 document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
@@ -487,6 +519,11 @@ async function applyQueryParams() {
   const target = params.get('target');
   if (target && Array.from(targetSelect.options).some((o) => o.value === target) && targetSelect.value !== target) {
     targetSelect.value = target;
+    await loadAdoms();
+  }
+  const adom = params.get('adom');
+  if (adom && adom !== document.getElementById('adomSelect').value) {
+    selectOption(document.getElementById('adomSelect'), adom);
     await loadDevices();
   }
   const logtype = params.get('logtype');

@@ -57,7 +57,10 @@ def test_busy_host_pages_past_one_thousand_rows(app, no_network, inline_jobs):  
     assert cov["complete"] is True and cov["matched"] == cov["fetched"]
 
 
-def test_seven_day_window_on_a_busy_host_is_partial(app, no_network, inline_jobs):  # noqa: F811
+def test_seven_day_window_on_a_busy_host_is_partial(app, no_network, inline_jobs, monkeypatch):  # noqa: F811
+    from app.routes import conn_timeline_routes
+
+    monkeypatch.setattr(conn_timeline_routes.Config, "CONN_TIMELINE_MAX_ROWS", 20000)
     client, headers = _login(app)
     result = _build(client, headers, target="Gatecrest HQ", host="10.10.10.53", preset="7d")
     cov = result["coverage"]
@@ -140,3 +143,9 @@ def test_featured_hosts_use_private_or_documentation_addresses():
             for key in ("srcip", "dstip"):
                 ip = ipaddress.ip_address(row[key])
                 assert any(ip in n for n in allowed), (host.ip, key, row[key])
+
+
+def test_demo_fortianalyzer_lists_its_adom(app, no_network):  # noqa: F811
+    client, _ = _login(app)
+    body = client.get("/api/conn-timeline/adoms?target=Gatecrest HQ").get_json()
+    assert body["default"] in [a["name"] for a in body["adoms"]]

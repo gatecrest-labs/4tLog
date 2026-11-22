@@ -23,6 +23,7 @@ import time
 from flask import Blueprint, jsonify, render_template, request, session
 
 from app import registry
+from app.adom import AdomError, parse_adom, with_adom
 from app.app_logger import app_log
 from app.config import Config
 from app.conn_timeline import (
@@ -108,6 +109,26 @@ def api_targets():
     )
 
 
+@bp.route("/api/conn-timeline/adoms")
+@tab_required("conn_timeline")
+def api_adoms():
+    target_label = request.args.get("target", "")
+    err = check_adom_access(target_label)
+    if err is not None:
+        return err
+    target = get_target(target_label)
+    if target is None:
+        return jsonify({"error": f"Target '{target_label}' not found"}), 404
+    try:
+        with _client_for(target) as client:
+            adoms = client.get_adoms()
+    except FAZError as exc:
+        return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        return jsonify({"error": summarize_connection_error(exc)}), 502
+    return jsonify({"default": target.get("adom", "root"), "adoms": adoms})
+
+
 @bp.route("/api/conn-timeline/devices")
 @tab_required("conn_timeline")
 def api_devices():
@@ -119,6 +140,10 @@ def api_devices():
     if target is None:
         return jsonify({"error": f"Target '{target_label}' not found"}), 404
     try:
+        target = with_adom(target, parse_adom(request.args.get("adom"), target))
+    except AdomError as exc:
+        return jsonify({"error": str(exc)}), 400
+    try:
         with _client_for(target) as client:
             devices = client.get_devices()
     except FAZError as exc:
@@ -126,6 +151,24 @@ def api_devices():
     except Exception as exc:
         return jsonify({"error": summarize_connection_error(exc)}), 502
     return jsonify(devices)
+
+
+def _decorate(timeline: Timeline, spec: dict, coverage: dict) -> dict:
+    result = timeline.to_dict()
+    result.update(
+        {
+            "target": spec["target"],
+            "adom": spec["adom"],
+            "host": spec["host"],
+            "direction": spec["direction"],
+            "direction_label": DIRECTIONS[spec["direction"]],
+            "device": spec["device"],
+            "verdict_filter": spec["verdict"],
+            "preset": spec["preset"],
+            "coverage": coverage,
+        }
+    )
+    return result
 
 
 def _run_build(job, target: dict, spec: dict) -> None:
@@ -136,12 +179,33 @@ def _run_build(job, target: dict, spec: dict) -> None:
     audit = {
         "by": user,
         "target": spec["target"],
+        "adom": target["adom"],
         "host": spec["host"],
         "direction": spec["direction"],
         "device": spec["device"],
         "filter_expression": spec["filter"],
         "requested_utc": f"{_iso(spec['start'])}..{_iso(spec['end'])}",
     }
+
+    def snapshot() -> None:
+        # Called by collect() with the timeline locked: what has arrived so far.
+        progress = job.progress
+        job.set_partial(
+            _decorate(
+                timeline,
+                spec,
+                {
+                    "complete": False,
+                    "reason": "running",
+                    "fetched": progress.get("fetched", 0),
+                    "matched": progress.get("matched"),
+                    "matched_final": progress.get("matched_final", False),
+                    "gaps": [],
+                    "through": None,
+                },
+            )
+        )
+
     try:
         with _client_for(target) as client:
             local_start, local_end = client.local_time_range(_iso(spec["start"]), _iso(spec["end"]))
@@ -159,6 +223,9 @@ def _run_build(job, target: dict, spec: dict) -> None:
                 poll_interval=Config.LOG_SEARCH_POLL_INTERVAL,
                 on_progress=job.update,
                 is_cancelled=job.is_cancelled,
+                workers=max(1, Config.CONN_TIMELINE_WORKERS),
+                client_factory=lambda: _client_for(target),
+                on_snapshot=snapshot,
             )
     except FAZError as exc:
         job.finish("failed", error=str(exc))
@@ -170,19 +237,7 @@ def _run_build(job, target: dict, spec: dict) -> None:
         app_log("WARN", COMPONENT, "Timeline failed: connection error", error=message, **audit)
         return
 
-    result = timeline.to_dict()
-    result.update(
-        {
-            "target": spec["target"],
-            "host": spec["host"],
-            "direction": spec["direction"],
-            "direction_label": DIRECTIONS[spec["direction"]],
-            "device": spec["device"],
-            "verdict_filter": spec["verdict"],
-            "preset": spec["preset"],
-            "coverage": coverage,
-        }
-    )
+    result = _decorate(timeline, spec, coverage)
     audit.update(matched=coverage["matched"], fetched=coverage["fetched"])
     reason = coverage["reason"]
     if reason == "cancelled":
@@ -225,6 +280,8 @@ def api_build():
         return jsonify({"error": f"Target '{target_label}' not found"}), 404
 
     try:
+        adom = parse_adom(data.get("adom"), target)
+        target = with_adom(target, adom)
         host = parse_host(data.get("host"))
         direction = str(data.get("direction") or "either")
         verdict_filter = str(data.get("verdict") or "all")
@@ -233,7 +290,7 @@ def api_build():
             data, Config.CONN_TIMELINE_MAX_WINDOW_HOURS, Config.CONN_TIMELINE_DEFAULT_WINDOW
         )
         filter_expression = build_filter(host, direction, verdict_filter)
-    except TimelineInputError as exc:
+    except (TimelineInputError, AdomError) as exc:
         app_log(
             "WARN",
             COMPONENT,
@@ -246,6 +303,7 @@ def api_build():
 
     spec = {
         "target": target_label,
+        "adom": adom,
         "host": str(host),
         "direction": direction,
         "verdict": verdict_filter,
@@ -273,6 +331,7 @@ def api_build():
         "Timeline started",
         by=user,
         target=target_label,
+        adom=adom,
         host=spec["host"],
         direction=direction,
         device=device,

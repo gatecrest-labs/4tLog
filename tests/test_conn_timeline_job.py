@@ -44,12 +44,15 @@ class FakeFAZ:
     won't page past its submit limit). ``count`` False makes the count call
     unsupported. ``pending`` fetches report percentage < 100 first."""
 
-    def __init__(self, rows, *, task_limit=None, count=True, pending=0, total_count=True):
+    def __init__(
+        self, rows, *, task_limit=None, count=True, pending=0, total_count=True, max_fetch=None
+    ):
         self.rows = rows
         self.task_limit = task_limit
         self.count = count
         self.pending = pending
         self.total_count = total_count
+        self.max_fetch = max_fetch  # a FortiAnalyzer that returns fewer rows than asked for
         self.tasks = {}
         self.deleted = []
         self.fetches = 0
@@ -61,13 +64,14 @@ class FakeFAZ:
     def submit_log_search(self, logtype, device, filt, start, end, limit=1000, time_order="desc"):
         assert logtype == "traffic" and time_order == "asc"
         lo = datetime.datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
-        rows = [r for r in self.rows if int(r["itime_t"]) >= lo]
+        hi = datetime.datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+        rows = [r for r in self.rows if lo <= int(r["itime_t"]) <= hi]
         if self.task_limit is not None:
             rows = rows[: self.task_limit]
         tid = next(self._ids)
         self.tasks[tid] = {
             "rows": rows,
-            "matched": sum(1 for r in self.rows if int(r["itime_t"]) >= lo),
+            "matched": len([r for r in self.rows if lo <= int(r["itime_t"]) <= hi]),
         }
         return tid
 
@@ -77,6 +81,7 @@ class FakeFAZ:
             self.pending -= 1
             return {"data": [], "percentage": 40}
         task = self.tasks[tid]
+        limit = min(limit, self.max_fetch or limit)
         page = {"data": task["rows"][offset : offset + limit], "percentage": 100}
         if self.total_count:
             page["total-count"] = task["matched"]
@@ -116,8 +121,9 @@ def test_pages_everything_and_cleans_up():
         "fetched": 1234,
         "complete": True,
         "reason": None,
+        "gaps": [],
         "through": None,
-        "searches": 1,
+        "searches": 2,  # restarted once at the 1,000-row submit limit
     }
     assert timeline.rows == 1234
     assert client.deleted == list(client.tasks)
@@ -166,7 +172,7 @@ def test_incomplete_when_faz_returns_fewer_rows_than_it_counted():
 def test_matched_falls_back_to_total_count_when_count_is_unsupported():
     client = FakeFAZ(_rows(700), count=False)
     cov, _ = _collect(client)
-    assert cov["matched"] == 700 and cov["matched_final"] is False
+    assert cov["matched"] == 700 and cov["matched_final"] is True  # from the fetch itself
     assert cov["complete"] is True
 
 
@@ -260,3 +266,118 @@ def test_cancel_flag():
     assert not job.is_cancelled()
     job.cancel()
     assert job.is_cancelled() and job.running
+
+
+# ── Parallel slices, a fetch size FortiAnalyzer won't honour, partial snapshots ──
+
+
+def _parallel(client, **kw):
+    return _collect(client, workers=4, client_factory=lambda: client, **kw)
+
+
+def test_parallel_slices_match_the_single_search_exactly():
+    rows = _rows(3000)
+    single_cov, single = _collect(FakeFAZ(rows))
+    cov, timeline = _parallel(FakeFAZ(rows))
+    assert cov["complete"] is True and cov["gaps"] == [] and cov["through"] is None
+    assert cov["matched"] == cov["fetched"] == single_cov["fetched"] == 3000
+    assert cov["searches"] > 1
+    assert timeline.to_dict()["flows"] == single.to_dict()["flows"]
+
+
+def test_parallel_rows_on_a_slice_edge_are_counted_once():
+    # 16 slices of 225s: put rows right on the edges.
+    base = int(START.timestamp())
+    rows = _rows(10)
+    for i, r in enumerate(rows):
+        r["itime_t"] = str(base + 225 * i)
+    cov, timeline = _parallel(FakeFAZ(rows))
+    assert cov["complete"] is True and cov["fetched"] == cov["matched"] == 10 == timeline.rows
+
+
+def test_parallel_cap_stops_every_slice_and_reports_gaps():
+    cov, timeline = _parallel(FakeFAZ(_rows(3000)), max_rows=1200)
+    assert cov["complete"] is False and cov["reason"] == "cap"
+    assert cov["fetched"] == timeline.rows == 1200
+    assert cov["gaps"] and cov["gaps"][-1][1] == "2026-11-22T12:00:00Z"
+
+
+def test_parallel_deadline_before_start_is_one_gap_over_the_whole_window():
+    cov, timeline = _parallel(FakeFAZ(_rows(100)), deadline_at=0.0)
+    assert cov["reason"] == "deadline" and cov["fetched"] == 0
+    assert cov["gaps"] == [["2026-11-22T11:00:00Z", "2026-11-22T12:00:00Z"]]
+    assert cov["through"] is None
+
+
+def test_parallel_failure_in_a_worker_is_raised_and_searches_cleaned_up():
+    client = FakeFAZ(_rows(3000))
+    real = client.fetch_log_search
+    calls = {"n": 0}
+
+    def flaky(tid, offset=0, limit=500):
+        calls["n"] += 1
+        if calls["n"] == 5:
+            raise FAZError("boom")
+        return real(tid, offset, limit)
+
+    client.fetch_log_search = flaky
+    with pytest.raises(FAZError):
+        _parallel(client)
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_fetch_size_below_the_one_asked_for_still_reads_everything():
+    client = FakeFAZ(_rows(1800), max_fetch=500, total_count=False)
+    cov, timeline = _collect(client, page_size=1000)
+    assert cov["complete"] is True and cov["fetched"] == 1800 == timeline.rows
+
+
+def test_snapshots_are_offered_while_building(monkeypatch):
+    import app.conn_timeline_job as job_mod
+
+    monkeypatch.setattr(job_mod, "SNAPSHOT_SECS", 0)
+    timeline = Timeline(HOST, "either", START, END)
+    seen = []
+    collect(
+        FakeFAZ(_rows(3000)),
+        timeline,
+        device="All_FortiGate",
+        filter_expression="",
+        start=START,
+        end=END,
+        max_rows=20000,
+        page_size=500,
+        deadline_at=float("inf"),
+        poll_interval=0,
+        on_snapshot=lambda: seen.append(timeline.rows),
+    )
+    assert len(seen) >= 3 and seen == sorted(seen) and seen[0] < 3000
+
+
+def test_a_small_window_is_one_search_even_with_workers():
+    cov, timeline = _parallel(FakeFAZ(_rows(600)))
+    assert cov["complete"] is True and cov["searches"] == 1 and timeline.rows == 600
+
+
+def test_a_rate_limit_error_is_waited_out_and_retried(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    client = FakeFAZ(_rows(300))
+    real = client.submit_log_search
+    calls = {"n": 0}
+
+    def limited(*a, **k):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise FAZError("Internal error: Reached to API rate limit for user=x")
+        return real(*a, **k)
+
+    client.submit_log_search = limited
+    cov, _ = _collect(client)
+    assert cov["complete"] is True and calls["n"] == 3
+
+
+def test_other_errors_are_not_retried():
+    client = FakeFAZ(_rows(300))
+    client.submit_log_search = lambda *a, **k: (_ for _ in ()).throw(FAZError("bad filter"))
+    with pytest.raises(FAZError):
+        _collect(client)

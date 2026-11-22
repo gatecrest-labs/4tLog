@@ -195,13 +195,19 @@ function renderChart(result, summary, opts) {
   });
 
   const cov = result.coverage || {};
-  if (!cov.complete && cov.through) {
-    const through = Date.parse(cov.through);
+  if (!cov.complete && cov.reason !== 'running') {
+    // Time ranges that were not fetched: the gaps (parallel builds can leave several),
+    // or everything after "through" for an older result.
     const startMs = Date.parse(result.start);
-    const frac = (through - startMs) / (Date.parse(result.end) - startMs);
-    if (frac < 1) {
-      const x = labelW + Math.max(frac, 0) * chartW;
-      parts.push(`<rect class="ct-not-fetched" x="${x.toFixed(2)}" y="0" width="${(labelW + chartW - x).toFixed(2)}" height="${lanes.length * laneH}"><title>Not fetched: after ${escHtml(fmtTimeSec(through))}</title></rect>`);
+    const spanMs = Date.parse(result.end) - startMs;
+    const gaps = Array.isArray(cov.gaps) && cov.gaps.length
+      ? cov.gaps.map((g) => [Date.parse(g[0]), Date.parse(g[1])])
+      : (cov.through ? [[Date.parse(cov.through), Date.parse(result.end)]] : []);
+    for (const [from, to] of gaps) {
+      const x0 = labelW + Math.min(Math.max((from - startMs) / spanMs, 0), 1) * chartW;
+      const x1 = labelW + Math.min(Math.max((to - startMs) / spanMs, 0), 1) * chartW;
+      if (x1 - x0 < 0.5) continue;
+      parts.push(`<rect class="ct-not-fetched" x="${x0.toFixed(2)}" y="0" width="${(x1 - x0).toFixed(2)}" height="${lanes.length * laneH}"><title>Not fetched: ${escHtml(fmtTimeSec(from))} to ${escHtml(fmtTimeSec(to))}</title></rect>`);
     }
   }
 
@@ -226,6 +232,7 @@ function renderChart(result, summary, opts) {
 function renderHeader(result) {
   return `<strong>${escHtml(result.host)}</strong> · ${escHtml(result.direction_label)} · ${escHtml(windowLabel(result))}` +
     ` <span class="text-muted">on ${escHtml(result.target)}` +
+    (result.adom ? `, ADOM ${escHtml(result.adom)}` : '') +
     (result.device && result.device !== 'All_FortiGate' ? `, firewall ${escHtml(result.device)}` : '') +
     (result.verdict_filter && result.verdict_filter !== 'all' ? `, ${escHtml(result.verdict_filter)} only` : '') +
     '</span>';
@@ -233,6 +240,10 @@ function renderHeader(result) {
 
 function renderCoverage(result) {
   const cov = result.coverage || {};
+  if (cov.reason === 'running') {
+    const of = cov.matched != null ? ` of ${fmtCount(cov.matched)}${cov.matched_final ? '' : '+'} matched` : '';
+    return `<div class="ct-coverage alert alert-info">Still fetching: ${fmtCount(cov.fetched)}${of} log(s) so far. This picture fills in as more arrive.</div>`;
+  }
   const matched = cov.matched;
   if (cov.complete) {
     const n = matched != null ? matched : cov.fetched;
@@ -241,8 +252,8 @@ function renderCoverage(result) {
   const of = matched != null ? ` of ${fmtCount(matched)}${cov.matched_final ? '' : '+'} matched` : '';
   const through = cov.through ? ` (through ${escHtml(fmtTimeSec(Date.parse(cov.through)))})` : '';
   const why = REASONS[cov.reason] || 'a limit';
-  return `<div class="ct-coverage alert alert-warning">Partial: built from the first ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
-    'Time after that is greyed out. Narrow the window, pick one firewall, or show allowed or denied only to see all of it.</div>';
+  return `<div class="ct-coverage alert alert-warning">Partial: built from ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
+    'Time not covered is greyed out. Narrow the window, pick one firewall, or show allowed or denied only to see all of it.</div>';
 }
 
 function renderFilter(result, filter) {
@@ -324,6 +335,7 @@ function logSearchLinks(result, lane, bucket, verdict, filter) {
   return sides.map((side) => {
     const p = new URLSearchParams();
     p.set('target', result.target);
+    if (result.adom) p.set('adom', result.adom);
     p.set('logtype', 'traffic');
     p.set('device', laneMeta.devid || 'All_FortiGate');
     p.set('start', new Date(r.start).toISOString());
@@ -415,6 +427,7 @@ function peerDetailsHref(result, role, peerIdx, laneIdx, portIdx) {
   const p = new URLSearchParams();
   const peer = result.peers[peerIdx];
   p.set('target', result.target);
+  if (result.adom) p.set('adom', result.adom);
   p.set('logtype', 'traffic');
   p.set('device', result.lanes[laneIdx].devid || 'All_FortiGate');
   p.set('start', new Date(Date.parse(result.start)).toISOString());
@@ -522,6 +535,32 @@ function initPage() {
     box.classList.toggle('hidden', !msg);
   }
 
+  // The target's configured ADOM, by target label (the ADOM picker's default).
+  let targetAdoms = {};
+
+  async function loadAdoms() {
+    const select = $('ctAdom');
+    const target = $('ctTarget').value;
+    const fallback = targetAdoms[target] || 'root';
+    select.innerHTML = `<option value="${escHtml(fallback)}">${escHtml(fallback)}</option>`;
+    if (target) {
+      try {
+        const resp = await fetch(`/api/conn-timeline/adoms?target=${encodeURIComponent(target)}`);
+        const body = resp.ok ? await resp.json() : null;
+        if (body && Array.isArray(body.adoms) && body.adoms.length) {
+          const def = body.default || fallback;
+          const names = body.adoms.map((a) => a.name);
+          if (!names.includes(def)) names.unshift(def);
+          select.innerHTML = names.map((n) => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+          select.value = def;
+        }
+      } catch {
+        // keep the configured ADOM
+      }
+    }
+    await loadDevices();
+  }
+
   async function loadDevices() {
     const select = $('ctDevice');
     const allOption = '<option value="All_FortiGate" selected>All FortiGates</option>';
@@ -529,7 +568,7 @@ function initPage() {
     select.innerHTML = allOption;
     if (!target) return;
     try {
-      const resp = await fetch(`/api/conn-timeline/devices?target=${encodeURIComponent(target)}`);
+      const resp = await fetch(`/api/conn-timeline/devices?target=${encodeURIComponent(target)}&adom=${encodeURIComponent($('ctAdom').value)}`);
       const devices = resp.ok ? await resp.json() : [];
       if (Array.isArray(devices)) {
         select.innerHTML = allOption + devices.map((d) => `<option value="${escHtml(d.devid)}">${escHtml(d.name || d.devid)}</option>`).join('');
@@ -546,7 +585,8 @@ function initPage() {
       if (resp.status === 401) { location.href = '/login'; return; }
       const targets = await resp.json();
       select.innerHTML = targets.map((t) => `<option value="${escHtml(t.label)}">${escHtml(t.label)} (${escHtml(t.host)})</option>`).join('');
-      await loadDevices();
+      targetAdoms = Object.fromEntries(targets.map((t) => [t.label, t.adom]));
+      await loadAdoms();
     } catch {
       select.innerHTML = '<option value="">(unable to load targets)</option>';
     }
@@ -582,6 +622,16 @@ function initPage() {
     }
   }
 
+  // Draw what has arrived so far. Firewall rows can reorder as more logs come in, so
+  // a selected slice is kept only while its firewall is still on the same row.
+  function applyPartial(partial) {
+    const sel = state.selected;
+    const label = sel && state.result ? state.result.lanes[sel.lane] && state.result.lanes[sel.lane].label : null;
+    state.result = partial;
+    if (sel && !(partial.lanes[sel.lane] && partial.lanes[sel.lane].label === label)) state.selected = null;
+    render();
+  }
+
   function setBusy(busy, text) {
     $('ctBuildBtn').disabled = busy;
     $('ctCancelBtn').classList.toggle('hidden', !busy);
@@ -604,6 +654,7 @@ function initPage() {
       if (!resp.ok) throw new Error(body.error || 'Timeline lookup failed.');
       if (body.status === 'running') {
         setBusy(true, progressText(body.progress));
+        if (body.partial) applyPartial(body.partial);
         state.timer = setTimeout(poll, 1000);
         return;
       }
@@ -611,10 +662,8 @@ function initPage() {
       setBusy(false, '');
       if (body.status === 'failed') { showError(body.error || 'Timeline failed.'); return; }
       if (body.result) {
-        state.result = body.result;
-        state.filter = { peer: null, port: null };
+        state.result = body.result;  // the filter chosen while it filled in stays
         state.selected = null;
-        state.showAll = false;
         render();
       }
       if (body.status === 'cancelled') $('ctProgress').textContent = 'Cancelled. Showing what was fetched.';
@@ -640,8 +689,14 @@ function initPage() {
     ev.preventDefault();
     showError('');
     if (state.jobId) return;
+    state.result = null;
+    state.filter = { peer: null, port: null };
+    state.selected = null;
+    state.showAll = false;
+    $('ctResult').classList.add('hidden');
     const payload = {
       target: $('ctTarget').value,
+      adom: $('ctAdom').value,
       host: $('ctHost').value.trim(),
       direction: $('ctDirection').value,
       device: $('ctDevice').value,
@@ -698,7 +753,8 @@ function initPage() {
   const presetSelect = $('ctPreset');
   presetSelect.value = form.dataset.defaultPreset || '1h';
   presetSelect.addEventListener('change', () => $('ctCustomRow').classList.toggle('hidden', presetSelect.value !== 'custom'));
-  $('ctTarget').addEventListener('change', loadDevices);
+  $('ctTarget').addEventListener('change', loadAdoms);
+  $('ctAdom').addEventListener('change', loadDevices);
   form.addEventListener('submit', build);
   $('ctCancelBtn').addEventListener('click', cancel);
   $('ctResult').addEventListener('click', onClick);
@@ -706,7 +762,7 @@ function initPage() {
     $('ctHost').value = btn.dataset.ip;
     if ($('ctTarget').value !== btn.dataset.target) {
       $('ctTarget').value = btn.dataset.target;
-      await loadDevices();
+      await loadAdoms();
     }
   }));
   loadTargets();
