@@ -465,6 +465,99 @@ class FAZClient:
             "truncated": return_lines >= limit,
         }
 
+    # -- Paged log search (Connection Timeline, app/conn_timeline_job.py) ------
+    #
+    # search_logs() above is one submit plus one fetch at offset 0. The
+    # timeline needs the pieces separately: submit once, page through the
+    # task with offset, ask for the exact matched-log count, and delete the
+    # task afterwards. Request shapes follow the vendored 7.6.7 spec
+    # (api-info/.../logview.json: logview.logsearch.add.req,
+    # logview.logsearch.tid.get.req, logview.logsearch.count.tid.get.req,
+    # logview.logsearch.tid.delete.req). Whether offset can page past the
+    # submit limit is NOT confirmed live yet: scripts/check_faz_paging.py
+    # answers that on a real FortiAnalyzer.
+
+    def submit_log_search(
+        self,
+        logtype: str,
+        device: str,
+        filter_expression: str,
+        start_time: str,
+        end_time: str,
+        limit: int = 1000,
+        time_order: str = "desc",
+    ) -> int:
+        """Submit a log search and return its task id (tid)."""
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "add",
+            "params": [
+                {
+                    "url": f"/logview/adom/{self.adom}/logsearch",
+                    "apiver": 3,
+                    "device": [{"devid": device}],
+                    "filter": filter_expression,
+                    "limit": limit,
+                    "logtype": logtype,
+                    "offset": 0,
+                    "case-sensitive": False,
+                    "time-order": time_order,
+                    "time-range": {"start": start_time, "end": end_time},
+                }
+            ],
+            "session": None,
+        }
+        result = self._unwrap_result(self._post(body))
+        tid = result.get("tid")
+        if tid is None:
+            raise FAZError(f"Log search submit returned no task ID: {result!r}")
+        return tid
+
+    def fetch_log_search(self, tid: int, offset: int = 0, limit: int = 500) -> dict:
+        """One fetch from a log search task: the raw result, with ``data``,
+        ``percentage`` and ``return-lines`` (and, on 8.0.2, ``total-count``)."""
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "get",
+            "params": [
+                {
+                    "url": f"/logview/adom/{self.adom}/logsearch/{tid}",
+                    "apiver": 3,
+                    "limit": limit,
+                    "offset": offset,
+                }
+            ],
+            "session": None,
+        }
+        return self._unwrap_result(self._post(body))
+
+    def get_log_search_count(self, tid: int) -> dict:
+        """Matched-log count for a log search task: ``matched-logs``,
+        ``progress-percent`` (the count is final at 100), ``total-logs``,
+        ``scanned-logs``."""
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "get",
+            "params": [{"url": f"/logview/adom/{self.adom}/logsearch/count/{tid}", "apiver": 3}],
+            "session": None,
+        }
+        return self._unwrap_result(self._post(body))
+
+    def delete_log_search(self, tid: int) -> None:
+        """Ask FortiAnalyzer to drop a log search task. Read-only in effect:
+        it frees the appliance's search slot and changes no configuration."""
+        body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "delete",
+            "params": [{"url": f"/logview/adom/{self.adom}/logsearch/{tid}", "apiver": 3}],
+            "session": None,
+        }
+        self._unwrap_result(self._post(body))
+
     def get_sys_status(self) -> dict:
         """Return FortiAnalyzer /sys/status: hostname, version, serial, HA
         mode, disk usage. The exact field names in the returned dict are
