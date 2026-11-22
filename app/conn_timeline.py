@@ -342,7 +342,14 @@ class Timeline:
             "flow_fields": ["lane", "bucket", "verdict", "peer", "port", "policy", "count"],
             "flows": flows,
             "path_fields": [
-                "peer", "role", "lane", "port", "bucket", "count", "first_ts", "last_ts",
+                "peer",
+                "role",
+                "lane",
+                "port",
+                "bucket",
+                "count",
+                "first_ts",
+                "last_ts",
             ],  # fmt: skip
             "paths": paths,
             "rows": self.rows,
