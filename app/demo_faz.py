@@ -22,6 +22,7 @@ names, serials and users are made up.
 from __future__ import annotations
 
 import datetime
+import heapq
 import ipaddress
 import itertools
 import json
@@ -377,6 +378,8 @@ def _comparison(fieldname: str, op: str, value: str):
 
 _ROW_STEP_SECONDS = 9  # roughly one log row per site every 9-27 seconds
 _MAX_SCAN = 60_000  # rows generated per search at most (a 7-day window is capped)
+_TASK_ROWS = 25_000  # rows one demo log search keeps for paging
+_STORED_ROWS = 150_000  # rows kept across every open demo task
 GENERATED_LOGTYPES = ("traffic", "attack", "webfilter", "app-ctrl", "event")
 
 
@@ -510,6 +513,198 @@ def _row(site: Site, dev: Device, logtype: str, ts: datetime.datetime, rng) -> d
     return row
 
 
+def _base_rows(site_host, logtype, devices, start, end, newest_first):
+    """Background traffic for the whole site, one candidate row per
+    ``_ROW_STEP_SECONDS`` bucket. Each bucket draws from its own seeded Random,
+    so a bucket yields the same row whichever direction it is walked in."""
+    site = _SITES[site_host]
+    step = _ROW_STEP_SECONDS
+    first = int(start.timestamp()) // step
+    last = int(end.timestamp()) // step
+    buckets = range(last, first - 1, -1) if newest_first else range(first, last + 1)
+    for bucket in itertools.islice(buckets, _MAX_SCAN):
+        rng = _rng(site_host, logtype, bucket)
+        dev = rng.choice(site.devices)
+        if dev not in devices or rng.random() < 0.55:
+            continue
+        ts = datetime.datetime.fromtimestamp(
+            bucket * step + rng.randint(0, step - 1), datetime.timezone.utc
+        )
+        if dev.silent_for_minutes and ts > _now() - datetime.timedelta(
+            minutes=dev.silent_for_minutes
+        ):
+            continue  # a silent device sends nothing recent
+        if not (start <= ts <= end):
+            continue
+        yield _row(site, dev, logtype, ts, rng)
+
+
+# ── Featured hosts ───────────────────────────────────────────────────────────
+#
+# Background rows pick a random LAN address each time, so no single host has a
+# story. These few fixed hosts recur across several firewalls with a steady
+# pattern, so the Connection Timeline has something to show. Same rules as the
+# rest of the demo: private and documentation addresses only, made-up names.
+
+
+@dataclass(frozen=True)
+class Flow:
+    weight: float
+    devices: tuple[str, ...]  # one is picked per row
+    peer: str  # an address, or "a.b.c.lo-hi" for a range of last octets
+    service: tuple[str, int, int, str, str]  # service, dstport, proto, app, appcat
+    action: str  # accept / deny (accept rows end as accept, close or timeout)
+    policy: tuple[int, str]
+    host_is_src: bool = True
+
+
+@dataclass(frozen=True)
+class FeaturedHost:
+    ip: str
+    site: str
+    description: str
+    step: int  # seconds between candidate rows
+    keep: float  # chance a step yields a row
+    flows: tuple[Flow, ...]
+    burst: tuple[Flow, ...] = ()  # replaces ``flows`` during a burst
+    burst_every: int = 0  # seconds; a burst opens each period
+    burst_for: int = 0  # seconds the burst lasts
+
+
+_SSH = ("SSH", 22, 6, "SSH", "Remote.Access")
+_RDP = ("RDP", 3389, 6, "RDP", "Remote.Access")
+_SMB = ("SMB", 445, 6, "SMB", "Network.Service")
+_HTTPS = ("HTTPS", 443, 6, "HTTPS.BROWSER", "Web.Client")
+_DNS = ("DNS", 53, 17, "DNS", "Network.Service")
+_NTP = ("NTP", 123, 17, "NTP", "Network.Service")
+_RTSP = ("RTSP", 554, 6, "RTSP", "Video/Audio")
+_IMPLICIT_DENY = (0, "")
+_HQ_CORES = ("GC-HQ-CORE-01", "GC-HQ-CORE-02")
+
+FEATURED_HOSTS: tuple[FeaturedHost, ...] = (
+    FeaturedHost(
+        ip="10.10.20.50",
+        site="faz-hq.demo.invalid",
+        description="HQ jump server: steady SSH and RDP, a denied SMB sweep every 3 hours",
+        step=20,
+        keep=0.8,
+        flows=(
+            Flow(45, _HQ_CORES, "10.10.10.21-26", _SSH, "accept", (30, "Jump-to-Servers")),
+            Flow(25, _HQ_CORES, "10.10.10.31-34", _RDP, "accept", (30, "Jump-to-Servers")),
+            Flow(15, ("GC-HQ-EDGE",), "192.0.2.80", _HTTPS, "accept", (1, "LAN-to-Internet")),
+            Flow(15, ("GC-HQ-CORE-02",), "10.10.10.53", _DNS, "accept", (5, "Servers-Out")),
+        ),
+        burst=(
+            Flow(75, ("GC-HQ-EDGE",), "10.10.30.10-60", _SMB, "deny", _IMPLICIT_DENY),
+            Flow(25, _HQ_CORES, "10.10.10.21-26", _SSH, "accept", (30, "Jump-to-Servers")),
+        ),
+        burst_every=3 * 3600,
+        burst_for=15 * 60,
+    ),
+    FeaturedHost(
+        ip="10.10.10.53",
+        site="faz-hq.demo.invalid",
+        description="HQ DNS server: busy (over 1,000 logs an hour), inbound probes denied",
+        step=2,
+        keep=0.75,
+        flows=(
+            Flow(
+                55, ("GC-HQ-CORE-02",), "10.10.20.10-200", _DNS, "accept", (5, "Servers-Out"), False
+            ),
+            Flow(30, ("GC-HQ-EDGE",), "198.51.100.53", _DNS, "accept", (1, "LAN-to-Internet")),
+            Flow(5, ("GC-HQ-CORE-01",), "10.10.10.1", _NTP, "accept", (5, "Servers-Out")),
+            Flow(10, ("GC-HQ-EDGE",), "203.0.113.10-250", _DNS, "deny", _IMPLICIT_DENY, False),
+        ),
+    ),
+    FeaturedHost(
+        ip="10.20.2.40",
+        site="faz-branches.demo.invalid",
+        description="Branch camera: streams to the recorder, its internet calls are denied",
+        step=30,
+        keep=0.9,
+        flows=(
+            Flow(50, ("GC-BR-SOUTH",), "198.51.100.77", _HTTPS, "deny", _IMPLICIT_DENY),
+            Flow(
+                35,
+                ("GC-BR-SOUTH", "GC-BR-NORTH"),
+                "10.20.1.20",
+                _RTSP,
+                "accept",
+                (12, "Cameras-to-NVR"),
+            ),
+            Flow(15, ("GC-BR-SOUTH",), "192.0.2.123", _NTP, "accept", (20, "Guest")),
+        ),
+    ),
+)
+
+
+def featured_hosts(site_host: str) -> list[FeaturedHost]:
+    return [h for h in FEATURED_HOSTS if h.site == site_host]
+
+
+def _pick_peer(spec: str, rng: random.Random) -> str:
+    if "-" not in spec:
+        return spec
+    prefix, _, span = spec.rpartition(".")
+    lo, _, hi = span.partition("-")
+    return f"{prefix}.{rng.randint(int(lo), int(hi))}"
+
+
+def _featured_row(site, host: FeaturedHost, flow: Flow, dev: Device, ts, rng) -> dict:
+    row = _row(site, dev, "traffic", ts, rng)
+    peer = _pick_peer(flow.peer, rng)
+    service, port, proto, app, appcat = flow.service
+    deny = flow.action == "deny"
+    src, dst = (host.ip, peer) if flow.host_is_src else (peer, host.ip)
+    row.update(
+        {
+            "srcip": src,
+            "dstip": dst,
+            "dstport": str(port),
+            "proto": str(proto),
+            "service": service,
+            "app": app,
+            "appcat": appcat,
+            "action": "deny" if deny else rng.choice(("accept", "close", "close", "timeout")),
+            "policyid": str(flow.policy[0]),
+            "policyname": flow.policy[1],
+            "srccountry": "Reserved" if src.startswith("10.") else rng.choice(_COUNTRIES),
+            "dstcountry": "Reserved" if dst.startswith("10.") else rng.choice(_COUNTRIES),
+        }
+    )
+    if deny:
+        row.update(
+            {"sentbyte": "0", "rcvdbyte": "0", "sentpkt": "0", "rcvdpkt": "0", "trandisp": "noop"}
+        )
+    if not flow.policy[1]:
+        row.pop("policyname", None)  # the implicit deny has no name on a FortiGate
+    return row
+
+
+def _featured_rows(site_host, host: FeaturedHost, devices, start, end, newest_first):
+    site = _SITES[site_host]
+    by_name = {d.name: d for d in site.devices}
+    first = int(start.timestamp()) // host.step
+    last = int(end.timestamp()) // host.step
+    steps = range(last, first - 1, -1) if newest_first else range(first, last + 1)
+    for k in itertools.islice(steps, _MAX_FEATURED_SCAN):
+        rng = _rng(site_host, "featured", host.ip, k)
+        if rng.random() >= host.keep:
+            continue
+        t = k * host.step + rng.randint(0, host.step - 1)
+        in_burst = host.burst_every and t % host.burst_every < host.burst_for
+        flows = host.burst if in_burst else host.flows
+        flow = rng.choices(flows, weights=[f.weight for f in flows])[0]
+        dev = by_name[rng.choice(flow.devices)]
+        ts = datetime.datetime.fromtimestamp(t, datetime.timezone.utc)
+        if dev not in devices or not (start <= ts <= end):
+            continue
+        yield _featured_row(site, host, flow, dev, ts, rng)
+
+
+_MAX_FEATURED_SCAN = 150_000  # steps per featured host per search
+
+
 def generate_logs(
     site_host: str,
     logtype: str,
@@ -518,42 +713,25 @@ def generate_logs(
     start: datetime.datetime,
     end: datetime.datetime,
     limit: int,
+    newest_first: bool = True,
 ) -> list[dict]:
-    """Newest-first log rows in [start, end] for ``devid`` (or All_FortiGate)
-    that match ``predicate``, at most ``limit``."""
+    """Log rows in [start, end] for ``devid`` (or All_FortiGate) that match
+    ``predicate``, at most ``limit``: newest first, or oldest first."""
     site = _SITES[site_host]
     if logtype not in GENERATED_LOGTYPES or not site.devices:
         return []
     devices = [d for d in site.devices if devid in ("All_FortiGate", "", None) or d.sn == devid]
     if not devices:
         return []
-    rows: list[dict] = []
-    # Walk back from the end in fixed buckets so the same window always yields
-    # the same rows, whatever the poll timing.
-    step = _ROW_STEP_SECONDS
-    bucket = int(end.timestamp()) // step
-    first = int(start.timestamp()) // step
-    scanned = 0
-    while bucket >= first and len(rows) < limit and scanned < _MAX_SCAN:
-        scanned += 1
-        rng = _rng(site_host, logtype, bucket)
-        bucket -= 1
-        dev = rng.choice(site.devices)
-        if dev not in devices or rng.random() < 0.55:
-            continue
-        ts = datetime.datetime.fromtimestamp(
-            (bucket + 1) * step + rng.randint(0, step - 1), datetime.timezone.utc
-        )
-        if dev.silent_for_minutes and ts > _now() - datetime.timedelta(
-            minutes=dev.silent_for_minutes
-        ):
-            continue  # a silent device sends nothing recent
-        if not (start <= ts <= end):
-            continue
-        row = _row(site, dev, logtype, ts, rng)
-        if predicate(row):
-            rows.append(row)
-    return rows
+    sources = [_base_rows(site_host, logtype, devices, start, end, newest_first)]
+    if logtype == "traffic":
+        sources += [
+            _featured_rows(site_host, h, devices, start, end, newest_first)
+            for h in featured_hosts(site_host)
+        ]
+    stamp = (lambda r: -int(r["itime_t"])) if newest_first else (lambda r: int(r["itime_t"]))
+    matching = (r for r in heapq.merge(*sources, key=stamp) if predicate(r))
+    return list(itertools.islice(matching, limit))
 
 
 # ── FortiView ────────────────────────────────────────────────────────────────
@@ -777,45 +955,92 @@ class DemoFAZ:
             if module == "fortiview":
                 view = rest[: -len("/run")]
                 rows = _fortiview_rows(self.host, view, params)  # raises on a bad view
-                payload = {"rows": rows}
+                payload = {"rows": rows, "matched": len(rows)}
             else:
-                try:
-                    predicate = compile_filter(str(params.get("filter", "")))
-                except ValueError as exc:
-                    raise _Error(_INVALID_PARAMS, f"Invalid params: {exc}") from exc
-                device = (params.get("device") or [{}])[0].get("devid", "All_FortiGate")
-                start, end = _window(params)
-                rows = generate_logs(
-                    self.host,
-                    str(params.get("logtype", "traffic")),
-                    device,
-                    predicate,
-                    start,
-                    end,
-                    int(params.get("limit") or 1000),
-                )
-                payload = {"rows": rows}
+                payload = self._log_search(params)
             with DemoFAZ._tasks_lock:
                 tid = next(DemoFAZ._tids)
                 DemoFAZ._tasks[tid] = (self.host, module, payload)
-                if len(DemoFAZ._tasks) > 500:  # keep memory bounded
-                    for old in sorted(DemoFAZ._tasks)[:250]:
-                        DemoFAZ._tasks.pop(old, None)
+                self._trim_tasks()
             return {"tid": tid}
+        count_match = re.fullmatch(r"logsearch/count/(\d+)", rest)
         tid_match = re.search(r"/(\d+)$", rest)
-        if method == "get" and tid_match:
+        if method in ("get", "delete") and tid_match:
+            tid = int(tid_match.group(1))
             with DemoFAZ._tasks_lock:
-                task = DemoFAZ._tasks.get(int(tid_match.group(1)))
+                task = DemoFAZ._tasks.get(tid)
+                if task is not None and task[0] == self.host and method == "delete":
+                    DemoFAZ._tasks.pop(tid, None)
             if task is None or task[0] != self.host:
                 raise _Error(-3, "Object does not exist")
-            rows = task[2]["rows"]
+            if method == "delete":
+                return {"status": {"code": 0, "message": "succeeded"}}
+            payload = task[2]
+            if count_match:
+                return {
+                    "matched-logs": payload["matched"],
+                    "progress-percent": 100,
+                    "total-logs": payload["matched"],
+                    "scanned-logs": payload["matched"],
+                    "elapsed-time-ms": 40,
+                    "estimated-remain-sec": 0,
+                    "status": {"code": 0, "message": "succeeded"},
+                }
+            rows = payload["rows"]
+            if module == "logview":
+                # Paged like a FortiAnalyzer task: offset and limit pick the slice.
+                offset = max(int(params.get("offset") or 0), 0)
+                rows = rows[offset : offset + int(params.get("limit") or 50)]
             return {
                 "data": rows,
                 "percentage": 100,
                 "return-lines": len(rows),
+                "total-count": payload["matched"],
                 "status": {"code": 0, "message": "succeeded"},
             }
         raise _Error(-6, f"Invalid url: /{module}/adom/{self.site.adom}/{rest}")
+
+    def _log_search(self, params: dict) -> dict:
+        """Run a log search up front and keep its rows for paging. Unlike the
+        submit limit (1,000 at most), the demo keeps up to ``_TASK_ROWS`` so
+        offset pages past it, as the 7.6 spec implies (scripts/
+        check_faz_paging.py checks what a real FortiAnalyzer does)."""
+        try:
+            predicate = compile_filter(str(params.get("filter", "")))
+        except ValueError as exc:
+            raise _Error(_INVALID_PARAMS, f"Invalid params: {exc}") from exc
+        device = (params.get("device") or [{}])[0].get("devid", "All_FortiGate")
+        start, end = _window(params)
+        newest_first = params.get("time-order", "desc") != "asc"
+        rows = generate_logs(
+            self.host,
+            str(params.get("logtype", "traffic")),
+            device,
+            predicate,
+            start,
+            end,
+            _TASK_ROWS,
+            newest_first=newest_first,
+        )
+        matched = len(rows)
+        if matched >= _TASK_ROWS:
+            # Stopped early: extrapolate the synthetic total from the part of
+            # the window the kept rows cover.
+            edge = end if newest_first else start
+            covered = abs(int(rows[-1]["itime_t"]) - edge.timestamp())
+            window = (end - start).total_seconds()
+            if covered > 0:
+                matched = max(matched, int(matched * window / covered))
+        return {"rows": rows, "matched": matched}
+
+    @staticmethod
+    def _trim_tasks() -> None:
+        """Keep task memory bounded (caller holds the lock): oldest go first."""
+        tasks = DemoFAZ._tasks
+        while len(tasks) > 1 and (
+            len(tasks) > 500 or sum(len(t[2]["rows"]) for t in tasks.values()) > _STORED_ROWS
+        ):
+            tasks.pop(min(tasks), None)
 
     # -- static-ish resources ---------------------------------------------------
 

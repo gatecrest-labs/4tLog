@@ -13,6 +13,7 @@ const SECTIONS = [
 <ul>
   <li><strong>Dashboard</strong> — live health cards (status, version, serial, disk, CPU/mem) for each configured FortiAnalyzer appliance.</li>
   <li><strong>Log Search</strong> — targeted traffic-log search by source/destination IP, port/service, time range, and advanced fields, with CSV/JSON export.</li>
+  <li><strong>Connection Timeline</strong> — where one IP address talked, through which firewalls, and whether each connection was allowed or denied, as swim lanes over time.</li>
   <li><strong>Admin</strong> — manage users, groups/tab permissions, FAZ targets, and view system logs (admins only).</li>
 </ul>
 `,
@@ -55,6 +56,25 @@ const SECTIONS = [
 <p>Click "Columns" above the table to show or hide any of the non-pinned fields returned by a search — the six pinned columns above can't be hidden. Your choices are remembered in this browser across future searches and log types.</p>
 <h3>Export</h3>
 <p>"Export CSV"/"Export JSON" download the currently-loaded and currently-filtered results (up to the result cap) — including only the columns currently shown — not just the page on screen.</p>
+`,
+  },
+  {
+    id: 'conn_timeline',
+    label: 'Connection Timeline',
+    tab: 'conn_timeline',
+    html: `
+<h3>What it shows</h3>
+<p>Enter one IP address (IPv4 or IPv6; hostnames aren't looked up) and a time window. The timeline reads that address's raw traffic logs from FortiAnalyzer and draws one lane per firewall (and VDOM) that logged it. Each bar is one time slice: green for allowed, red with hatching for denied, gray for any other action. Bars are scaled to the busiest slice on the chart.</p>
+<h3>Direction</h3>
+<p><strong>Either direction</strong> matches the address as source or destination; the "peer" is always the other side. Pick <strong>As source</strong> or <strong>As destination</strong> to narrow it.</p>
+<h3>Time window</h3>
+<p>One hour by default, seven days at most. Longer windows use wider slices (up to 3 hours each on a 7-day view).</p>
+<h3>Complete or partial</h3>
+<p>A timeline is built from at most 20,000 logs, and stops after about 90 seconds. The line above the chart says whether it saw every matched log or only the first part. When it's partial, the time after the last log it read is greyed out. Narrow the window, pick one firewall, or show only allowed or denied traffic to see all of it.</p>
+<h3>Drilling in</h3>
+<p>Click a bar to see that slice's ports, peers and policies, with a link that opens Log Search on exactly those logs. Click a row in Top peers or Top ports to filter the whole page to it; click it again to clear. The Policies table lists each firewall's policy ID and name with allowed and denied counts; policy 0 is the implicit deny.</p>
+<h3>Audit</h3>
+<p>Every timeline build is written to the app log: who looked at which address, when, and how much of the traffic the picture covered.</p>
 `,
   },
   {

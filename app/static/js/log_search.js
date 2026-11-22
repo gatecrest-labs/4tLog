@@ -450,5 +450,75 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Links from other tabs (the Connection Timeline's "Open in Log Search")
+// arrive as query parameters: target, logtype, device, src, dst, ports,
+// start/end (ISO instants), repeated filter=field==value / field!=value, and
+// run=1 to search straight away. Anything that doesn't parse is ignored.
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toLocalInputValue(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+    `T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+function parseFilterParam(raw) {
+  const m = String(raw).match(/^([A-Za-z0-9_-]+)(==|!=)(.+)$/);
+  return m ? { field: m[1], op: m[2], value: m[3] } : null;
+}
+
+function selectOption(select, value, label) {
+  if (!Array.from(select.options).some((o) => o.value === value)) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label || value;
+    select.appendChild(opt);
+  }
+  select.value = value;
+}
+
+async function applyQueryParams() {
+  const params = new URLSearchParams(location.search);
+  if (![...params.keys()].length) return;
+  const targetSelect = document.getElementById('targetSelect');
+  const target = params.get('target');
+  if (target && Array.from(targetSelect.options).some((o) => o.value === target) && targetSelect.value !== target) {
+    targetSelect.value = target;
+    await loadDevices();
+  }
+  const logtype = params.get('logtype');
+  const logtypeSelect = document.getElementById('logtypeSelect');
+  if (logtype && Array.from(logtypeSelect.options).some((o) => o.value === logtype)) logtypeSelect.value = logtype;
+  const device = params.get('device');
+  if (device) selectOption(document.getElementById('deviceInput'), device);
+  if (params.has('src')) document.getElementById('sourceIps').value = params.get('src');
+  if (params.has('dst')) document.getElementById('destIps').value = params.get('dst');
+  if (params.has('ports')) document.getElementById('ports').value = params.get('ports');
+  const start = toLocalInputValue(params.get('start') || '');
+  const end = toLocalInputValue(params.get('end') || '');
+  if (start && end) {
+    document.getElementById('timePreset').value = 'custom';
+    document.getElementById('customTimeRow').classList.remove('hidden');
+    document.getElementById('startTime').value = start;
+    document.getElementById('endTime').value = end;
+  }
+  params.getAll('filter').map(parseFilterParam).filter(Boolean).forEach((f) => {
+    addFilterRow();
+    const rows = document.querySelectorAll('#extraFilters .extra-filter-row');
+    const row = rows[rows.length - 1];
+    row.querySelector('.filter-field').value = f.field;
+    row.querySelector('.filter-op').value = f.op;
+    row.querySelector('.filter-value').value = f.value;
+  });
+  if (params.get('run') === '1' && targetSelect.value) {
+    const form = document.getElementById('searchForm');
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else runSearch({ preventDefault() {} });
+  }
+}
+
 renderPage();
-loadTargets();
+loadTargets().then(applyQueryParams);
