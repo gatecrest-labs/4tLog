@@ -51,16 +51,20 @@ class _Stop(Exception):
 
 
 def _fetch_complete(client, tid, offset, page_size, deadline_at, poll_interval, is_cancelled):
-    """Fetch one page, waiting while FortiAnalyzer is still filling it."""
+    """Fetch one page, waiting while FortiAnalyzer is still filling it. A search
+    usually finishes within a fraction of a second, so the first checks come
+    quickly and only back off to ``poll_interval`` for a slow one."""
+    delay = min(0.15, poll_interval)
     while True:
         page = client.fetch_log_search(tid, offset=offset, limit=page_size)
         if page.get("percentage", 100) >= 100:
             return page
         if is_cancelled():
             raise _Stop("cancelled")
-        if time.monotonic() + poll_interval >= deadline_at:
+        if time.monotonic() + delay >= deadline_at:
             raise _Stop("deadline")
-        time.sleep(poll_interval)
+        time.sleep(delay)
+        delay = min(delay * 2, poll_interval)
 
 
 class _Shared:
@@ -87,10 +91,8 @@ class _Shared:
         if self.on_progress is None and self.on_snapshot is None:
             return
         with self.lock:
-            started = [s for s in self.slices if s["started"]]
-            counted = [s["matched"] for s in started if s["matched"] is not None]
-            matched = sum(counted) if counted else None
-            final = len(started) == len(self.slices) and all(s["matched_final"] for s in started)
+            matched = self.slices[0]["matched"]
+            final = self.slices[0]["matched_final"]
             if self.on_progress is not None:
                 self.on_progress(
                     phase=phase,
@@ -104,13 +106,37 @@ class _Shared:
                 self.on_snapshot()
 
 
-def _plan_slices(start, end, workers: int) -> list[tuple[int, int]]:
-    """Whole-second [lo, hi) time slices. One slice unless building in parallel;
-    then several times more slices than workers so a busy slice doesn't leave
-    the others idle."""
-    lo, hi = int(start.timestamp()), int(end.timestamp())
+def _new_slice(index: int, lo: int, hi: int, *, check_count: bool = True) -> dict:
+    return {
+        "index": index,
+        "lo": lo,
+        "hi": hi,
+        "check_count": check_count,
+        "started": False,
+        "done": False,
+        "matched": None,
+        "matched_final": False,
+        "count_ok": True,
+        "fetched": 0,
+        "searches": 0,
+        "last_ts": None,
+        "reason": None,
+        "more": False,  # a probe that stopped with rows left, for the slices to take over
+        "boundary": None,
+    }
+
+
+def _plan_slices(lo: int, hi: int, workers: int, remaining: int | None) -> list[tuple[int, int]]:
+    """Whole-second [lo, hi) time slices for the rest of a window after the probe.
+    Each search costs a few seconds on the appliance however small it is, so
+    there are no more slices than ``remaining`` rows could use (about two
+    submit limits' worth each), nor than ``workers`` times a few so a busy slice
+    doesn't leave the others idle."""
     span = max(hi - lo, 1)
-    count = 1 if workers <= 1 else max(1, min(workers * SLICES_PER_WORKER, span // MIN_SLICE_SECS))
+    count = workers * SLICES_PER_WORKER
+    if remaining is not None:
+        count = min(count, -(-remaining // (2 * SUBMIT_LIMIT)))
+    count = max(1, min(count, span // MIN_SLICE_SECS))
     edges = [lo + (span * i) // count for i in range(count)] + [hi]
     return [(edges[i], edges[i + 1]) for i in range(count)]
 
@@ -121,6 +147,7 @@ def _run_slice(
     shared: _Shared,
     *,
     single: bool,
+    probe: bool = False,
     device,
     filter_expression,
     end_ts: int,
@@ -138,6 +165,8 @@ def _run_slice(
     last_keys: set = set()
     boundary_ts: int | None = None
     boundary_keys: set = set()
+    if sl["boundary"] is not None:  # taking over from a probe that stopped at this time
+        boundary_ts, boundary_keys = sl["boundary"][0], set(sl["boundary"][1])
     seg_start = datetime.datetime.fromtimestamp(sl["lo"], datetime.timezone.utc)
     last_slice = sl["hi"] >= end_ts
     # FortiAnalyzer's range includes both ends: stop a slice one second short so a
@@ -200,8 +229,11 @@ def _run_slice(
                 )
                 rows = page.get("data") or []
                 total = page.get("total-count")
-                if sl["searches"] == 1 and sl["matched"] is None and isinstance(total, int):
-                    sl["matched"] = total  # 8.0.2 reports it on every fetch
+                if sl["searches"] == 1 and isinstance(total, int):
+                    # 8.0.2 reports the exact total on every finished fetch: no need to
+                    # wait for the count call (about 2s on the lab appliance) per slice.
+                    sl["matched"] = total
+                    sl["matched_final"] = True
                 with shared.lock:
                     for row in rows:
                         ts = row_timestamp(row)
@@ -241,11 +273,19 @@ def _run_slice(
                 known = isinstance(total, int) and offset >= total
                 if not rows or len(rows) < seen_max or (len(rows) < page_size and known):
                     break  # this search has no more rows to give
+                if task_rows >= submit_limit:
+                    # Probing past the submit limit costs a round trip (1-2s on an
+                    # 8.0.2 lab appliance that then returns nothing); restarting
+                    # from the last timestamp below is the same work without it.
+                    break
 
             more_expected = sl["matched"] is None or sl["fetched"] < sl["matched"]
             if not sl["matched_final"]:
                 read_count(wait=False)
                 more_expected = sl["matched"] is None or sl["fetched"] < sl["matched"]
+            if probe and task_rows >= submit_limit and more_expected and added and last_ts:
+                sl["more"], sl["boundary"] = True, (last_ts, set(last_keys))
+                break  # a big window: the rest is shared out between workers
             if task_rows >= submit_limit and more_expected and added and last_ts is not None:
                 # The search stopped at the submit limit: continue from the
                 # last timestamp, skipping the rows already counted there.
@@ -265,7 +305,8 @@ def _run_slice(
                 client.delete_log_search(tid)
             except Exception:
                 pass  # FortiAnalyzer expires search tasks on its own
-    if reason is None and sl["matched"] is not None and sl["fetched"] < sl["matched"]:
+    counted = sl["check_count"] and not sl["more"]
+    if reason is None and counted and sl["matched"] is not None and sl["fetched"] < sl["matched"]:
         reason = "incomplete"  # FortiAnalyzer counted more than it would return
     sl["reason"] = reason
     sl["done"] = True
@@ -304,77 +345,109 @@ def collect(
     and ``searches`` (log searches used)."""
     if client_factory is None:
         workers = 1
-    plan = _plan_slices(start, end, workers)
-    single = len(plan) == 1
+    lo, hi = int(start.timestamp()), int(end.timestamp())
     shared = _Shared(timeline, max_rows, on_progress, on_snapshot)
-    shared.slices = [
-        {
-            "index": i,
-            "lo": lo,
-            "hi": hi,
-            "started": False,
-            "done": False,
-            "matched": None,
-            "matched_final": False,
-            "count_ok": True,
-            "fetched": 0,
-            "searches": 0,
-            "last_ts": None,
-            "reason": None,
-        }
-        for i, (lo, hi) in enumerate(plan)
-    ]
-    end_ts = int(end.timestamp())
+    # The first slice is the whole window. Alone it is the build; with workers it is a
+    # probe: one search that, if the window turns out big, hands the rest to the others.
+    shared.slices = [_new_slice(0, lo, hi)]
     kw = {
-        "single": single,
         "device": device,
         "filter_expression": filter_expression,
-        "end_ts": end_ts,
+        "end_ts": hi,
         "page_size": page_size,
         "deadline_at": deadline_at,
         "poll_interval": poll_interval,
         "submit_limit": submit_limit,
         "is_cancelled": is_cancelled,
     }
+    _run_slice(
+        _RateLimited(client, is_cancelled, deadline_at),
+        shared.slices[0],
+        shared,
+        single=True,
+        probe=workers > 1,
+        **kw,
+    )
+    probe = shared.slices[0]
+    if probe["more"] and shared.stop is None and not is_cancelled():
+        remaining = None
+        if probe["matched"] is not None:
+            remaining = max(probe["matched"] - shared.fetched, 0)
+        resume = probe["boundary"][0]
+        plan = _plan_slices(resume, hi, workers, remaining)
+        for i, (slo, shi) in enumerate(plan, start=1):
+            sl = _new_slice(i, slo, shi, check_count=False)
+            if i == 1:
+                sl["boundary"] = probe["boundary"]
+            shared.slices.append(sl)
 
-    def work(sl):
-        if shared.stop is not None or is_cancelled() or time.monotonic() >= deadline_at:
-            return  # never started: reported as a gap below
-        if workers <= 1:
-            _run_slice(client, sl, shared, **kw)
-            return
-        c = client_factory()
-        try:
-            with contextlib.ExitStack() as stack:
-                if hasattr(c, "__enter__"):
-                    c = stack.enter_context(c)
-                _run_slice(c, sl, shared, **kw)
-        except BaseException:
-            shared.set_stop("error")
-            raise
+        def work(sl):
+            if shared.stop is not None or is_cancelled() or time.monotonic() >= deadline_at:
+                return  # never started: reported as a gap below
+            try:
+                with contextlib.ExitStack() as stack:
+                    c = client_factory()
+                    if hasattr(c, "__enter__"):
+                        c = stack.enter_context(c)
+                    _run_slice(
+                        _RateLimited(c, is_cancelled, deadline_at), sl, shared, single=False, **kw
+                    )
+            except BaseException:
+                shared.set_stop("error")
+                raise
 
-    if workers <= 1:
-        for sl in shared.slices:
-            work(sl)
-    else:
         with ThreadPoolExecutor(
             max_workers=workers, thread_name_prefix="conn-timeline-fetch"
         ) as pool:
-            futures = [pool.submit(work, sl) for sl in shared.slices]
+            futures = [pool.submit(work, sl) for sl in shared.slices[1:]]
             errors = [f.exception() for f in futures]
         for exc in errors:
             if exc is not None:
                 raise exc
 
-    return _coverage(shared, single, is_cancelled, deadline_at)
+    return _coverage(shared, is_cancelled)
 
 
-def _coverage(shared: _Shared, single: bool, is_cancelled, deadline_at) -> dict:
+class _RateLimited:
+    """Wraps a client so a FortiAnalyzer "API rate limit" error is waited out and
+    retried a few times instead of failing the whole build."""
+
+    RETRIES = 4
+
+    def __init__(self, client, is_cancelled, deadline_at):
+        self._client = client
+        self._is_cancelled = is_cancelled
+        self._deadline_at = deadline_at
+
+    def __getattr__(self, name):
+        attr = getattr(self._client, name)
+        if not callable(attr):
+            return attr
+
+        def call(*args, **kwargs):
+            for attempt in range(self.RETRIES + 1):
+                try:
+                    return attr(*args, **kwargs)
+                except FAZError as exc:
+                    wait = 2.0 * (attempt + 1)
+                    if (
+                        "rate limit" not in str(exc).lower()
+                        or attempt == self.RETRIES
+                        or self._is_cancelled()
+                        or time.monotonic() + wait >= self._deadline_at
+                    ):
+                        raise
+                    time.sleep(wait)
+
+        return call
+
+
+def _coverage(shared: _Shared, is_cancelled) -> dict:
     slices = shared.slices
-    # A lower bound while some slices never ran or have no count; ``final`` says when exact.
-    counted = [s["matched"] for s in slices if s["matched"] is not None]
-    matched = sum(counted) if counted else None
-    final = all(s["matched_final"] for s in slices)
+    matched = slices[0][
+        "matched"
+    ]  # the whole window's count; the slices after it only share the work
+    final = slices[0]["matched_final"]
     reason = shared.stop
     if reason == "error":
         reason = None
@@ -392,8 +465,6 @@ def _coverage(shared: _Shared, single: bool, is_cancelled, deadline_at) -> dict:
             if s["started"] and not s["reason"]:
                 continue
             frm = s["last_ts"] if s["started"] and s["last_ts"] is not None else s["lo"]
-            if single and s["last_ts"] is None:
-                frm = s["lo"]
             if gaps and gaps[-1][1] >= frm:
                 gaps[-1][1] = s["hi"]
             else:

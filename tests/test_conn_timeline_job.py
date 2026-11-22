@@ -123,7 +123,7 @@ def test_pages_everything_and_cleans_up():
         "reason": None,
         "gaps": [],
         "through": None,
-        "searches": 1,
+        "searches": 2,  # restarted once at the 1,000-row submit limit
     }
     assert timeline.rows == 1234
     assert client.deleted == list(client.tasks)
@@ -172,7 +172,7 @@ def test_incomplete_when_faz_returns_fewer_rows_than_it_counted():
 def test_matched_falls_back_to_total_count_when_count_is_unsupported():
     client = FakeFAZ(_rows(700), count=False)
     cov, _ = _collect(client)
-    assert cov["matched"] == 700 and cov["matched_final"] is False
+    assert cov["matched"] == 700 and cov["matched_final"] is True  # from the fetch itself
     assert cov["complete"] is True
 
 
@@ -310,13 +310,13 @@ def test_parallel_deadline_before_start_is_one_gap_over_the_whole_window():
 
 
 def test_parallel_failure_in_a_worker_is_raised_and_searches_cleaned_up():
-    client = FakeFAZ(_rows(500))
+    client = FakeFAZ(_rows(3000))
     real = client.fetch_log_search
     calls = {"n": 0}
 
     def flaky(tid, offset=0, limit=500):
         calls["n"] += 1
-        if calls["n"] == 3:
+        if calls["n"] == 5:
             raise FAZError("boom")
         return real(tid, offset, limit)
 
@@ -352,3 +352,32 @@ def test_snapshots_are_offered_while_building(monkeypatch):
         on_snapshot=lambda: seen.append(timeline.rows),
     )
     assert len(seen) >= 3 and seen == sorted(seen) and seen[0] < 3000
+
+
+def test_a_small_window_is_one_search_even_with_workers():
+    cov, timeline = _parallel(FakeFAZ(_rows(600)))
+    assert cov["complete"] is True and cov["searches"] == 1 and timeline.rows == 600
+
+
+def test_a_rate_limit_error_is_waited_out_and_retried(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    client = FakeFAZ(_rows(300))
+    real = client.submit_log_search
+    calls = {"n": 0}
+
+    def limited(*a, **k):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise FAZError("Internal error: Reached to API rate limit for user=x")
+        return real(*a, **k)
+
+    client.submit_log_search = limited
+    cov, _ = _collect(client)
+    assert cov["complete"] is True and calls["n"] == 3
+
+
+def test_other_errors_are_not_retried():
+    client = FakeFAZ(_rows(300))
+    client.submit_log_search = lambda *a, **k: (_ for _ in ()).throw(FAZError("bad filter"))
+    with pytest.raises(FAZError):
+        _collect(client)
