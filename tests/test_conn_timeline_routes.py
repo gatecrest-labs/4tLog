@@ -261,3 +261,16 @@ def test_adoms_endpoint_for_the_timeline(app, monkeypatch):
     client, _ = _login(app)
     body = client.get("/api/conn-timeline/adoms?target=Primary").get_json()
     assert body == {"default": "root", "adoms": [{"name": "root", "desc": ""}]}
+
+
+def test_a_lost_session_says_so_instead_of_csrf_failed(app):
+    """A page loaded under a session that has since been replaced (another app on the
+    same host name sharing the cookie name) must be told to log in again."""
+    client, headers = _login(app)
+    with client.session_transaction() as sess:
+        sess.clear()  # what a replaced or expired session cookie looks like
+    resp = client.post(
+        "/api/conn-timeline", json={"target": "Primary", "host": "10.1.1.1"}, headers=headers
+    )
+    assert resp.status_code == 401
+    assert "log in again" in resp.get_json()["error"]

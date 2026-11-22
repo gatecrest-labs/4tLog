@@ -25,6 +25,9 @@
 
 ### Changed
 
+- A page whose session has expired or been replaced (e.g. another app on the same host name
+  sharing the `4tlog_session` cookie) now gets "Your session expired or was replaced. Please log
+  in again." (401) on its API calls, instead of the misleading "CSRF validation failed".
 - Timeline defaults: fetch size 1,000 (the submit limit), row cap 100,000, time limit 120 s.
 - Fewer round trips per search, from measurements on an 8.0.2 lab appliance (every search costs
   about 3 s however small, paging past 1,000 rows only returns empty pages): the build restarts
