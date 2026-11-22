@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Connection Timeline — 4tlog{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Connection Timeline</h2>
+    <span class="text-muted">Where one IP address talked, through which firewalls, and whether it was allowed or denied.</span>
+  </div>
+</div>
+
+<form id="ctForm" class="ct-form" data-default-preset="{{ default_preset }}" data-max-hours="{{ max_window_hours }}">
+  <div class="ct-form-grid">
+    <div class="form-group">
+      <label for="ctTarget">Target</label>
+      <select id="ctTarget" class="form-select"></select>
+    </div>
+    <div class="form-group">
+      <label for="ctHost">IP address</label>
+      <input type="text" id="ctHost" class="form-control" placeholder="10.1.1.5 or 2001:db8::5" autocomplete="off" spellcheck="false" />
+    </div>
+    <div class="form-group">
+      <label for="ctDirection">Direction</label>
+      <select id="ctDirection" class="form-select">
+        <option value="either" selected>Either direction</option>
+        <option value="src">As source</option>
+        <option value="dst">As destination</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="ctPreset">Time window</label>
+      <select id="ctPreset" class="form-select">
+        <option value="15m">Last 15 minutes</option>
+        <option value="1h">Last 1 hour</option>
+        <option value="4h">Last 4 hours</option>
+        <option value="24h">Last 24 hours</option>
+        <option value="7d">Last 7 days</option>
+        <option value="custom">Custom range (up to 7 days)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="ctDevice">Firewall</label>
+      <select id="ctDevice" class="form-select">
+        <option value="All_FortiGate" selected>All FortiGates</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="ctVerdict">Show</label>
+      <select id="ctVerdict" class="form-select">
+        <option value="all" selected>Allowed and denied</option>
+        <option value="allowed">Allowed only</option>
+        <option value="denied">Denied only</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-group ct-custom hidden" id="ctCustomRow">
+    <label for="ctStart">Start</label>
+    <input type="datetime-local" step="1" id="ctStart" class="form-control" />
+    <label for="ctEnd">End</label>
+    <input type="datetime-local" step="1" id="ctEnd" class="form-control" />
+  </div>
+
+  {% if demo_hosts %}
+  <div class="ct-demo-hosts" id="ctDemoHosts">
+    Demo hosts worth a look:
+    {% for h in demo_hosts %}
+    <button type="button" class="btn-link ct-demo-host" data-ip="{{ h.ip }}" data-target="{{ h.target }}" title="{{ h.description }}">{{ h.ip }}</button>
+    <span class="text-muted">({{ h.description }})</span>{% if not loop.last %} &middot; {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div id="ctError" class="alert alert-danger hidden"></div>
+  <div class="ct-actions">
+    <button type="submit" class="btn btn-primary" id="ctBuildBtn">Build timeline</button>
+    <button type="button" class="btn btn-secondary hidden" id="ctCancelBtn">Cancel</button>
+    <span id="ctProgress" class="text-muted"></span>
+  </div>
+</form>
+
+<div id="ctResult" class="hidden">
+  <div class="ct-header" id="ctHeader"></div>
+  <div id="ctCoverage"></div>
+  <div class="ct-filter hidden" id="ctFilter"></div>
+  <div class="ct-layout">
+    <div class="ct-main">
+      <div class="ct-chart" id="ctChart"></div>
+      <div class="ct-legend">
+        <span><span class="ct-swatch ct-allowed"></span> Allowed</span>
+        <span><span class="ct-swatch ct-denied-swatch"></span> Denied</span>
+        <span><span class="ct-swatch ct-other"></span> Other action</span>
+        <span class="text-muted">Click a bar for that slice. Bars are scaled to the busiest cell.</span>
+      </div>
+      <div class="ct-detail hidden" id="ctDetail"></div>
+      <h3 class="ct-section-title">Policies</h3>
+      <div id="ctPolicies"></div>
+    </div>
+    <aside class="ct-side">
+      <h3 class="ct-section-title">Top peers</h3>
+      <div id="ctPeers"></div>
+      <h3 class="ct-section-title">Top ports</h3>
+      <div id="ctPorts"></div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/conn_timeline.js') }}?v=1"></script>
+{% endblock %}

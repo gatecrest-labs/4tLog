@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-11-22
+
+### Added
+
+- **Connection Timeline tab** (`/conn-timeline`, tab key `conn_timeline`): one IP address over a
+  time window (1 hour by default, 7 days at most), drawn as a swim lane per firewall/VDOM with
+  allowed (green), denied (red, hatched) and other actions per time slice, plus top peers, top
+  ports and a per-firewall policy table (ID and name; policy 0 is the implicit deny). Clicking a
+  bar shows that slice's ports, peers and policies and opens Log Search on exactly those logs;
+  clicking a peer or port filters the page without another FortiAnalyzer call. IP addresses
+  only, no hostname lookups.
+- Builds read raw traffic logs (`app/conn_timeline_job.py`): one oldest-first log search, paged
+  500 rows at a time and rolled up into counts as it goes (`app/conn_timeline.py`), at most
+  20,000 rows and about 90 seconds per build. The exact matched total comes from
+  `logsearch/count`, so the page says whether it is complete or partial and greys out the time
+  it didn't reach. If a FortiAnalyzer stops returning rows at the 1,000-row submit limit, the
+  build continues from its last timestamp without counting a row twice. Builds run as
+  background jobs (one per user, two app-wide), owned by the user who started them, and every
+  build is audited under the `conn_timeline` app-log component.
+- `FAZClient.submit_log_search`, `fetch_log_search`, `get_log_search_count` and
+  `delete_log_search`: the log-search steps one at a time, for paging.
+- `scripts/check_faz_paging.py`: a read-only check of how a FortiAnalyzer pages a large log
+  search (count call, offsets past 1,000, fetch size, action values).
+- Demo mode: three featured hosts with a story each (a jump server across two firewalls with a
+  denied SMB burst, a busy DNS server past 1,000 rows an hour, a branch camera denied on its way
+  out), log-search paging, `logsearch/count` and task delete on the synthetic FortiAnalyzer,
+  and the tab for the `branch-analysts` group.
+
+### Changed
+
+- Log Search reads its form from the URL (`target`, `logtype`, `device`, `src`, `dst`, `ports`,
+  `start`, `end`, repeated `filter=field==value`, `run=1`), so other tabs can link to a search;
+  custom ranges take seconds.
+
 ## 2026-11-16
 
 ### Added

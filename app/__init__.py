@@ -11,6 +11,7 @@ _BLUEPRINT_MODULES: list[str] = [
     "app.routes.dashboard_routes",
     "app.routes.sdwan_routes",
     "app.routes.log_search_routes",
+    "app.routes.conn_timeline_routes",
     "app.routes.admin_routes",
     "app.routes.external_api_routes",
 ]

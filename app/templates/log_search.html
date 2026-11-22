@@ -26,9 +26,9 @@
   </div>
   <div class="form-group hidden" id="customTimeRow">
     <label for="startTime">Start</label>
-    <input type="datetime-local" id="startTime" class="form-control" />
+    <input type="datetime-local" step="1" id="startTime" class="form-control" />
     <label for="endTime">End</label>
-    <input type="datetime-local" id="endTime" class="form-control" />
+    <input type="datetime-local" step="1" id="endTime" class="form-control" />
   </div>
 
   <div class="form-group">
@@ -129,5 +129,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/log_search.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/log_search.js') }}?v=5"></script>
 {% endblock %}

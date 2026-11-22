@@ -415,6 +415,15 @@ def test_poll_all_targets_populates_admin_access_fields(targets_file, history_db
         local_time_range=("2026-09-11T08:00:00", "2026-09-11T14:00:00"),
     )
 
+    # Pin the business-hours window: left to the wall clock, the second
+    # admin-logins call is skipped before business hours start (08:00 in
+    # ADMIN_ACCESS_TIMEZONE), and the test fails early each morning.
+    monkeypatch.setattr(
+        cache_mod,
+        "_business_hours_range",
+        lambda client, now: ("2026-09-11T08:00:00", "2026-09-11T14:00:00"),
+    )
+
     cache_mod.poll_all_targets()
 
     cached = cache_mod.get_cached()

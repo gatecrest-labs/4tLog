@@ -1,0 +1,567 @@
+'use strict';
+
+// Connection Timeline. The server sends flows: one count per (lane, bucket,
+// verdict, peer, port, policy), with lookup tables for lanes, peers, ports and
+// policies (see app/conn_timeline.py). Everything on the page is derived from
+// those flows here, so a click on a peer or a port re-filters the whole picture
+// without another FortiAnalyzer call. Hand-drawn SVG, no chart library.
+//
+// Every string from FortiAnalyzer (device names, policy names, addresses) is
+// untrusted and goes through escHtml.
+
+const VERDICTS = ['allowed', 'denied', 'other'];
+const TOP_N = 10;
+const DETAIL_N = 5;
+const MAX_LANES = 40;
+// Log Search's advanced filters are AND'd, so "allowed" is "none of the deny actions".
+const DENY_ACTIONS = ['deny', 'block', 'dropped', 'ip-conn'];
+const REASONS = {
+  cap: 'the row cap',
+  deadline: 'the time limit',
+  cancelled: 'cancel',
+  incomplete: 'FortiAnalyzer returning fewer logs than it counted',
+};
+
+function escHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function fmtCount(n) {
+  return Number(n || 0).toLocaleString('en-US');
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function fmtTime(ms, withDate) {
+  const d = new Date(ms);
+  const t = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  if (!withDate) return t;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${t}`;
+}
+
+function fmtTimeSec(ms) {
+  const d = new Date(ms);
+  return `${fmtTime(ms, true)}:${pad2(d.getSeconds())}`;
+}
+
+function windowLabel(result) {
+  const presets = { '15m': 'last 15m', '1h': 'last 1h', '4h': 'last 4h', '24h': 'last 24h', '7d': 'last 7d' };
+  if (result.preset && presets[result.preset]) return presets[result.preset];
+  return `${fmtTime(Date.parse(result.start), true)} to ${fmtTime(Date.parse(result.end), true)}`;
+}
+
+function emptyCounts() {
+  return { allowed: 0, denied: 0, other: 0, total: 0 };
+}
+
+function addCount(c, verdict, n) {
+  c[VERDICTS[verdict]] += n;
+  c.total += n;
+}
+
+function flowPasses(f, filter) {
+  if (filter && filter.peer != null && f[3] !== filter.peer) return false;
+  if (filter && filter.port != null && f[4] !== filter.port) return false;
+  return true;
+}
+
+function topList(map, n) {
+  return [...map.entries()]
+    .map(([idx, c]) => ({ idx, ...c }))
+    .sort((a, b) => b.total - a.total || a.idx - b.idx)
+    .slice(0, n);
+}
+
+// Everything the panels show, with the peer/port filter applied. The top
+// peers list ignores the peer filter (so the others stay clickable), and the
+// top ports list ignores the port filter, the same way.
+function summarize(result, filter) {
+  const nLanes = result.lanes.length;
+  const nBuckets = result.buckets;
+  const cells = Array.from({ length: nLanes }, () => Array.from({ length: nBuckets }, emptyCounts));
+  const laneTotals = Array.from({ length: nLanes }, emptyCounts);
+  const peers = new Map();
+  const ports = new Map();
+  const policies = new Map();
+  const totals = emptyCounts();
+  for (const f of result.flows) {
+    const [lane, bucket, verdict, peer, port, policy, count] = f;
+    if (filter == null || filter.port == null || port === filter.port) {
+      if (!peers.has(peer)) peers.set(peer, emptyCounts());
+      addCount(peers.get(peer), verdict, count);
+    }
+    if (filter == null || filter.peer == null || peer === filter.peer) {
+      if (!ports.has(port)) ports.set(port, emptyCounts());
+      addCount(ports.get(port), verdict, count);
+    }
+    if (!flowPasses(f, filter)) continue;
+    addCount(cells[lane][bucket], verdict, count);
+    addCount(laneTotals[lane], verdict, count);
+    addCount(totals, verdict, count);
+    if (!policies.has(policy)) policies.set(policy, emptyCounts());
+    addCount(policies.get(policy), verdict, count);
+  }
+  let maxCell = 0;
+  for (const row of cells) for (const c of row) if (c.total > maxCell) maxCell = c.total;
+  return {
+    cells,
+    laneTotals,
+    totals,
+    maxCell,
+    peers: topList(peers, TOP_N).map((p) => ({ ...p, ip: result.peers[p.idx] })),
+    ports: topList(ports, TOP_N).map((p) => ({ ...p, label: result.ports[p.idx].label, service: result.ports[p.idx].service })),
+    policies: topList(policies, Infinity).map((p) => ({ ...p, ...result.policies[p.idx], idx: p.idx })),
+  };
+}
+
+// The busiest lanes first only when there are too many to draw; otherwise
+// lanes keep the server's order (first log seen, a rough hint of path order).
+function visibleLanes(result, summary, showAll) {
+  const all = result.lanes.map((_, i) => i).filter((i) => summary.laneTotals[i].total > 0);
+  if (showAll || all.length <= MAX_LANES) return { lanes: all, hidden: 0 };
+  const busiest = [...all].sort((a, b) => summary.laneTotals[b].total - summary.laneTotals[a].total).slice(0, MAX_LANES);
+  const keep = new Set(busiest);
+  return { lanes: all.filter((i) => keep.has(i)), hidden: all.length - MAX_LANES };
+}
+
+function bucketRange(result, bucket) {
+  const start = Date.parse(result.start) + bucket * result.bucket_seconds * 1000;
+  const end = Math.min(start + result.bucket_seconds * 1000, Date.parse(result.end));
+  return { start, end };
+}
+
+const GEOM = { labelW: 200, chartW: 760, laneH: 34, axisH: 24, barPad: 3 };
+
+function renderChart(result, summary, opts) {
+  const o = opts || {};
+  const { lanes, hidden } = visibleLanes(result, summary, o.showAll);
+  if (lanes.length === 0) {
+    return '<div class="ct-empty">No matching traffic logs in this window.</div>';
+  }
+  const { labelW, chartW, laneH, axisH, barPad } = GEOM;
+  const width = labelW + chartW;
+  const height = lanes.length * laneH + axisH;
+  const cellW = chartW / result.buckets;
+  const max = summary.maxCell || 1;
+  const parts = [];
+  parts.push(`<svg class="ct-svg" viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Connection timeline, one lane per firewall">`);
+  parts.push('<defs><pattern id="ctHatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" class="ct-hatch-line"/></pattern></defs>');
+
+  lanes.forEach((laneIdx, row) => {
+    const lane = result.lanes[laneIdx];
+    const y = row * laneH;
+    const t = summary.laneTotals[laneIdx];
+    parts.push(`<rect class="ct-lane-bg${row % 2 ? ' ct-lane-alt' : ''}" x="0" y="${y}" width="${width}" height="${laneH}"/>`);
+    parts.push(`<text class="ct-lane-label" x="6" y="${y + laneH / 2 - 2}">${escHtml(lane.label)}</text>`);
+    parts.push(`<text class="ct-lane-sub" x="6" y="${y + laneH / 2 + 11}">${fmtCount(t.allowed)} allowed · ${fmtCount(t.denied)} denied</text>`);
+    for (let b = 0; b < result.buckets; b++) {
+      const c = summary.cells[laneIdx][b];
+      if (c.total === 0) continue;
+      const x = labelW + b * cellW;
+      const usable = laneH - 2 * barPad;
+      const hAllowed = (c.allowed / max) * usable;
+      const hDenied = (c.denied / max) * usable;
+      const hOther = (c.other / max) * usable;
+      const bottom = y + laneH - barPad;
+      const w = Math.max(cellW - 1, 1).toFixed(2);
+      const xs = x.toFixed(2);
+      const r = bucketRange(result, b);
+      const tip = `${lane.label}\n${fmtTimeSec(r.start)} to ${fmtTimeSec(r.end)}\n` +
+        `Allowed ${fmtCount(c.allowed)}, denied ${fmtCount(c.denied)}` +
+        (c.other ? `, other ${fmtCount(c.other)}` : '') + (o.topPort ? `\nTop port ${o.topPort(laneIdx, b)}` : '');
+      const sel = o.selected && o.selected.lane === laneIdx && o.selected.bucket === b ? ' ct-selected' : '';
+      parts.push(`<g class="ct-cell${sel}" data-lane="${laneIdx}" data-bucket="${b}"><title>${escHtml(tip)}</title>`);
+      parts.push(`<rect class="ct-hit" x="${xs}" y="${y}" width="${w}" height="${laneH}" data-lane="${laneIdx}" data-bucket="${b}"/>`);
+      let top = bottom;
+      if (hAllowed > 0) {
+        top -= Math.max(hAllowed, 1);
+        parts.push(`<rect class="ct-allowed" x="${xs}" y="${top.toFixed(2)}" width="${w}" height="${Math.max(hAllowed, 1).toFixed(2)}" data-lane="${laneIdx}" data-bucket="${b}" data-verdict="allowed"/>`);
+      }
+      if (hDenied > 0) {
+        const h = Math.max(hDenied, 1);
+        top -= h;
+        parts.push(`<rect class="ct-denied" x="${xs}" y="${top.toFixed(2)}" width="${w}" height="${h.toFixed(2)}" data-lane="${laneIdx}" data-bucket="${b}" data-verdict="denied"/>`);
+        parts.push(`<rect class="ct-denied-hatch" x="${xs}" y="${top.toFixed(2)}" width="${w}" height="${h.toFixed(2)}" fill="url(#ctHatch)" data-lane="${laneIdx}" data-bucket="${b}" data-verdict="denied"/>`);
+      }
+      if (hOther > 0) {
+        const h = Math.max(hOther, 1);
+        top -= h;
+        parts.push(`<rect class="ct-other" x="${xs}" y="${top.toFixed(2)}" width="${w}" height="${h.toFixed(2)}" data-lane="${laneIdx}" data-bucket="${b}" data-verdict="other"/>`);
+      }
+      parts.push('</g>');
+    }
+  });
+
+  const cov = result.coverage || {};
+  if (!cov.complete && cov.through) {
+    const through = Date.parse(cov.through);
+    const startMs = Date.parse(result.start);
+    const frac = (through - startMs) / (Date.parse(result.end) - startMs);
+    if (frac < 1) {
+      const x = labelW + Math.max(frac, 0) * chartW;
+      parts.push(`<rect class="ct-not-fetched" x="${x.toFixed(2)}" y="0" width="${(labelW + chartW - x).toFixed(2)}" height="${lanes.length * laneH}"><title>Not fetched: after ${escHtml(fmtTimeSec(through))}</title></rect>`);
+    }
+  }
+
+  const axisY = lanes.length * laneH;
+  const span = Date.parse(result.end) - Date.parse(result.start);
+  const withDate = span > 24 * 3600 * 1000;
+  const ticks = 6;
+  for (let i = 0; i <= ticks; i++) {
+    const x = labelW + (i / ticks) * chartW;
+    const ms = Date.parse(result.start) + (i / ticks) * span;
+    const anchor = i === 0 ? 'start' : i === ticks ? 'end' : 'middle';
+    parts.push(`<line class="ct-tick" x1="${x.toFixed(2)}" y1="0" x2="${x.toFixed(2)}" y2="${axisY + 4}"/>`);
+    parts.push(`<text class="ct-axis" x="${x.toFixed(2)}" y="${axisY + 17}" text-anchor="${anchor}">${escHtml(fmtTime(ms, withDate))}</text>`);
+  }
+  parts.push('</svg>');
+  if (hidden > 0) {
+    parts.push(`<div class="ct-more">${fmtCount(hidden)} quieter firewall(s) not drawn. <button type="button" class="btn-link" id="ctShowAll">Show all</button></div>`);
+  }
+  return parts.join('');
+}
+
+function renderHeader(result) {
+  return `<strong>${escHtml(result.host)}</strong> · ${escHtml(result.direction_label)} · ${escHtml(windowLabel(result))}` +
+    ` <span class="text-muted">on ${escHtml(result.target)}` +
+    (result.device && result.device !== 'All_FortiGate' ? `, firewall ${escHtml(result.device)}` : '') +
+    (result.verdict_filter && result.verdict_filter !== 'all' ? `, ${escHtml(result.verdict_filter)} only` : '') +
+    '</span>';
+}
+
+function renderCoverage(result) {
+  const cov = result.coverage || {};
+  const matched = cov.matched;
+  if (cov.complete) {
+    const n = matched != null ? matched : cov.fetched;
+    return `<div class="ct-coverage ct-coverage-ok">Complete: built from all ${fmtCount(n)} matched log(s).</div>`;
+  }
+  const of = matched != null ? ` of ${fmtCount(matched)}${cov.matched_final ? '' : '+'} matched` : '';
+  const through = cov.through ? ` (through ${escHtml(fmtTimeSec(Date.parse(cov.through)))})` : '';
+  const why = REASONS[cov.reason] || 'a limit';
+  return `<div class="ct-coverage alert alert-warning">Partial: built from the first ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
+    'Time after that is greyed out. Narrow the window, pick one firewall, or show allowed or denied only to see all of it.</div>';
+}
+
+function renderFilter(result, filter) {
+  const parts = [];
+  if (filter.peer != null) parts.push(`peer <strong>${escHtml(result.peers[filter.peer])}</strong>`);
+  if (filter.port != null) parts.push(`port <strong>${escHtml(result.ports[filter.port].label)}</strong>`);
+  if (!parts.length) return '';
+  return `Showing only ${parts.join(' and ')}. <button type="button" class="btn-link" id="ctClearFilter">Show everything</button>`;
+}
+
+function countCells(c) {
+  return `<td class="ct-num">${fmtCount(c.allowed)}</td><td class="ct-num ct-num-denied">${fmtCount(c.denied)}</td>`;
+}
+
+function renderTopTable(items, kind, activeIdx) {
+  if (!items.length) return '<div class="text-muted">None</div>';
+  const rows = items.map((it) => {
+    const text = kind === 'peer'
+      ? escHtml(it.ip)
+      : escHtml(it.label) + (it.service ? ` <span class="text-muted">${escHtml(it.service)}</span>` : '');
+    const active = activeIdx === it.idx ? ' ct-active' : '';
+    return `<tr class="ct-pick${active}" data-kind="${kind}" data-idx="${it.idx}"><td>${text}</td>${countCells(it)}</tr>`;
+  }).join('');
+  return `<table class="data-table ct-table"><thead><tr><th>${kind === 'peer' ? 'Peer IP' : 'Port'}</th><th>Allowed</th><th>Denied</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderPolicies(result, summary) {
+  if (!summary.policies.length) return '<div class="text-muted">None</div>';
+  const rows = summary.policies.map((p) => `<tr><td>${escHtml(result.lanes[p.lane].label)}</td>` +
+    `<td>${escHtml(p.policyid || '—')}</td><td>${escHtml(p.label)}</td>${countCells(p)}</tr>`).join('');
+  return `<div class="table-scroll"><table class="data-table ct-table"><thead><tr><th>Firewall</th><th>Policy ID</th><th>Policy</th><th>Allowed</th><th>Denied</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// One firewall and bucket: counts, top ports, peers and policies, all from
+// the flows already on the page (no new FortiAnalyzer call).
+function cellDetail(result, filter, lane, bucket, verdict) {
+  const counts = emptyCounts();
+  const ports = new Map();
+  const peers = new Map();
+  const policies = new Map();
+  const want = verdict ? VERDICTS.indexOf(verdict) : -1;
+  for (const f of result.flows) {
+    if (f[0] !== lane || f[1] !== bucket || !flowPasses(f, filter)) continue;
+    if (want >= 0 && f[2] !== want) continue;
+    addCount(counts, f[2], f[6]);
+    for (const [map, idx] of [[ports, f[4]], [peers, f[3]], [policies, f[5]]]) {
+      if (!map.has(idx)) map.set(idx, emptyCounts());
+      addCount(map.get(idx), f[2], f[6]);
+    }
+  }
+  return {
+    counts,
+    ports: topList(ports, DETAIL_N).map((p) => ({ ...p, label: result.ports[p.idx].label })),
+    peers: topList(peers, DETAIL_N).map((p) => ({ ...p, label: result.peers[p.idx] })),
+    policies: topList(policies, DETAIL_N).map((p) => ({ ...p, label: result.policies[p.idx].label })),
+  };
+}
+
+function topPortOf(result, filter, lane, bucket) {
+  const d = cellDetail(result, filter, lane, bucket, null);
+  return d.ports.length ? d.ports[0].label : '—';
+}
+
+function logSearchPortValue(port) {
+  if ((port.proto === 'tcp' || port.proto === 'udp') && /^\d+$/.test(port.port) && port.port !== '0') {
+    return `${port.proto}:${port.port}`;
+  }
+  return port.service || '';
+}
+
+// Links into Log Search for one slice. Log Search ANDs its source and
+// destination boxes, so "either direction" needs two links.
+function logSearchLinks(result, lane, bucket, verdict, filter) {
+  const r = bucketRange(result, bucket);
+  const laneMeta = result.lanes[lane];
+  const peer = filter && filter.peer != null ? result.peers[filter.peer] : '';
+  const port = filter && filter.port != null ? logSearchPortValue(result.ports[filter.port]) : '';
+  const sides = result.direction === 'either' ? ['src', 'dst'] : [result.direction];
+  return sides.map((side) => {
+    const p = new URLSearchParams();
+    p.set('target', result.target);
+    p.set('logtype', 'traffic');
+    p.set('device', laneMeta.devid || 'All_FortiGate');
+    p.set('start', new Date(r.start).toISOString());
+    p.set('end', new Date(r.end).toISOString());
+    if (side === 'src') {
+      p.set('src', result.host);
+      if (peer) p.set('dst', peer);
+    } else {
+      p.set('dst', result.host);
+      if (peer) p.set('src', peer);
+    }
+    if (port) p.set('ports', port);
+    if (verdict === 'denied') p.append('filter', 'action==deny');
+    if (verdict === 'allowed') DENY_ACTIONS.forEach((a) => p.append('filter', `action!=${a}`));
+    p.set('run', '1');
+    const label = sides.length > 1 ? `Open in Log Search (${side === 'src' ? 'as source' : 'as destination'})` : 'Open in Log Search';
+    return { label, href: `/log-search?${p.toString()}` };
+  });
+}
+
+function renderDetail(result, filter, sel) {
+  const lane = result.lanes[sel.lane];
+  const r = bucketRange(result, sel.bucket);
+  const d = cellDetail(result, filter, sel.lane, sel.bucket, sel.verdict);
+  const list = (items) => items.length
+    ? `<ul>${items.map((i) => `<li>${escHtml(i.label)} <span class="text-muted">${fmtCount(i.total)}</span></li>`).join('')}</ul>`
+    : '<div class="text-muted">None</div>';
+  const links = logSearchLinks(result, sel.lane, sel.bucket, sel.verdict, filter)
+    .map((l) => `<a class="btn btn-sm btn-secondary" href="${escHtml(l.href)}">${escHtml(l.label)}</a>`).join(' ');
+  const which = sel.verdict ? `${escHtml(sel.verdict)} only` : 'all actions';
+  return `<div class="ct-detail-head"><strong>${escHtml(lane.label)}</strong> · ${escHtml(fmtTimeSec(r.start))} to ${escHtml(fmtTimeSec(r.end))} · ${which}` +
+    ' <button type="button" class="btn-link" id="ctCloseDetail">Close</button></div>' +
+    `<div class="ct-detail-counts">Allowed ${fmtCount(d.counts.allowed)} · Denied ${fmtCount(d.counts.denied)}` +
+    (d.counts.other ? ` · Other ${fmtCount(d.counts.other)}` : '') + '</div>' +
+    `<div class="ct-detail-grid"><div><h4>Ports</h4>${list(d.ports)}</div><div><h4>Peers</h4>${list(d.peers)}</div><div><h4>Policies</h4>${list(d.policies)}</div></div>` +
+    `<div class="ct-detail-links">${links}</div>`;
+}
+
+// ── Page controller ──────────────────────────────────────────────────────────
+
+function initPage() {
+  const $ = (id) => document.getElementById(id);
+  const form = $('ctForm');
+  const state = { result: null, filter: { peer: null, port: null }, selected: null, showAll: false, jobId: null, timer: null };
+
+  function showError(msg) {
+    const box = $('ctError');
+    box.textContent = msg;
+    box.classList.toggle('hidden', !msg);
+  }
+
+  async function loadDevices() {
+    const select = $('ctDevice');
+    const allOption = '<option value="All_FortiGate" selected>All FortiGates</option>';
+    const target = $('ctTarget').value;
+    select.innerHTML = allOption;
+    if (!target) return;
+    try {
+      const resp = await fetch(`/api/conn-timeline/devices?target=${encodeURIComponent(target)}`);
+      const devices = resp.ok ? await resp.json() : [];
+      if (Array.isArray(devices)) {
+        select.innerHTML = allOption + devices.map((d) => `<option value="${escHtml(d.devid)}">${escHtml(d.name || d.devid)}</option>`).join('');
+      }
+    } catch {
+      // keep "All FortiGates"
+    }
+  }
+
+  async function loadTargets() {
+    const select = $('ctTarget');
+    try {
+      const resp = await fetch('/api/conn-timeline/targets');
+      if (resp.status === 401) { location.href = '/login'; return; }
+      const targets = await resp.json();
+      select.innerHTML = targets.map((t) => `<option value="${escHtml(t.label)}">${escHtml(t.label)} (${escHtml(t.host)})</option>`).join('');
+      await loadDevices();
+    } catch {
+      select.innerHTML = '<option value="">(unable to load targets)</option>';
+    }
+  }
+
+  function render() {
+    const result = state.result;
+    if (!result) return;
+    const summary = summarize(result, state.filter);
+    $('ctResult').classList.remove('hidden');
+    $('ctHeader').innerHTML = renderHeader(result);
+    $('ctCoverage').innerHTML = renderCoverage(result);
+    const filterHtml = renderFilter(result, state.filter);
+    $('ctFilter').innerHTML = filterHtml;
+    $('ctFilter').classList.toggle('hidden', !filterHtml);
+    $('ctChart').innerHTML = renderChart(result, summary, {
+      showAll: state.showAll,
+      selected: state.selected,
+      topPort: (lane, bucket) => topPortOf(result, state.filter, lane, bucket),
+    });
+    $('ctPeers').innerHTML = renderTopTable(summary.peers, 'peer', state.filter.peer);
+    $('ctPorts').innerHTML = renderTopTable(summary.ports, 'port', state.filter.port);
+    $('ctPolicies').innerHTML = renderPolicies(result, summary);
+    const detail = $('ctDetail');
+    if (state.selected) {
+      detail.innerHTML = renderDetail(result, state.filter, state.selected);
+      detail.classList.remove('hidden');
+    } else {
+      detail.classList.add('hidden');
+    }
+  }
+
+  function setBusy(busy, text) {
+    $('ctBuildBtn').disabled = busy;
+    $('ctCancelBtn').classList.toggle('hidden', !busy);
+    $('ctProgress').textContent = text || '';
+  }
+
+  function progressText(p) {
+    if (!p) return 'Starting…';
+    const matched = p.matched != null ? ` of ${fmtCount(p.matched)}${p.matched_final ? '' : '+'} matched` : '';
+    if (p.phase === 'counting') return `Fetched ${fmtCount(p.fetched)}${matched} logs, reading the final count…`;
+    if (p.fetched) return `Fetched ${fmtCount(p.fetched)}${matched} logs…`;
+    return 'Searching FortiAnalyzer…';
+  }
+
+  async function poll() {
+    if (!state.jobId) return;
+    try {
+      const resp = await fetch(`/api/conn-timeline/${encodeURIComponent(state.jobId)}`);
+      const body = await resp.json();
+      if (!resp.ok) throw new Error(body.error || 'Timeline lookup failed.');
+      if (body.status === 'running') {
+        setBusy(true, progressText(body.progress));
+        state.timer = setTimeout(poll, 1000);
+        return;
+      }
+      state.jobId = null;
+      setBusy(false, '');
+      if (body.status === 'failed') { showError(body.error || 'Timeline failed.'); return; }
+      if (body.result) {
+        state.result = body.result;
+        state.filter = { peer: null, port: null };
+        state.selected = null;
+        state.showAll = false;
+        render();
+      }
+      if (body.status === 'cancelled') $('ctProgress').textContent = 'Cancelled. Showing what was fetched.';
+    } catch (exc) {
+      state.jobId = null;
+      setBusy(false, '');
+      showError(exc.message || 'Timeline failed.');
+    }
+  }
+
+  function windowPayload() {
+    const preset = $('ctPreset').value;
+    if (preset !== 'custom') return { preset };
+    const s = $('ctStart').value;
+    const e = $('ctEnd').value;
+    return {
+      start_time: s ? new Date(s).toISOString() : '',
+      end_time: e ? new Date(e).toISOString() : '',
+    };
+  }
+
+  async function build(ev) {
+    ev.preventDefault();
+    showError('');
+    if (state.jobId) return;
+    const payload = {
+      target: $('ctTarget').value,
+      host: $('ctHost').value.trim(),
+      direction: $('ctDirection').value,
+      device: $('ctDevice').value,
+      verdict: $('ctVerdict').value,
+      ...windowPayload(),
+    };
+    setBusy(true, 'Starting…');
+    try {
+      const resp = await fetch('/api/conn-timeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await resp.json();
+      if (!resp.ok) { setBusy(false, ''); showError(body.error || 'Could not start the timeline.'); return; }
+      state.jobId = body.job_id;
+      poll();
+    } catch {
+      setBusy(false, '');
+      showError('Could not start the timeline. Please try again.');
+    }
+  }
+
+  async function cancel() {
+    if (!state.jobId) return;
+    try {
+      await fetch(`/api/conn-timeline/${encodeURIComponent(state.jobId)}`, { method: 'DELETE' });
+    } catch {
+      // the next poll reports the outcome
+    }
+  }
+
+  function onClick(ev) {
+    const el = ev.target;
+    if (el.id === 'ctShowAll') { state.showAll = true; render(); return; }
+    if (el.id === 'ctClearFilter') { state.filter = { peer: null, port: null }; state.selected = null; render(); return; }
+    if (el.id === 'ctCloseDetail') { state.selected = null; render(); return; }
+    const pick = el.closest && el.closest('.ct-pick');
+    if (pick) {
+      const kind = pick.dataset.kind;
+      const idx = Number(pick.dataset.idx);
+      state.filter[kind] = state.filter[kind] === idx ? null : idx;
+      state.selected = null;
+      render();
+      return;
+    }
+    if (el.dataset && el.dataset.lane != null && el.dataset.bucket != null) {
+      state.selected = { lane: Number(el.dataset.lane), bucket: Number(el.dataset.bucket), verdict: el.dataset.verdict || null };
+      render();
+      $('ctDetail').scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  const presetSelect = $('ctPreset');
+  presetSelect.value = form.dataset.defaultPreset || '1h';
+  presetSelect.addEventListener('change', () => $('ctCustomRow').classList.toggle('hidden', presetSelect.value !== 'custom'));
+  $('ctTarget').addEventListener('change', loadDevices);
+  form.addEventListener('submit', build);
+  $('ctCancelBtn').addEventListener('click', cancel);
+  $('ctResult').addEventListener('click', onClick);
+  document.querySelectorAll('.ct-demo-host').forEach((btn) => btn.addEventListener('click', async () => {
+    $('ctHost').value = btn.dataset.ip;
+    if ($('ctTarget').value !== btn.dataset.target) {
+      $('ctTarget').value = btn.dataset.target;
+      await loadDevices();
+    }
+  }));
+  loadTargets();
+}
+
+if (typeof document !== 'undefined' && document.getElementById('ctForm')) {
+  initPage();
+}

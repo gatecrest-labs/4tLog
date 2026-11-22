@@ -2,7 +2,7 @@
   "branch-analysts": {
     "members": ["demo-analyst"],
     "ad_groups": [],
-    "allowed_tabs": ["dashboard", "sdwan", "log_search"],
+    "allowed_tabs": ["dashboard", "sdwan", "log_search", "conn_timeline"],
     "adom_restrict": true,
     "allowed_adoms": ["Gatecrest Branches"]
   }
