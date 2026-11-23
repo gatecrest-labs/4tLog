@@ -9,11 +9,33 @@ from tests.test_conn_timeline_job import FakeFAZ, _rows
 
 
 class _CtxFAZ(FakeFAZ):
+    adom = "root"
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fv_calls = []  # one dict per FortiView run
+        self.fv_errors = {}  # view -> exception to raise
+
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
         return False
+
+    def run_fortiview_page(self, adom, view, time_range, *, filter=None, devices=None, **kw):
+        from app.faz_client import FAZError  # noqa: F401  (tests raise it via fv_errors)
+
+        self.fv_calls.append(
+            {"view": view, "filter": filter, "devices": devices, "time_range": time_range}
+        )
+        if view in self.fv_errors:
+            raise self.fv_errors[view]
+        rows = {
+            "top-destinations": [
+                {"dstip": "192.0.2.1", "session_pass": "7", "session_block": "1", "sessions": "8"}
+            ],
+        }.get(view, [])
+        return rows, len(rows)
 
 
 @pytest.fixture
@@ -340,3 +362,117 @@ def test_continue_needs_csrf(app, faz, monkeypatch):
     client, headers = _login(app)
     job_id, _ = _partial_job(client, headers, monkeypatch)
     assert client.post(f"/api/conn-timeline/{job_id}/continue").status_code in (400, 403)
+
+
+# ── Quick summary endpoint ───────────────────────────────────────────────────
+
+
+def _summary(client, headers, **payload):
+    body = {"target": "Primary", "host": "10.10.10.53", "section": "peers"}
+    body.update(payload)
+    return client.post("/api/conn-timeline/summary", json=body, headers=headers)
+
+
+def test_summary_returns_a_section_with_units_and_seconds(app, faz):
+    client, headers = _login(app)
+    resp = _summary(client, headers)
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["section"] == "peers" and body["units"] == "sessions"
+    assert isinstance(body["seconds"], (int, float))
+    assert body["rows"][0]["peer"] == "192.0.2.1" and body["rows"][0]["sessions"] == 8
+
+
+def test_summary_defaults_to_either_direction_all_firewalls_and_one_hour(app, faz):
+    client, headers = _login(app)
+    _summary(client, headers)
+    assert {c["filter"] for c in faz.fv_calls} == {"srcip==10.10.10.53", "dstip==10.10.10.53"}
+    assert all(c["devices"] == [{"devid": "All_FortiGate"}] for c in faz.fv_calls)
+    start, end = faz.fv_calls[0]["time_range"]
+    delta = datetime.datetime.fromisoformat(end) - datetime.datetime.fromisoformat(start)
+    assert delta == datetime.timedelta(hours=1)
+
+
+def test_summary_passes_the_chosen_firewall_and_direction(app, faz):
+    client, headers = _login(app)
+    _summary(client, headers, direction="src", device="FGT0000000001", section="policies")
+    assert [(c["view"], c["filter"]) for c in faz.fv_calls] == [
+        ("policy-hits", "srcip==10.10.10.53")
+    ]
+    assert faz.fv_calls[0]["devices"] == [{"devid": "FGT0000000001"}]
+
+
+@pytest.mark.parametrize(
+    "payload,message",
+    [
+        ({"section": "ports"}, "section"),
+        ({"host": "web01.example.com"}, "Enter an IP address"),
+        ({"direction": "sideways"}, "Unknown direction"),
+        ({"preset": "30d"}, "Unknown time preset"),
+    ],
+)
+def test_summary_rejects_an_unknown_section_and_bad_input(app, faz, payload, message):
+    client, headers = _login(app)
+    resp = _summary(client, headers, **payload)
+    assert resp.status_code == 400 and message in resp.get_json()["error"]
+    assert faz.fv_calls == []
+
+
+def test_summary_unknown_target_is_404(app, faz):
+    client, headers = _login(app)
+    assert _summary(client, headers, target="Nope").status_code == 404
+
+
+def test_summary_for_an_unavailable_view_is_a_200_with_unavailable(app, faz):
+    from app.faz_client import FAZError
+
+    faz.fv_errors["top-applications"] = FAZError("Cannot find FortiView 'top-applications'")
+    client, headers = _login(app)
+    resp = _summary(client, headers, section="applications")
+    assert resp.status_code == 200 and "unavailable" in resp.get_json()
+    assert _summary(client, headers, section="peers").get_json()["rows"]  # others unaffected
+
+
+def test_summary_faz_error_is_a_502(app, faz):
+    from app.faz_client import FAZError
+
+    faz.fv_errors["policy-hits"] = FAZError("Internal error")
+    client, headers = _login(app)
+    resp = _summary(client, headers, section="policies")
+    assert resp.status_code == 502 and "Internal error" in resp.get_json()["error"]
+
+
+def test_restricted_user_cannot_summarize_another_target(app, faz):
+    client, headers = _login(app, "carol")
+    assert _summary(client, headers, target="Primary").status_code == 403
+    assert faz.fv_calls == []
+
+
+def test_summary_needs_csrf(app, faz):
+    client, _ = _login(app)
+    resp = client.post(
+        "/api/conn-timeline/summary",
+        json={"target": "Primary", "host": "10.1.1.5", "section": "peers"},
+    )
+    assert resp.status_code in (400, 403)
+
+
+def test_summary_is_audited(app, faz):
+    from app.app_logger import clear_log_entries, get_log_entries
+
+    clear_log_entries()
+    client, headers = _login(app)
+    _summary(client, headers, section="countries")
+    entry = get_log_entries(component="conn_timeline")[-1]
+    assert entry["message"] == "Timeline summary"
+    assert entry["extra"]["by"] == "alice" and entry["extra"]["section"] == "countries"
+    assert entry["extra"]["host"] == "10.10.10.53" and "seconds" in entry["extra"]
+
+
+def test_summary_is_refused_over_the_concurrency_limit(app, faz, monkeypatch):
+    import app.routes.conn_timeline_routes as routes
+
+    monkeypatch.setattr(routes.Config, "CONN_TIMELINE_SUMMARY_MAX_CONCURRENT", 0)
+    client, headers = _login(app)
+    resp = _summary(client, headers)
+    assert resp.status_code == 429 and faz.fv_calls == []

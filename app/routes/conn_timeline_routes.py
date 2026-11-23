@@ -37,6 +37,7 @@ from app.conn_timeline import (
     parse_window,
 )
 from app.conn_timeline_job import STORE, JobLimitError, collect, continue_collect
+from app.conn_timeline_summary import SECTIONS, summarize
 from app.decorators import check_adom_access, tab_required
 from app.faz_client import FAZClient, FAZError, summarize_connection_error
 from app.faz_targets import get_target, list_targets
@@ -48,6 +49,8 @@ registry.register("conn_timeline", "Connection Timeline", "conn_timeline.index")
 
 COMPONENT = "conn_timeline"
 _CONTINUE_LOCK = threading.Lock()
+_SUMMARY_LOCK = threading.Lock()
+_summaries_running = 0
 
 
 def _client_for(target: dict) -> FAZClient:
@@ -390,6 +393,97 @@ def api_build():
     )
     conn_timeline_job.spawn(lambda: _run_build(job, target, spec))
     return jsonify({"job_id": job.id, "status": job.status}), 202
+
+
+@bp.route("/api/conn-timeline/summary", methods=["POST"])
+@tab_required("conn_timeline")
+def api_summary():
+    """One section of the Quick summary: what FortiView says about one IP, in seconds.
+
+    Stateless: the page asks for each section separately and shows them as they arrive."""
+    global _summaries_running
+    data = request.get_json(silent=True) or {}
+    user = session["user"]
+    target_label = str(data.get("target", ""))
+    err = check_adom_access(target_label)
+    if err is not None:
+        app_log(
+            "WARN",
+            COMPONENT,
+            "Summary denied: ADOM access not permitted",
+            by=user,
+            target=target_label,
+        )
+        return err
+    target = get_target(target_label)
+    if target is None:
+        return jsonify({"error": f"Target '{target_label}' not found"}), 404
+    try:
+        adom = parse_adom(data.get("adom"), target)
+        target = with_adom(target, adom)
+        host = parse_host(data.get("host"))
+        direction = str(data.get("direction") or "either")
+        if direction not in DIRECTIONS:
+            raise TimelineInputError(f"Unknown direction '{direction}'")
+        device = parse_device(data.get("device"))
+        start, end, _preset = parse_window(
+            data, Config.CONN_TIMELINE_MAX_WINDOW_HOURS, Config.CONN_TIMELINE_DEFAULT_WINDOW
+        )
+        section = str(data.get("section") or "")
+        if section not in SECTIONS:
+            raise TimelineInputError(f"Unknown summary section '{section}'")
+    except (TimelineInputError, AdomError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    with _SUMMARY_LOCK:
+        if _summaries_running >= Config.CONN_TIMELINE_SUMMARY_MAX_CONCURRENT:
+            return jsonify({"error": "Too many summaries are running. Try again shortly."}), 429
+        _summaries_running += 1
+    began = time.monotonic()
+    try:
+        with _client_for(target) as client:
+            time_range = client.local_time_range(_iso(start), _iso(end))
+            result = summarize(
+                client, section, str(host), direction, time_range, [{"devid": device}]
+            )
+    except FAZError as exc:
+        app_log(
+            "WARN",
+            COMPONENT,
+            "Summary failed: FortiAnalyzer error",
+            by=user,
+            section=section,
+            error=str(exc),
+        )
+        return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        message = summarize_connection_error(exc)
+        app_log(
+            "WARN",
+            COMPONENT,
+            "Summary failed: connection error",
+            by=user,
+            section=section,
+            error=message,
+        )
+        return jsonify({"error": message}), 502
+    finally:
+        with _SUMMARY_LOCK:
+            _summaries_running -= 1
+    seconds = round(time.monotonic() - began, 1)
+    app_log(
+        "INFO",
+        COMPONENT,
+        "Timeline summary",
+        by=user,
+        target=target_label,
+        adom=adom,
+        host=str(host),
+        direction=direction,
+        section=section,
+        seconds=seconds,
+    )
+    return jsonify({**result, "section": section, "units": "sessions", "seconds": seconds})
 
 
 @bp.route("/api/conn-timeline/<job_id>/continue", methods=["POST"])
