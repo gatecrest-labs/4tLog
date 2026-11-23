@@ -15,6 +15,18 @@
 - A parallel build that took over from the first search inside a busy second could count rows
   of that second twice after a restart; it keeps the first search's rows counted.
 
+### Changed
+
+- **A burst is read in parallel, and the time limit grows with the work.** The parts of a split
+  second are searched by up to `CONN_TIMELINE_WORKERS` threads, each with its own connection
+  (the lab's 11,326-log hour took 113 s one search at a time). The build's time limit now
+  starts at `CONN_TIMELINE_DEADLINE_SECS` and, once the matched total is known, grows to
+  `CONN_TIMELINE_DEADLINE_SECS_PER_1K` (10) seconds per 1,000 matched logs, up to
+  `CONN_TIMELINE_DEADLINE_MAX_SECS` (1200), so a window of 100,000 logs is not cut off at 120 s.
+  On the lab FortiAnalyzer (a UTM VM) a search costs 2-7 s however small and concurrent searches
+  slow each other down, so the parallel split gained little there (86 s against 94 s for a
+  7,249-log burst); a faster appliance should gain more.
+
 ### Added
 
 - **Build diagnostics** for the Connection Timeline, to find out why a build says "built from X of

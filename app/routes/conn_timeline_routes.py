@@ -220,6 +220,8 @@ def _run_build(job, target: dict, spec: dict) -> None:
                 max_rows=Config.CONN_TIMELINE_MAX_ROWS,
                 page_size=Config.CONN_TIMELINE_PAGE_SIZE,
                 deadline_at=deadline_at,
+                deadline_per_1k=Config.CONN_TIMELINE_DEADLINE_SECS_PER_1K or None,
+                deadline_max=Config.CONN_TIMELINE_DEADLINE_MAX_SECS,
                 poll_interval=Config.LOG_SEARCH_POLL_INTERVAL,
                 on_progress=job.update,
                 is_cancelled=job.is_cancelled,

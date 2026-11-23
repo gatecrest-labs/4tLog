@@ -3,6 +3,7 @@
 import datetime
 import itertools
 import re
+import threading
 
 import pytest
 
@@ -547,3 +548,69 @@ def test_a_burst_that_has_no_split_fields_is_reported_not_hidden():
     cov, _ = _collect(BurstFAZ(_with_burst(bare)))
     assert cov["complete"] is False and cov["reason"] == "burst"
     assert cov["diagnostics"]["burst_unreached"] == 500
+
+
+# ── Big bursts: parallel splitting and a deadline that grows with the work ────
+
+
+class ThreadedBurstFAZ(BurstFAZ):
+    """A BurstFAZ that notes which threads ran its range-filtered searches."""
+
+    def __init__(self, rows, **kw):
+        super().__init__(rows, **kw)
+        self.split_threads = []
+        self.fail_on = None  # fail the Nth range-filtered search
+
+    def submit_log_search(self, logtype, device, filt, *a, **k):
+        if "sessionid" in filt or "srcport" in filt:
+            self.split_threads.append(threading.current_thread().name)
+            if self.fail_on is not None and len(self.split_threads) >= self.fail_on:
+                raise FAZError("boom")
+        return super().submit_log_search(logtype, device, filt, *a, **k)
+
+
+def test_a_big_burst_is_split_by_several_threads():
+    rows = _with_burst(_burst(9000, BURST_AT))
+    client = ThreadedBurstFAZ(rows)
+    cov, timeline = _parallel(client)
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 9600
+    assert any(n.startswith("conn-timeline-split") for n in client.split_threads)
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_one_worker_splits_a_burst_on_its_own_thread():
+    client = ThreadedBurstFAZ(_with_burst(_burst(5000, BURST_AT)))
+    cov, _ = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == 5600
+    assert not any(n.startswith("conn-timeline-split") for n in client.split_threads)
+
+
+def test_a_failing_split_search_is_raised_and_every_search_cleaned_up():
+    client = ThreadedBurstFAZ(_with_burst(_burst(9000, BURST_AT)))
+    client.fail_on = 4
+    with pytest.raises(FAZError, match="boom"):
+        _parallel(client)
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_the_deadline_grows_with_the_matched_count(monkeypatch):
+    from app.conn_timeline_job import _Shared
+
+    shared = _Shared(
+        None, 1000, None, None, deadline_at=220.0, started=100.0, per_1k=6, max_secs=900
+    )
+    shared.note_matched(5000)  # 30s of work: the 120s base stands
+    assert shared.deadline_at == 220.0
+    shared.note_matched(50000)  # 300s
+    assert shared.deadline_at == 400.0
+    shared.note_matched(10**7)  # capped at 900s
+    assert shared.deadline_at == 1000.0
+    shared.note_matched(1000)  # never shrinks
+    assert shared.deadline_at == 1000.0
+
+
+def test_a_build_given_more_time_for_a_big_window_finishes(monkeypatch):
+    clock = itertools.count(0, 1.0)
+    monkeypatch.setattr("time.monotonic", lambda: next(clock))
+    cov, _ = _collect(FakeFAZ(_rows(3000)), deadline_at=4, deadline_per_1k=100, deadline_max=10**6)
+    assert cov["complete"] is True and cov["fetched"] == 3000

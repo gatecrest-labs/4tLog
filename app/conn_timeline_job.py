@@ -24,6 +24,7 @@ timeline complete whether or not ``offset`` pages past the submit limit, which
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import datetime
 import secrets
@@ -76,7 +77,18 @@ class _Shared:
     """State common to the slices of one build: the lock that serialises
     rolling rows into the timeline, the row total, and the reason to stop."""
 
-    def __init__(self, timeline, max_rows, on_progress, on_snapshot):
+    def __init__(
+        self,
+        timeline,
+        max_rows,
+        on_progress,
+        on_snapshot,
+        *,
+        deadline_at: float = float("inf"),
+        started: float = 0.0,
+        per_1k: float | None = None,
+        max_secs: float | None = None,
+    ):
         self.timeline = timeline
         self.max_rows = max_rows
         self.on_progress = on_progress
@@ -87,6 +99,25 @@ class _Shared:
         self.slices: list[dict] = []
         self.burst_gaps: list[tuple[int, int]] = []  # seconds whose rows could not all be read
         self.last_snapshot = time.monotonic()
+        # The time limit. It starts at ``deadline_at`` and, once the matched total is
+        # known, grows to ``per_1k`` seconds per 1,000 matched logs (at most ``max_secs``
+        # from ``started``): a window of 100,000 logs can't be read in the time
+        # that suits a small one. It never shrinks.
+        self.deadline_at = deadline_at
+        self.started = started
+        self.base_secs = deadline_at - started
+        self.per_1k = per_1k
+        self.max_secs = max_secs
+        self._deadline_lock = threading.Lock()
+
+    def note_matched(self, matched: int | None) -> None:
+        if not self.per_1k or matched is None:
+            return
+        budget = self.per_1k * matched / 1000
+        if self.max_secs is not None:
+            budget = min(budget, self.max_secs)
+        with self._deadline_lock:
+            self.deadline_at = max(self.deadline_at, self.started + max(self.base_secs, budget))
 
     def set_stop(self, reason: str) -> None:
         with self.lock:
@@ -172,10 +203,11 @@ def _run_slice(
     filter_expression,
     end_ts: int,
     page_size,
-    deadline_at,
     poll_interval,
     submit_limit,
     is_cancelled,
+    split_workers: int = 1,
+    client_factory=None,
 ) -> None:
     """Page one time slice into the shared timeline, oldest first. The slice's
     outcome (counts, why it stopped, the last time it reached) lands in ``sl``."""
@@ -211,10 +243,12 @@ def _run_slice(
                 return
             if res.get("matched-logs") is not None:
                 sl["matched"] = int(res["matched-logs"])
+                if sl["index"] == 0:
+                    shared.note_matched(sl["matched"])
             if res.get("progress-percent", 0) >= 100:
                 sl["matched_final"] = sl["matched"] is not None
                 return
-            if not wait or is_cancelled() or time.monotonic() + poll_interval >= deadline_at:
+            if not wait or is_cancelled() or time.monotonic() + poll_interval >= shared.deadline_at:
                 return
             time.sleep(poll_interval)
 
@@ -223,7 +257,7 @@ def _run_slice(
             raise _Stop(shared.stop)
         if is_cancelled():
             raise _Stop("cancelled")
-        if time.monotonic() >= deadline_at:
+        if time.monotonic() >= shared.deadline_at:
             raise _Stop("deadline")
 
     def split_second(ts: int, seen: set) -> tuple[int, set]:
@@ -234,32 +268,42 @@ def _run_slice(
         Searches over that one second are narrowed with ``field>=a and field<b``,
         cut at the median of the rows a search did return and sized by its exact
         ``total-count``, until each part fits in one search. A value too common for
-        one field is split on the next; what no field can split is reported."""
-        keys = set(seen)
-        added_here = 0
-        gave_up = False
-        second_total: int | None = None
-        when = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc)
-        diag["burst_seconds"].append(ts)
+        one field is split on the next; what no field can split is reported.
 
-        def search(cons: list[str]) -> tuple[list, int | None]:
+        The parts are independent, so they are a work queue: this thread and up to
+        ``split_workers - 1`` helpers (each with its own connection) take parts off it
+        and put the parts they cut in turn back."""
+        keys = set(seen)
+        st = {"added": 0, "gave_up": False, "second_total": None, "active": 0}
+        when = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc)
+        with shared.lock:
+            diag["burst_seconds"].append(ts)
+        cond = threading.Condition()
+        pending: collections.deque = collections.deque()
+        errors: list[BaseException] = []
+        helpers: list[threading.Thread] = []
+        stack = contextlib.ExitStack()
+        max_helpers = max(0, split_workers - 1) if client_factory is not None else 0
+
+        def search(c, cons: list[str]) -> tuple[list, int | None]:
             check_stop()
-            local_start, local_end = client.local_time_range(_iso(when), _iso(when))
+            local_start, local_end = c.local_time_range(_iso(when), _iso(when))
             filt = " and ".join([f"({filter_expression})"] * bool(filter_expression) + cons)
-            tid = client.submit_log_search(
+            tid = c.submit_log_search(
                 "traffic", device, filt, local_start, local_end,
                 limit=submit_limit, time_order="asc",
             )  # fmt: skip
             tids.append(tid)
-            sl["searches"] += 1
-            diag["burst_searches"] += 1
+            with shared.lock:
+                sl["searches"] += 1
+                diag["burst_searches"] += 1
             shared.report("splitting")
             got: list = []
             total = None
             while True:
                 check_stop()
                 page = _fetch_complete(
-                    client, tid, len(got), page_size, deadline_at, poll_interval, is_cancelled
+                    c, tid, len(got), page_size, shared.deadline_at, poll_interval, is_cancelled
                 )
                 rows = page.get("data") or []
                 if isinstance(page.get("total-count"), int):
@@ -268,14 +312,20 @@ def _run_slice(
                 done = total is not None and len(got) >= total
                 if not rows or len(got) >= submit_limit or done:
                     break
-            diag["searches"].append(
-                {"rows": len(got), "total": total, "first_ts": ts, "last_ts": ts, "ended": "split"}
-            )
+            with shared.lock:
+                diag["searches"].append(
+                    {
+                        "rows": len(got),
+                        "total": total,
+                        "first_ts": ts,
+                        "last_ts": ts,
+                        "ended": "split",
+                    }
+                )
             take(got)
             return got, total
 
         def take(rows: list) -> None:
-            nonlocal added_here
             with shared.lock:
                 for row in rows:
                     diag["rows_returned"] += 1
@@ -294,65 +344,115 @@ def _run_slice(
                     shared.fetched += 1
                     sl["fetched"] += 1
                     diag["rows_burst"] += 1
-                    added_here += 1
+                    st["added"] += 1
             shared.report("splitting")
 
         def fits(rows: list, total: int | None) -> bool:
             return len(rows) >= total if total is not None else len(rows) < submit_limit
 
-        def cut(cons, field_idx, lo, hi, first=None, parent_total=None, depth=0) -> None:
-            """Read the rows matching ``cons`` and ``lo <= field < hi``; ``first`` is
-            that search's result when it has been run already."""
-            nonlocal gave_up, second_total
+        def process(task, c) -> list:
+            """Read one part; return the smaller parts it still has to be cut into."""
+            cons, field_idx, lo, hi, first, parent_total, depth = task
             field = SPLIT_FIELDS[field_idx]
+            bounds = [f"{field}>={lo}"] * (lo is not None) + [f"{field}<{hi}"] * (hi is not None)
             if first is None:
-                bounds = [f"{field}>={lo}"] * (lo is not None) + [f"{field}<{hi}"] * (
-                    hi is not None
-                )
-                first = search(cons + bounds)
+                first = search(c, cons + bounds)
             rows, total = first
-            if second_total is None and not cons and lo is None and hi is None:
-                second_total = total
+            if st["second_total"] is None and not cons and lo is None and hi is None:
+                st["second_total"] = total
             if fits(rows, total):
-                return
+                return []
             if depth > MAX_SPLIT_DEPTH or (
                 parent_total is not None and total is not None and total >= parent_total
             ):
-                gave_up = True  # the filter is not narrowing anything
-                return
+                st["gave_up"] = True  # the filter is not narrowing anything
+                return []
             vals = sorted(
                 int(str(r[field]).strip()) for r in rows if str(r.get(field, "")).strip().isdigit()
             )
-            if not vals or vals[0] == vals[-1]:
-                if vals:  # every row seen shares one value: cut around it
-                    v = vals[0]
-                    if lo is None or v > lo:
-                        cut(cons, field_idx, lo, v, None, total, depth + 1)
-                    if hi is None or v + 1 < hi:
-                        cut(cons, field_idx, v + 1, hi, None, total, depth + 1)
-                    cons = cons + [f"{field}>={v}", f"{field}<{v + 1}"]
-                    first = None
-                else:  # the field is missing from the rows: the same rows, cut another way
-                    cons = cons + [f"{field}>={lo}"] * (lo is not None)
-                    cons = cons + [f"{field}<{hi}"] * (hi is not None)
-                if field_idx + 1 >= len(SPLIT_FIELDS):
-                    gave_up = True
-                    return
-                cut(cons, field_idx + 1, None, None, first if not vals else None, None, depth + 1)
-                return
-            pivot = vals[len(vals) // 2]
-            if pivot == vals[0]:  # keep both halves non-empty
-                pivot = next(v for v in vals if v > vals[0])
-            cut(cons, field_idx, lo, pivot, None, total, depth + 1)
-            cut(cons, field_idx, pivot, hi, None, total, depth + 1)
+            if vals and vals[0] != vals[-1]:
+                # Halve at the median of the rows seen. Cutting into more parts at once was
+                # tried on the lab appliance and needed more searches (30-46 against 24 for
+                # a 7,249-log burst): its rows come back in an arbitrary order, so quantiles
+                # of the sample say little about the rest.
+                pivot = vals[len(vals) // 2]
+                if pivot == vals[0]:  # keep both halves non-empty
+                    pivot = next(v for v in vals if v > vals[0])
+                return [
+                    (cons, field_idx, lo, pivot, None, total, depth + 1),
+                    (cons, field_idx, pivot, hi, None, total, depth + 1),
+                ]
+            kids = []
+            if vals:  # every row seen shares one value: cut around it
+                v = vals[0]
+                if lo is None or v > lo:
+                    kids.append((cons, field_idx, lo, v, None, total, depth + 1))
+                if hi is None or v + 1 < hi:
+                    kids.append((cons, field_idx, v + 1, hi, None, total, depth + 1))
+                ncons, nfirst = cons + [f"{field}>={v}", f"{field}<{v + 1}"], None
+            else:  # the field is missing from the rows: the same rows, cut another way
+                ncons, nfirst = cons + bounds, first
+            if field_idx + 1 >= len(SPLIT_FIELDS):
+                st["gave_up"] = True
+                return kids
+            kids.append((ncons, field_idx + 1, None, None, nfirst, None, depth + 1))
+            return kids
 
-        cut([], 0, None, None)
-        if gave_up:
-            left = max(second_total - len(keys), 1) if second_total is not None else 1
+        def worker(c) -> None:
+            while True:
+                with cond:
+                    while not pending and st["active"] and not errors:
+                        cond.wait(1.0)
+                    if errors or not pending:
+                        cond.notify_all()
+                        return
+                    task = pending.popleft()
+                    st["active"] += 1
+                try:
+                    kids = process(task, c)
+                except BaseException as exc:  # includes _Stop: the caller re-raises it
+                    with cond:
+                        errors.append(exc)
+                        st["active"] -= 1
+                        cond.notify_all()
+                    return
+                with cond:
+                    pending.extend(kids)
+                    st["active"] -= 1
+                    for _ in range(min(max_helpers - len(helpers), len(pending))):
+                        t = threading.Thread(target=helper, name="conn-timeline-split", daemon=True)
+                        helpers.append(t)
+                        t.start()
+                    cond.notify_all()
+
+        def helper() -> None:
+            try:
+                c = client_factory()
+                if hasattr(c, "__enter__"):
+                    with cond:
+                        c = stack.enter_context(c)
+                worker(_RateLimited(c, is_cancelled, lambda: shared.deadline_at))
+            except BaseException as exc:
+                with cond:
+                    errors.append(exc)
+                    cond.notify_all()
+
+        pending.append(([], 0, None, None, None, None, 0))
+        try:
+            worker(client)
+            for t in list(helpers):
+                t.join()
+        finally:
+            stack.close()
+        if errors:
+            raise errors[0]
+        if st["gave_up"]:
+            total_seen = st["second_total"]
+            left = max(total_seen - len(keys), 1) if total_seen is not None else 1
             diag["burst_unreached"] += left
             sl["unreached"] += left
             shared.burst_gaps.append((ts, ts + 1))
-        return added_here, keys
+        return st["added"], keys
 
     try:
         while True:
@@ -385,7 +485,7 @@ def _run_slice(
             while True:
                 check_stop()
                 page = _fetch_complete(
-                    client, tid, offset, page_size, deadline_at, poll_interval, is_cancelled
+                    client, tid, offset, page_size, shared.deadline_at, poll_interval, is_cancelled
                 )
                 rows = page.get("data") or []
                 total = page.get("total-count")
@@ -398,6 +498,8 @@ def _run_slice(
                     # wait for the count call (about 2s on the lab appliance) per slice.
                     sl["matched"] = total
                     sl["matched_final"] = True
+                    if sl["index"] == 0:
+                        shared.note_matched(total)
                 with shared.lock:
                     for row in rows:
                         ts = row_timestamp(row)
@@ -530,6 +632,8 @@ def collect(
     workers: int = 1,
     client_factory=None,
     on_snapshot=None,
+    deadline_per_1k: float | None = None,
+    deadline_max: float | None = None,
 ) -> dict:
     """Page the window's traffic logs into ``timeline``; return its coverage.
 
@@ -546,7 +650,16 @@ def collect(
     if client_factory is None:
         workers = 1
     lo, hi = int(start.timestamp()), int(end.timestamp())
-    shared = _Shared(timeline, max_rows, on_progress, on_snapshot)
+    shared = _Shared(
+        timeline,
+        max_rows,
+        on_progress,
+        on_snapshot,
+        deadline_at=deadline_at,
+        started=time.monotonic(),
+        per_1k=deadline_per_1k,
+        max_secs=deadline_max,
+    )
     # The first slice is the whole window. Alone it is the build; with workers it is a
     # probe: one search that, if the window turns out big, hands the rest to the others.
     shared.slices = [_new_slice(0, lo, hi)]
@@ -555,13 +668,14 @@ def collect(
         "filter_expression": filter_expression,
         "end_ts": hi,
         "page_size": page_size,
-        "deadline_at": deadline_at,
+        "split_workers": workers,
+        "client_factory": client_factory,
         "poll_interval": poll_interval,
         "submit_limit": submit_limit,
         "is_cancelled": is_cancelled,
     }
     _run_slice(
-        _RateLimited(client, is_cancelled, deadline_at),
+        _RateLimited(client, is_cancelled, lambda: shared.deadline_at),
         shared.slices[0],
         shared,
         single=True,
@@ -582,7 +696,7 @@ def collect(
             shared.slices.append(sl)
 
         def work(sl):
-            if shared.stop is not None or is_cancelled() or time.monotonic() >= deadline_at:
+            if shared.stop is not None or is_cancelled() or time.monotonic() >= shared.deadline_at:
                 return  # never started: reported as a gap below
             try:
                 with contextlib.ExitStack() as stack:
@@ -590,7 +704,11 @@ def collect(
                     if hasattr(c, "__enter__"):
                         c = stack.enter_context(c)
                     _run_slice(
-                        _RateLimited(c, is_cancelled, deadline_at), sl, shared, single=False, **kw
+                        _RateLimited(c, is_cancelled, lambda: shared.deadline_at),
+                        sl,
+                        shared,
+                        single=False,
+                        **kw,
                     )
             except BaseException:
                 shared.set_stop("error")
@@ -617,7 +735,7 @@ class _RateLimited:
     def __init__(self, client, is_cancelled, deadline_at):
         self._client = client
         self._is_cancelled = is_cancelled
-        self._deadline_at = deadline_at
+        self._deadline = deadline_at if callable(deadline_at) else (lambda: deadline_at)
 
     def __getattr__(self, name):
         attr = getattr(self._client, name)
@@ -634,7 +752,7 @@ class _RateLimited:
                         "rate limit" not in str(exc).lower()
                         or attempt == self.RETRIES
                         or self._is_cancelled()
-                        or time.monotonic() + wait >= self._deadline_at
+                        or time.monotonic() + wait >= self._deadline()
                     ):
                         raise
                     time.sleep(wait)

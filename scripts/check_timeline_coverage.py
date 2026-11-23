@@ -61,7 +61,7 @@ def main(argv=None) -> int:
 
         demo.activate()
 
-    from app.conn_timeline import Timeline, build_filter
+    from app.conn_timeline import Timeline, build_filter, row_key
     from app.conn_timeline_job import collect
     from app.faz_client import FAZClient
     from app.faz_targets import get_target, list_targets
@@ -108,6 +108,8 @@ def main(argv=None) -> int:
             max_rows=Config.CONN_TIMELINE_MAX_ROWS,
             page_size=Config.CONN_TIMELINE_PAGE_SIZE,
             deadline_at=time.monotonic() + args.deadline,
+            deadline_per_1k=Config.CONN_TIMELINE_DEADLINE_SECS_PER_1K or None,
+            deadline_max=Config.CONN_TIMELINE_DEADLINE_MAX_SECS,
             poll_interval=Config.LOG_SEARCH_POLL_INTERVAL,
             workers=max(1, args.workers),
             client_factory=new_client,
@@ -141,6 +143,9 @@ def main(argv=None) -> int:
         if x["ended"] == "exhausted" and x["total"] is not None and x["rows"] < x["total"]
     ]
     print(f"  searches below total    {len(over)} of {len(diag['searches'])}")
+
+    unique = len({row_key(r) for r in sample})
+    print(f"  rows counted twice      {len(sample) - unique:>8}  (of {len(sample)} sampled)")
 
     # Clock check: receive time vs event time.
     gaps = []
