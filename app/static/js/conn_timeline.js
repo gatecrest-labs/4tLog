@@ -257,7 +257,7 @@ function renderCoverage(result) {
     ? ' <button type="button" class="btn btn-sm btn-primary" id="ctContinue">Continue</button> reads only what is missing and adds it to this picture.'
     : '';
   return `<div class="ct-coverage alert alert-warning">Partial: built from ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
-    `Time not covered is greyed out.${more} You can also narrow the window, pick one firewall, or show allowed or denied only.</div>`;
+    `Time not covered is greyed out.${more} The Quick summary above counts sessions for the whole window. You can also narrow the window, pick one firewall, or show allowed or denied only.</div>`;
 }
 
 function renderFilter(result, filter) {
@@ -526,12 +526,109 @@ function renderPeerPath(result, filter) {
   return `<h3 class="ct-section-title">Path for ${escHtml(peerIp)}</h3>${sections}`;
 }
 
+// ── Quick summary (FortiView, in seconds, counted in sessions) ───────────────
+
+const SUMMARY_SECTIONS = ['peers', 'policies', 'applications', 'countries'];
+
+function summaryPanel(title, sec, renderBody) {
+  let body;
+  if (!sec || sec.status === 'loading') body = '<p class="text-muted">Loading…</p>';
+  else if (sec.status === 'unavailable') body = '<p class="text-muted">Not available on this FortiAnalyzer.</p>';
+  else if (sec.status === 'error') body = `<p class="ct-summary-error">${escHtml(sec.message || 'Could not load this section.')}</p>`;
+  else body = renderBody(sec.data || {});
+  return `<div class="ct-summary-section"><h4>${title}</h4>${body}</div>`;
+}
+
+function summaryTable(headers, rows) {
+  if (!rows.length) return '<p class="text-muted">No sessions in this window.</p>';
+  const head = headers.map((h) => `<th>${h}</th>`).join('');
+  return `<div class="table-scroll"><table class="data-table ct-table"><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+}
+
+const summaryCounts = (r) => `<td>${fmtCount(r.allowed)}</td><td class="ct-denied-text">${fmtCount(r.denied)}</td>`;
+
+function renderSummary(summary) {
+  const sections = (summary && summary.sections) || {};
+  const policies = sections.policies;
+  let totals = '';
+  if (policies && policies.status === 'ok' && policies.data) {
+    const d = policies.data;
+    const fw = (d.firewalls || []).map((f) => `<li>${escHtml(f.firewall)}: ${fmtCount(f.allowed)} allowed, ${fmtCount(f.denied)} denied</li>`).join('');
+    totals = `<div class="ct-summary-totals"><span><strong>${fmtCount((d.totals || {}).allowed)}</strong> allowed</span>` +
+      `<span><strong class="ct-denied-text">${fmtCount((d.totals || {}).denied)}</strong> denied</span></div>` +
+      (fw ? `<ul class="ct-summary-firewalls">${fw}</ul>` : '');
+  }
+  const peers = summaryPanel('Top peers', sections.peers, (d) => {
+    const rows = d.rows || [];
+    const cut = d.truncated ? `Showing the top ${fmtCount(rows.length)} of at least ${fmtCount(d.total)} peers (FortiAnalyzer has more).`
+      : (d.total > rows.length ? `Showing the top ${fmtCount(rows.length)} of ${fmtCount(d.total)} peers.` : '');
+    return summaryTable(['Peer IP', 'Allowed', 'Denied'], rows.map((r) => `<tr><td>${escHtml(r.peer)}</td>${summaryCounts(r)}</tr>`)) +
+      (cut ? `<p class="text-muted">${cut}</p>` : '');
+  });
+  const pols = summaryPanel('Policies', policies, (d) => summaryTable(['Firewall', 'Policy ID', 'Policy', 'Allowed', 'Denied'],
+    (d.rows || []).map((r) => `<tr><td>${escHtml(r.firewall)}</td><td>${escHtml(r.policy_id || '—')}</td><td>${escHtml(r.policy)}</td>${summaryCounts(r)}</tr>`)));
+  const apps = summaryPanel('Applications', sections.applications, (d) => summaryTable(['Application', 'Category', 'Allowed', 'Denied'],
+    (d.rows || []).map((r) => `<tr><td>${escHtml(r.app)}</td><td>${escHtml(r.category)}</td>${summaryCounts(r)}</tr>`)));
+  const countries = summaryPanel('Countries', sections.countries, (d) => summaryTable(['Country', 'Allowed', 'Denied'],
+    (d.rows || []).map((r) => `<tr><td>${escHtml(r.country)}</td>${summaryCounts(r)}</tr>`)));
+  return '<h3 class="ct-section-title">Quick summary</h3>' +
+    '<p class="text-muted ct-summary-unit">Sessions, counted by FortiAnalyzer, not logs: one connection can write several logs, so these numbers differ from the timeline below. Ports and the time chart come only from the timeline.</p>' +
+    totals + `<div class="ct-summary-grid">${peers}${pols}${apps}${countries}</div>`;
+}
+
+// Starts the four sections for a build, a few requests at a time, and reports every change.
+// Answers that belong to an earlier start (or arrive after stop) are ignored.
+function createSummaryLoader(fetchSection, onUpdate, opts) {
+  const concurrency = (opts && opts.concurrency) || 3;
+  let run = 0;
+  function start(payload) {
+    const id = ++run;
+    const summary = { payload, sections: {} };
+    SUMMARY_SECTIONS.forEach((s) => { summary.sections[s] = { status: 'loading' }; });
+    const queue = SUMMARY_SECTIONS.slice();
+    let inFlight = 0;
+    const emit = () => { if (id === run) onUpdate(summary); };
+    const pump = () => {
+      while (id === run && inFlight < concurrency && queue.length) {
+        const section = queue.shift();
+        inFlight += 1;
+        fetchSection(section, payload).then((data) => {
+          if (id !== run) return;
+          summary.sections[section] = data && data.unavailable
+            ? { status: 'unavailable', message: data.unavailable }
+            : { status: 'ok', data };
+        }, (err) => {
+          if (id !== run) return;
+          summary.sections[section] = { status: 'error', message: String((err && err.message) || err) };
+        }).then(() => { inFlight -= 1; emit(); pump(); });
+      }
+    };
+    emit();
+    pump();
+    return summary;
+  }
+  return { start, stop() { run += 1; } };
+}
+
 // ── Page controller ──────────────────────────────────────────────────────────
 
 function initPage() {
   const $ = (id) => document.getElementById(id);
   const form = $('ctForm');
   const state = { result: null, filter: { peer: null, port: null }, selected: null, showAll: false, jobId: null, timer: null };
+  const summaryLoader = createSummaryLoader(async (section, payload) => {
+    const resp = await fetch('/api/conn-timeline/summary', {
+      method: 'POST',  // the page's fetch wrapper adds the CSRF header
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, section }),
+    });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(body.error || 'Could not load this section.');
+    return body;
+  }, (summary) => {
+    $('ctSummary').classList.remove('hidden');
+    $('ctSummary').innerHTML = renderSummary(summary);
+  });
 
   function showError(msg) {
     const box = $('ctError');
@@ -719,6 +816,7 @@ function initPage() {
       const body = await resp.json();
       if (!resp.ok) { setBusy(false, ''); showError(body.error || 'Could not start the timeline.'); return; }
       state.jobId = body.job_id;
+      summaryLoader.start(payload);  // beside the raw build, not instead of it
       poll();
     } catch {
       setBusy(false, '');
