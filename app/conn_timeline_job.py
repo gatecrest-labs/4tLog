@@ -121,6 +121,15 @@ def _new_slice(index: int, lo: int, hi: int, *, check_count: bool = True) -> dic
         "searches": 0,
         "last_ts": None,
         "reason": None,
+        "diag": {
+            "rows_returned": 0,  # every row FortiAnalyzer handed back
+            "rows_outside_slice": 0,  # dropped: receive time outside the slice we searched
+            "rows_boundary_skipped": 0,  # dropped: already counted before a search restart
+            "rows_no_time": 0,  # dropped: no usable timestamp, in a slice other than the first
+            "rows_out_of_order": 0,  # rows older than the row before them (asc search)
+            "short_pages": 0,  # fetches that returned fewer rows than an earlier one
+            "searches": [],
+        },
         "more": False,  # a probe that stopped with rows left, for the slices to take over
         "boundary": None,
     }
@@ -174,6 +183,7 @@ def _run_slice(
     seg_end = datetime.datetime.fromtimestamp(
         sl["hi"] if last_slice or single else sl["hi"] - 1, datetime.timezone.utc
     )
+    diag = sl["diag"]
     seen_max = 0  # the most rows one fetch has returned: FortiAnalyzer may cap below page_size
     reason = None
 
@@ -222,6 +232,15 @@ def _run_slice(
             offset = 0
             task_rows = 0
             added = 0
+            prev_ts: int | None = None
+            sd = {
+                "rows": 0,
+                "total": None,
+                "first_ts": None,
+                "last_ts": None,
+                "ended": "stopped",
+            }
+            diag["searches"].append(sd)
             while True:
                 check_stop()
                 page = _fetch_complete(
@@ -229,6 +248,10 @@ def _run_slice(
                 )
                 rows = page.get("data") or []
                 total = page.get("total-count")
+                if isinstance(total, int):
+                    sd["total"] = total
+                if seen_max and 0 < len(rows) < seen_max:
+                    diag["short_pages"] += 1
                 if sl["searches"] == 1 and isinstance(total, int):
                     # 8.0.2 reports the exact total on every finished fetch: no need to
                     # wait for the count call (about 2s on the lab appliance) per slice.
@@ -237,17 +260,30 @@ def _run_slice(
                 with shared.lock:
                     for row in rows:
                         ts = row_timestamp(row)
+                        diag["rows_returned"] += 1
+                        sd["rows"] += 1
+                        if ts is not None:
+                            if prev_ts is not None and ts < prev_ts:
+                                diag["rows_out_of_order"] += 1
+                            prev_ts = ts
+                            if sd["first_ts"] is None or ts < sd["first_ts"]:
+                                sd["first_ts"] = ts
+                            if sd["last_ts"] is None or ts > sd["last_ts"]:
+                                sd["last_ts"] = ts
                         if not single:
                             # Slice edges overlap by a second on FortiAnalyzer's side:
                             # a row belongs to the slice its own time falls in.
                             if ts is None:
                                 if sl["index"] != 0:
+                                    diag["rows_no_time"] += 1
                                     continue
                             elif ts < sl["lo"] or (ts >= sl["hi"] and not last_slice):
+                                diag["rows_outside_slice"] += 1
                                 continue
                         key = row_key(row)
                         if boundary_ts is not None and ts is not None and ts <= boundary_ts:
                             if ts < boundary_ts or key in boundary_keys:
+                                diag["rows_boundary_skipped"] += 1
                                 continue  # counted already, before the search restarted
                         if shared.stop is not None:
                             raise _Stop(shared.stop)
@@ -272,8 +308,10 @@ def _run_slice(
                 shared.report("fetching")
                 known = isinstance(total, int) and offset >= total
                 if not rows or len(rows) < seen_max or (len(rows) < page_size and known):
+                    sd["ended"] = "exhausted"
                     break  # this search has no more rows to give
                 if task_rows >= submit_limit:
+                    sd["ended"] = "submit_limit"
                     # Probing past the submit limit costs a round trip (1-2s on an
                     # 8.0.2 lab appliance that then returns nothing); restarting
                     # from the last timestamp below is the same work without it.
@@ -478,7 +516,49 @@ def _coverage(shared: _Shared, is_cancelled) -> dict:
         "gaps": [[_iso_ts(a), _iso_ts(b)] for a, b in gaps],
         "through": _iso_ts(gaps[0][0]) if gaps and (gaps[0][0] > slices[0]["lo"]) else None,
         "searches": sum(s["searches"] for s in slices),
+        "diagnostics": _diagnostics(slices),
     }
+
+
+def _diagnostics(slices: list[dict]) -> dict:
+    """Where the rows went, for working out why a build came up short: how many
+    FortiAnalyzer returned, how many each filter dropped, and how every search
+    ended. Counts and timestamps only, so it is safe to log and to share."""
+    total = {
+        k: sum(s["diag"][k] for s in slices)
+        for k in (
+            "rows_returned",
+            "rows_outside_slice",
+            "rows_boundary_skipped",
+            "rows_no_time",
+            "rows_out_of_order",
+            "short_pages",
+        )
+    }
+    total["rows_kept"] = sum(s["fetched"] for s in slices)
+    total["searches"] = [x for s in slices for x in s["diag"]["searches"]]
+    total["slices"] = [
+        {
+            "lo": s["lo"],
+            "hi": s["hi"],
+            "kept": s["fetched"],
+            "returned": s["diag"]["rows_returned"],
+            "matched": s["matched"],
+            "reason": s["reason"],
+            "searches": [
+                {
+                    "rows": x["rows"],
+                    "total": x["total"],
+                    "first_ts": x["first_ts"],
+                    "last_ts": x["last_ts"],
+                    "ended": x["ended"],
+                }
+                for x in s["diag"]["searches"]
+            ],
+        }
+        for s in slices
+    ]
+    return total
 
 
 def _iso_ts(ts: int) -> str:

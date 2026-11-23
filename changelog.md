@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-23
+
+### Added
+
+- **Build diagnostics** for the Connection Timeline, to find out why a build says "built from X of
+  Y matched": the coverage now carries `diagnostics` (rows FortiAnalyzer returned, rows each
+  filter dropped, rows out of time order, how every search ended and the time it reached), and
+  the build's audit log entry includes it. `scripts/check_timeline_coverage.py` runs the same
+  build against a real FortiAnalyzer and compares `itime_t` with `eventtime`. No behaviour change.
+
 ## 2026-11-22 (later)
 
 ### Added

@@ -115,6 +115,7 @@ def _collect(client, **kw):
 def test_pages_everything_and_cleans_up():
     client = FakeFAZ(_rows(1234))
     cov, timeline = _collect(client)
+    assert cov.pop("diagnostics")["rows_kept"] == 1234
     assert cov == {
         "matched": 1234,
         "matched_final": True,
@@ -381,3 +382,62 @@ def test_other_errors_are_not_retried():
     client.submit_log_search = lambda *a, **k: (_ for _ in ()).throw(FAZError("bad filter"))
     with pytest.raises(FAZError):
         _collect(client)
+
+
+# ── Diagnostics: where rows went, for an "incomplete" build ───────────────────
+
+
+def test_diagnostics_account_for_every_row_returned():
+    rows = _rows(2502, per_second=4)
+    cov, _ = _collect(FakeFAZ(rows, task_limit=1000))
+    diag = cov["diagnostics"]
+    assert diag["rows_boundary_skipped"] > 0  # 4 rows per second: the restart re-reads some
+    assert diag["rows_returned"] == diag["rows_kept"] + diag["rows_boundary_skipped"]
+    assert diag["rows_kept"] == cov["fetched"] == 2502
+    assert diag["rows_outside_slice"] == 0 and diag["rows_out_of_order"] == 0
+    # one entry per search: how it ended, the time it reached
+    ends = [s["ended"] for s in diag["searches"]]
+    assert ends == ["submit_limit", "submit_limit", "exhausted"]
+    assert all(s["rows"] > 0 and s["first_ts"] <= s["last_ts"] for s in diag["searches"])
+
+
+def test_diagnostics_count_rows_dropped_for_being_outside_their_slice():
+    # FortiAnalyzer matches on one clock, we slice on another: a row it returns
+    # for a slice can carry a receive time that is in a different slice.
+    base = int(START.timestamp())
+    rows = _rows(3000)
+
+    for i, r in enumerate(rows):
+        r["matched_at"] = str(base + i)  # the clock FortiAnalyzer filters on
+        if i % 10 == 0:
+            r["itime_t"] = str(base + i - 1200)  # receive time, 20 min before the match time
+
+    class SkewedFAZ(FakeFAZ):
+        def submit_log_search(self, logtype, device, filt, start, end, **k):
+            tid = super().submit_log_search(logtype, device, filt, start, end, **k)
+            lo = datetime.datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
+            hi = datetime.datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+            mine = [r for r in self.rows if lo <= int(r["matched_at"]) <= hi]
+            self.tasks[tid] = {"rows": mine, "matched": len(mine)}
+            return tid
+
+    client = SkewedFAZ(rows)
+    cov, _ = _parallel(client)
+    diag = cov["diagnostics"]
+    assert diag["rows_outside_slice"] > 0
+    assert diag["rows_kept"] == cov["fetched"]
+    assert cov["complete"] is False  # and the build says so rather than hiding it
+
+
+def test_diagnostics_flag_rows_arriving_out_of_time_order():
+    rows = _rows(50)
+    rows[10], rows[11] = rows[11], rows[10]
+    cov, _ = _collect(FakeFAZ(rows))
+    assert cov["diagnostics"]["rows_out_of_order"] == 1
+
+
+def test_diagnostics_record_a_short_page_ending_a_search_early():
+    client = FakeFAZ(_rows(900), max_fetch=500)
+    cov, _ = _collect(client, page_size=500)
+    s = cov["diagnostics"]["searches"][0]
+    assert s["rows"] == 900 and s["total"] == 900 and s["ended"] == "exhausted"

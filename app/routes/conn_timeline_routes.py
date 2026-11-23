@@ -238,7 +238,11 @@ def _run_build(job, target: dict, spec: dict) -> None:
         return
 
     result = _decorate(timeline, spec, coverage)
-    audit.update(matched=coverage["matched"], fetched=coverage["fetched"])
+    audit.update(
+        matched=coverage["matched"],
+        fetched=coverage["fetched"],
+        diagnostics=coverage.get("diagnostics"),
+    )
     reason = coverage["reason"]
     if reason == "cancelled":
         job.finish("cancelled", result=result)
