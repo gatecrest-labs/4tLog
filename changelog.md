@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-23 (later)
+
+### Fixed
+
+- **A failed connection is no longer counted as a deny.** FortiGate logs `action=ip-conn` with
+  `msg="Connection Failed"` and zero bytes in both directions for a connection that the policy
+  allowed (the same policy that accepts the host's normal traffic) but that never completed. The
+  timeline counted it as denied, so a peer showed "denied" counts that were not denies. It is now
+  "other" (grey), and "Show: Denied" no longer asks FortiAnalyzer for `ip-conn`.
+- **Other actions are visible wherever counts are listed.** The Peers, Ports and Policies tables
+  gain an **Other** column when something is neither allowed nor denied, so a log can no longer
+  disappear between the columns. The legend says what "Other action" covers.
+- **The Path section splits by verdict.** Each firewall row now shows Allowed, Denied and Other
+  (instead of one log total), and the activity graph stacks the three in their colours. The path
+  data (`paths`) gains `allowed`, `denied` and `other` counts at the end of each row.
+
 ## 2026-11-23
 
 ### Fixed

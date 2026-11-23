@@ -103,10 +103,7 @@ def test_build_filter_by_direction_and_verdict():
     assert build_filter("10.1.1.5", "dst") == "(dstip==10.1.1.5)"
     assert build_filter("10.1.1.5", "either") == "(srcip==10.1.1.5 or dstip==10.1.1.5)"
     denied = build_filter("10.1.1.5", "src", "denied")
-    assert denied == (
-        "(srcip==10.1.1.5) and (action==block or action==deny or action==dropped"
-        " or action==ip-conn)"
-    )
+    assert denied == "(srcip==10.1.1.5) and (action==block or action==deny or action==dropped)"
     assert "action==accept" in build_filter("10.1.1.5", "src", "allowed")
     with pytest.raises(TimelineInputError):
         build_filter("10.1.1.5", "sideways")
@@ -133,7 +130,7 @@ def test_bucket_sizes_keep_about_sixty_columns(window, step):
         ("close", ALLOWED),
         ("server-rst", ALLOWED),
         ("DENY", DENIED),
-        ("ip-conn", DENIED),
+        ("ip-conn", OTHER),  # "Connection Failed": allowed by policy, never established
         ("dropped", DENIED),
         ("something-new", OTHER),
         (None, OTHER),
@@ -240,10 +237,33 @@ def test_paths_record_role_firewall_port_and_exact_first_and_last_seen():
     out = t.to_dict()
     assert out["path_fields"] == [
         "peer", "role", "lane", "port", "bucket", "count", "first_ts", "last_ts",
+        "allowed", "denied", "other",
     ]  # fmt: skip
     base = int(START.timestamp())
     peers = out["peers"]
     ssh = [p for p in out["paths"] if p[0] == peers.index("10.10.30.10")]
     rdp = [p for p in out["paths"] if p[0] == peers.index("10.10.1.9")]
-    assert ssh == [[peers.index("10.10.30.10"), 0, 0, 0, 0, 2, base + 10, base + 40]]
+    assert ssh == [[peers.index("10.10.30.10"), 0, 0, 0, 0, 2, base + 10, base + 40, 2, 0, 0]]
     assert [p[1] for p in rdp] == [1]  # host was the destination
+
+
+def test_a_failed_connection_is_neither_allowed_nor_denied():
+    """FortiGate logs ``action=ip-conn`` with ``msg=Connection Failed`` and zero bytes for a
+    connection a policy allowed that never completed: counted as other, not as a deny."""
+    t = Timeline("10.10.20.50", "src", START, NOW)
+    t.add(_row(5))
+    t.add(_row(6, action="ip-conn"))
+    t.add(_row(7, action="deny"))
+    counts = {"allowed": 0, "denied": 0, "other": 0}
+    for flow in t.to_dict()["flows"]:
+        counts[("allowed", "denied", "other")[flow[2]]] += flow[-1]
+    assert counts == {"allowed": 1, "denied": 1, "other": 1}
+
+
+def test_paths_split_each_firewall_and_interval_by_verdict():
+    t = Timeline("10.10.20.50", "src", START, NOW)
+    for offset, action in ((10, "accept"), (11, "accept"), (12, "deny"), (13, "ip-conn")):
+        t.add(_row(offset, action=action))
+    (path,) = t.to_dict()["paths"]
+    assert path[5:] == [4, path[6], path[7], 2, 1, 1]  # count, first, last, allowed, denied, other
+    assert path[5] == path[8] + path[9] + path[10]

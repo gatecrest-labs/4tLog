@@ -13,8 +13,9 @@ const VERDICTS = ['allowed', 'denied', 'other'];
 const TOP_N = 10;
 const DETAIL_N = 5;
 const MAX_LANES = 40;
-// Log Search's advanced filters are AND'd, so "allowed" is "none of the deny actions".
-const DENY_ACTIONS = ['deny', 'block', 'dropped', 'ip-conn'];
+// Log Search's advanced filters are AND'd, so "allowed" is "none of the actions that are not
+// allowed": the denies, and ip-conn (a connection that failed: counted as other, not allowed).
+const NOT_ALLOWED_ACTIONS = ['deny', 'block', 'dropped', 'ip-conn'];
 const REASONS = {
   cap: 'the row cap',
   deadline: 'the time limit',
@@ -268,27 +269,35 @@ function renderFilter(result, filter) {
   return `Showing only ${parts.join(' and ')}. <button type="button" class="btn-link" id="ctClearFilter">Show everything</button>`;
 }
 
-function countCells(c) {
-  return `<td class="ct-num">${fmtCount(c.allowed)}</td><td class="ct-num ct-num-denied">${fmtCount(c.denied)}</td>`;
+function countCells(c, withOther) {
+  return `<td class="ct-num">${fmtCount(c.allowed)}</td><td class="ct-num ct-num-denied">${fmtCount(c.denied)}</td>` +
+    (withOther ? `<td class="ct-num">${fmtCount(c.other)}</td>` : '');
 }
+
+// Failed connections and unfamiliar actions are neither allowed nor denied: their column only
+// appears when there are some, so nothing a table lists can quietly go missing.
+const hasOther = (items) => items.some((i) => i.other > 0);
+const otherHead = (withOther) => (withOther ? '<th>Other</th>' : '');
 
 function renderTopTable(items, kind, activeIdx) {
   if (!items.length) return '<div class="text-muted">None</div>';
+  const withOther = hasOther(items);
   const rows = items.map((it) => {
     const text = kind === 'peer'
       ? escHtml(it.ip)
       : escHtml(it.label) + (it.service ? ` <span class="text-muted">${escHtml(it.service)}</span>` : '');
     const active = activeIdx === it.idx ? ' ct-active' : '';
-    return `<tr class="ct-pick${active}" data-kind="${kind}" data-idx="${it.idx}"><td>${text}</td>${countCells(it)}</tr>`;
+    return `<tr class="ct-pick${active}" data-kind="${kind}" data-idx="${it.idx}"><td>${text}</td>${countCells(it, withOther)}</tr>`;
   }).join('');
-  return `<table class="data-table ct-table"><thead><tr><th>${kind === 'peer' ? 'Peer IP' : 'Port'}</th><th>Allowed</th><th>Denied</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="data-table ct-table"><thead><tr><th>${kind === 'peer' ? 'Peer IP' : 'Port'}</th><th>Allowed</th><th>Denied</th>${otherHead(withOther)}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderPolicies(result, summary) {
   if (!summary.policies.length) return '<div class="text-muted">None</div>';
+  const withOther = hasOther(summary.policies);
   const rows = summary.policies.map((p) => `<tr><td>${escHtml(result.lanes[p.lane].label)}</td>` +
-    `<td>${escHtml(p.policyid || '—')}</td><td>${escHtml(p.label)}</td>${countCells(p)}</tr>`).join('');
-  return `<div class="table-scroll"><table class="data-table ct-table"><thead><tr><th>Firewall</th><th>Policy ID</th><th>Policy</th><th>Allowed</th><th>Denied</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    `<td>${escHtml(p.policyid || '—')}</td><td>${escHtml(p.label)}</td>${countCells(p, withOther)}</tr>`).join('');
+  return `<div class="table-scroll"><table class="data-table ct-table"><thead><tr><th>Firewall</th><th>Policy ID</th><th>Policy</th><th>Allowed</th><th>Denied</th>${otherHead(withOther)}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // One firewall and bucket: counts, top ports, peers and policies, all from
@@ -353,7 +362,7 @@ function logSearchLinks(result, lane, bucket, verdict, filter) {
     }
     if (port) p.set('ports', port);
     if (verdict === 'denied') p.append('filter', 'action==deny');
-    if (verdict === 'allowed') DENY_ACTIONS.forEach((a) => p.append('filter', `action!=${a}`));
+    if (verdict === 'allowed') NOT_ALLOWED_ACTIONS.forEach((a) => p.append('filter', `action!=${a}`));
     p.set('run', '1');
     const label = sides.length > 1 ? `Open in Log Search (${side === 'src' ? 'as source' : 'as destination'})` : 'Open in Log Search';
     return { label, href: `/log-search?${p.toString()}` };
@@ -404,23 +413,32 @@ function peerPaths(result, filter) {
     lanes: new Map(),
     ports: new Map(),
     buckets: new Array(result.buckets).fill(0),
+    bucketVerdicts: Array.from({ length: result.buckets }, () => [0, 0, 0]),  // allowed, denied, other
     first: null,
     last: null,
   }));
-  for (const [peer, role, lane, port, bucket, count, first, last] of result.paths) {
+  for (const [peer, role, lane, port, bucket, count, first, last, ...verdicts] of result.paths) {
     if (peer !== filter.peer) continue;
     if (filter.port != null && port !== filter.port) continue;
     const r = roles[role];
+    // Older results carry no verdict split: all of it counts as allowed.
+    const split = verdicts.length === 3 ? verdicts : [count, 0, 0];
     r.total += count;
-    r.lanes.set(lane, (r.lanes.get(lane) || 0) + count);
+    const fw = r.lanes.get(lane) || { count: 0, allowed: 0, denied: 0, other: 0 };
+    fw.count += count;
+    fw.allowed += split[0];
+    fw.denied += split[1];
+    fw.other += split[2];
+    r.lanes.set(lane, fw);
     r.ports.set(port, (r.ports.get(port) || 0) + count);
     r.buckets[bucket] += count;
+    split.forEach((n, i) => { r.bucketVerdicts[bucket][i] += n; });
     if (r.first == null || first < r.first) r.first = first;
     if (r.last == null || last > r.last) r.last = last;
   }
   return roles.filter((r) => r.total > 0).map((r) => ({
     ...r,
-    lanes: [...r.lanes.entries()].map(([idx, count]) => ({ idx, count })).sort((a, b) => b.count - a.count || a.idx - b.idx),
+    lanes: [...r.lanes.entries()].map(([idx, fw]) => ({ idx, ...fw })).sort((a, b) => b.count - a.count || a.idx - b.idx),
     ports: [...r.ports.entries()].map(([idx, count]) => ({ idx, count })).sort((a, b) => b.count - a.count || a.idx - b.idx),
   }));
 }
@@ -492,7 +510,17 @@ function renderPathGraph(result, rp) {
     if (!c) return;
     const h = Math.max((c / max) * (H - 14), 2);
     const r = bucketRange(result, b);
-    bars.push(`<rect class="ct-allowed" x="${(padL + b * cw).toFixed(2)}" y="${(H - 12 - h).toFixed(2)}" width="${Math.max(cw - 1, 1).toFixed(2)}" height="${h.toFixed(2)}"><title>${escHtml(`${fmtTimeSec(r.start)} to ${fmtTimeSec(r.end)}: ${fmtCount(c)} log(s)`)}</title></rect>`);
+    const [allowed, denied, other] = rp.bucketVerdicts[b];
+    const detail = `${fmtTimeSec(r.start)} to ${fmtTimeSec(r.end)}: ${fmtCount(c)} log(s)` +
+      ` (${fmtCount(allowed)} allowed, ${fmtCount(denied)} denied${other ? `, ${fmtCount(other)} other` : ''})`;
+    // Stacked from the axis up: allowed, then denied, then other, each in its own colour.
+    let y = H - 12;
+    [['ct-allowed', allowed], ['ct-denied', denied], ['ct-other', other]].forEach(([cls, n]) => {
+      if (!n) return;
+      const seg = Math.max((n / c) * h, 1);
+      y -= seg;
+      bars.push(`<rect class="${cls}" x="${(padL + b * cw).toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(cw - 1, 1).toFixed(2)}" height="${seg.toFixed(2)}"><title>${escHtml(detail)}</title></rect>`);
+    });
   });
   const withDate = spanMs > 24 * 3600 * 1000;
   const axis = `<line class="ct-tick" x1="${padL}" y1="${H - 12}" x2="${W - padL}" y2="${H - 12}"/>` +
@@ -514,14 +542,15 @@ function renderPeerPath(result, filter) {
   const sections = roles.map((rp) => {
     const srcIp = rp.role === 0 ? result.host : peerIp;
     const dstIp = rp.role === 0 ? peerIp : result.host;
+    const withOther = hasOther(rp.lanes);
     const rows = rp.lanes.map((fw) => {
       const href = peerDetailsHref(result, rp.role, filter.peer, fw.idx, filter.port);
-      return `<tr><td>${escHtml(result.lanes[fw.idx].label)}</td><td class="ct-num">${fmtCount(fw.count)}</td>` +
+      return `<tr><td>${escHtml(result.lanes[fw.idx].label)}</td>${countCells(fw, withOther)}` +
         `<td><a class="btn btn-sm btn-secondary ct-details" href="${escHtml(href)}" target="_blank" rel="noopener">Details</a></td></tr>`;
     }).join('');
     return `<div class="ct-path-role"><h4>${escHtml(srcIp)} → ${escHtml(dstIp)} <span class="text-muted">(${ROLE_NAMES[rp.role]})</span></h4>` +
       renderPathDiagram(result, rp, srcIp, dstIp) + renderPathGraph(result, rp) +
-      `<table class="data-table ct-table ct-path-table"><thead><tr><th>Firewall</th><th>Logs</th><th>Log Search</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      `<table class="data-table ct-table ct-path-table"><thead><tr><th>Firewall</th><th>Allowed</th><th>Denied</th>${otherHead(withOther)}<th>Log Search</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join('');
   return `<h3 class="ct-section-title">Path for ${escHtml(peerIp)}</h3>${sections}`;
 }

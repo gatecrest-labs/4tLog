@@ -173,11 +173,12 @@ def _summary(client, headers, section, **payload):
 
 def test_demo_summary_peers_match_the_raw_timeline(app, no_network, inline_jobs):  # noqa: F811
     client, headers = _login(app)
-    result = _build(client, headers, target="Gatecrest HQ", host="10.10.10.53", **_window())
+    window = _window()  # one window for both calls: two could straddle a minute boundary
+    result = _build(client, headers, target="Gatecrest HQ", host="10.10.10.53", **window)
     raw: dict[str, int] = {}
     for flow in result["flows"]:
         raw[result["peers"][flow[3]]] = raw.get(result["peers"][flow[3]], 0) + flow[-1]
-    out = _summary(client, headers, "peers")
+    out = _summary(client, headers, "peers", **window)
     assert out["units"] == "sessions" and out["total"] == len(raw)
     assert sum(raw.values()) == result["rows"]
     for row in out["rows"]:

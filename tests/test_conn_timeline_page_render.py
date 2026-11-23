@@ -101,7 +101,7 @@ ROWS = [
 
 def test_totals_lanes_and_top_lists():
     out = _render([{"name": "all", "result": _result(ROWS)}])["all"]
-    assert out["totals"] == {"allowed": 3, "denied": 3, "other": 0, "total": 6}
+    assert out["totals"] == {"allowed": 3, "denied": 2, "other": 1, "total": 6}  # ip-conn is other
     assert out["lanesShown"] == [0, 1]
     assert out["maxCell"] == 3  # minute two on the core: 2 denied SMB + 1 RDP
     assert out["peers"][0]["ip"] == "10.10.30.10"
@@ -518,3 +518,56 @@ def test_starting_a_new_build_clears_the_panel_and_drops_the_old_answers():
     out = _render([{"name": "r", "loader": "reset"}])["r"]
     assert out["hidden"] is True and out["html"] == ""
     assert out["updatesAfterReset"] == 0
+
+
+# ── A failed connection is "other", and every verdict shows where counts are listed ──
+
+
+def test_tables_show_an_other_column_only_when_something_is_other():
+    with_other = _render([{"name": "o", "result": _result(ROWS)}])["o"]
+    for table in ("peersTable", "portsTable", "policiesTable"):
+        assert "<th>Other</th>" in with_other[table], table
+    without = _render([{"name": "n", "result": _result(ROWS[:5])}])["n"]
+    for table in ("peersTable", "portsTable", "policiesTable"):
+        assert "<th>Other</th>" not in without[table], table
+
+
+FAILED = [
+    _row(5, dstip="10.9.9.9"),
+    _row(6, dstip="10.9.9.9", action="deny"),
+    _row(7, dstip="10.9.9.9", action="ip-conn"),
+]
+
+
+def test_peer_path_splits_each_firewall_by_verdict():
+    out = _render([_peer_case(_result(FAILED), "10.9.9.9")])["p"]["peerPath"]
+    assert "<th>Allowed</th><th>Denied</th><th>Other</th>" in out
+    assert (
+        '<td>GC-HQ-CORE</td><td class="ct-num">1</td><td class="ct-num ct-num-denied">1</td>'
+        '<td class="ct-num">1</td>' in out
+    )
+
+
+def test_peer_path_graph_draws_denied_and_other_beside_allowed():
+    out = _render([_peer_case(_result(FAILED), "10.9.9.9")])["p"]["peerPath"]
+    graph = out.split('class="ct-path-graph"')[1]
+    assert "ct-allowed" in graph and "ct-denied" in graph and "ct-other" in graph
+    plain = _render([_peer_case(_result([_row(5, dstip="10.9.9.9")]), "10.9.9.9")])["p"]["peerPath"]
+    plain_graph = plain.split('class="ct-path-graph"')[1]
+    assert "ct-denied" not in plain_graph and "<th>Denied</th>" in plain
+    assert "<th>Other</th>" not in plain
+
+
+def test_allowed_details_link_still_leaves_out_failed_connections():
+    result = _result(FAILED)
+    out = _render(
+        [
+            {
+                "name": "a",
+                "result": result,
+                "selected": {"lane": 0, "bucket": 0, "verdict": "allowed"},
+            }
+        ]
+    )["a"]
+    links = _links(out)
+    assert links and all("action!=ip-conn" in q["filter"] for q in links)  # not allowed, so out
