@@ -424,8 +424,8 @@ def test_summary_states_loading_unavailable_and_error():
 def test_summary_says_when_peers_are_cut_off():
     cut = _ok({**PEERS["data"], "total": 5, "truncated": False})
     assert "Showing the top 2 of 5 peers" in _panel(peers=cut)
-    more = _ok({**PEERS["data"], "total": 2000, "truncated": True})
-    assert "at least 2,000 peers" in _panel(peers=more)
+    more = _ok({**PEERS["data"], "total": 2000, "reported_total": 5000, "truncated": True})
+    assert "at least 5,000 peers" in _panel(peers=more)  # the FortiAnalyzer's own total
     assert "Showing the top" not in _panel(peers=PEERS)
 
 
@@ -512,3 +512,9 @@ def test_loader_ignores_answers_from_an_older_run():
 def test_loader_stop_ignores_late_answers():
     out = _render([{"name": "s", "loader": "stop"}])["s"]
     assert out["updatesAfterStop"] == 0
+
+
+def test_starting_a_new_build_clears_the_panel_and_drops_the_old_answers():
+    out = _render([{"name": "r", "loader": "reset"}])["r"]
+    assert out["hidden"] is True and out["html"] == ""
+    assert out["updatesAfterReset"] == 0

@@ -476,3 +476,17 @@ def test_summary_is_refused_over_the_concurrency_limit(app, faz, monkeypatch):
     client, headers = _login(app)
     resp = _summary(client, headers)
     assert resp.status_code == 429 and faz.fv_calls == []
+
+
+def test_summary_concurrency_default_leaves_threads_for_everything_else():
+    """Every summary holds a gunicorn thread while it waits on FortiAnalyzer: the default must
+    stay below the thread pool, or page loads, polls and logins queue behind summaries."""
+    import re
+    from pathlib import Path
+
+    from app.config import Config
+
+    dockerfile = (Path(__file__).resolve().parent.parent / "Dockerfile").read_text()
+    threads = int(re.search(r'"--threads",\s*"(\d+)"', dockerfile).group(1))
+    default = Config.CONN_TIMELINE_SUMMARY_MAX_CONCURRENT
+    assert 3 <= default <= threads - 2  # at least one page (3 at a time), two threads spare

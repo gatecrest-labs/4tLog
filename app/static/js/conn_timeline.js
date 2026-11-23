@@ -560,7 +560,7 @@ function renderSummary(summary) {
   }
   const peers = summaryPanel('Top peers', sections.peers, (d) => {
     const rows = d.rows || [];
-    const cut = d.truncated ? `Showing the top ${fmtCount(rows.length)} of at least ${fmtCount(d.total)} peers (FortiAnalyzer has more).`
+    const cut = d.truncated ? `Showing the top ${fmtCount(rows.length)} of at least ${fmtCount(d.reported_total || d.total)} peers (FortiAnalyzer has more).`
       : (d.total > rows.length ? `Showing the top ${fmtCount(rows.length)} of ${fmtCount(d.total)} peers.` : '');
     return summaryTable(['Peer IP', 'Allowed', 'Denied'], rows.map((r) => `<tr><td>${escHtml(r.peer)}</td>${summaryCounts(r)}</tr>`)) +
       (cut ? `<p class="text-muted">${cut}</p>` : '');
@@ -574,6 +574,14 @@ function renderSummary(summary) {
   return '<h3 class="ct-section-title">Quick summary</h3>' +
     '<p class="text-muted ct-summary-unit">Sessions, counted by FortiAnalyzer, not logs: one connection can write several logs, so these numbers differ from the timeline below. Ports and the time chart come only from the timeline.</p>' +
     totals + `<div class="ct-summary-grid">${peers}${pols}${apps}${countries}</div>`;
+}
+
+// A new Build ends the old summary: stop its loader (late answers are ignored) and clear the
+// panel, so a failed start never leaves another host's summary on screen.
+function clearSummary(loader, panel) {
+  loader.stop();
+  panel.classList.add('hidden');
+  panel.innerHTML = '';
 }
 
 // Starts the four sections for a build, a few requests at a time, and reports every change.
@@ -792,6 +800,7 @@ function initPage() {
     ev.preventDefault();
     showError('');
     if (state.jobId) return;
+    clearSummary(summaryLoader, $('ctSummary'));
     state.result = null;
     state.filter = { peer: null, port: null };
     state.selected = null;

@@ -127,10 +127,12 @@ class Config:
     # connection, so mind the appliance's limit on concurrent log searches
     # (1 = the old one-search-at-a-time behaviour).
     CONN_TIMELINE_WORKERS = int(os.environ.get("CONN_TIMELINE_WORKERS", "4"))
-    # Quick summary (FortiView) requests running at once, app-wide: each is a few FortiView
-    # runs on the FortiAnalyzer, and a page asks for its four sections together.
+    # Quick summary (FortiView) requests running at once, per process. Each holds a gunicorn
+    # thread (the image runs 8) while it waits on the FortiAnalyzer, so keep this well below
+    # the thread count or page loads, polls and logins queue behind summaries. A page asks
+    # for its four sections three at a time: 6 lets two pages fill in together.
     CONN_TIMELINE_SUMMARY_MAX_CONCURRENT = int(
-        os.environ.get("CONN_TIMELINE_SUMMARY_MAX_CONCURRENT", "8")
+        os.environ.get("CONN_TIMELINE_SUMMARY_MAX_CONCURRENT", "6")
     )
     CONN_TIMELINE_MAX_JOBS = int(os.environ.get("CONN_TIMELINE_MAX_JOBS", "2"))
     CONN_TIMELINE_MAX_JOBS_PER_USER = int(os.environ.get("CONN_TIMELINE_MAX_JOBS_PER_USER", "1"))

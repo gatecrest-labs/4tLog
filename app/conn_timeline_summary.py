@@ -54,9 +54,10 @@ def _run(client, view, time_range, host, role, devices, *, limit=PAGE, offset=0)
 def _peers(client, host, direction, time_range, devices) -> dict:
     merged: dict[str, dict] = {}
     truncated = False
+    reported = 0  # the largest total FortiAnalyzer reported for a role
     for role in roles(direction):
         view, field = ("top-destinations", "dstip") if role == "src" else ("top-sources", "srcip")
-        offset, total = 0, None
+        offset, total, full_page = 0, None, False
         while offset < PEER_CAP:
             page, page_total = _run(
                 client, view, time_range, host, role, devices,
@@ -74,13 +75,23 @@ def _peers(client, host, direction, time_range, devices) -> dict:
                 entry["sessions"] += _int(row.get("sessions"))
                 if role not in entry["roles"]:
                     entry["roles"].append(role)
+            full_page = len(page) >= min(PAGE, PEER_CAP - offset)
             offset += len(page)
             if not page or (total is not None and offset >= total):
                 break
-        if total is not None and offset < total:
-            truncated = True
+        if total is not None:
+            reported = max(reported, total)
+            if offset < total:
+                truncated = True
+        elif offset >= PEER_CAP and full_page:
+            truncated = True  # the cap was reached and FortiAnalyzer gave no total to rule more out
     rows = sorted(merged.values(), key=lambda r: (-r["sessions"], r["peer"]))
-    return {"rows": rows[:PEER_ROWS], "total": len(rows), "truncated": truncated}
+    return {
+        "rows": rows[:PEER_ROWS],
+        "total": len(rows),  # distinct peers read
+        "reported_total": max(reported, len(rows)),  # what FortiAnalyzer says there are
+        "truncated": truncated,
+    }
 
 
 def _policies(client, host, direction, time_range, devices) -> dict:

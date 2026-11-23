@@ -25,7 +25,7 @@
   from the raw timeline. A view an appliance lacks shows "Not available" for that section only. A
   partial raw timeline now points at the summary. `POST /api/conn-timeline/summary` returns one
   section (`peers`, `policies`, `applications` or `countries`); `CONN_TIMELINE_SUMMARY_MAX_CONCURRENT`
-  (default 8) limits summaries running at once. Demo mode derives the same FortiView rows from its
+  (default 6, below the 8 gunicorn threads) limits summaries running at once. Demo mode derives the same FortiView rows from its
   synthetic traffic logs. `FAZClient.run_fortiview_page` adds `offset` and the total count to FortiView
   runs (`offset` must be in the submit). Verified on the lab FortiAnalyzer: policy totals equal
   FortiView's own session total, each section in 3-12 s.

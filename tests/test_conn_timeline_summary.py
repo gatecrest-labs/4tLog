@@ -102,8 +102,27 @@ def test_more_peers_than_the_cap_are_flagged_truncated(monkeypatch):
     rows = [_dest(f"192.0.2.{i}", 10 - i) for i in range(10)]
     client = FakeClient({("top-destinations", SRC): rows}, totals={("top-destinations", SRC): 10})
     out = summarize(client, "peers", HOST, "src", TR, None)
-    assert out["truncated"] is True and out["total"] == 3
+    assert out["truncated"] is True and out["total"] == 3  # peers read
+    assert out["reported_total"] == 10  # what FortiAnalyzer says there are
     assert client.calls[0]["limit"] == 3  # never asks for more than the cap
+
+
+def test_reaching_the_cap_without_a_reported_total_is_still_truncated(monkeypatch):
+    monkeypatch.setattr(summary, "PEER_CAP", 3)
+    rows = [_dest(f"192.0.2.{i}", 10 - i) for i in range(10)]
+    client = FakeClient({("top-destinations", SRC): rows}, totals={("top-destinations", SRC): None})
+    out = summarize(client, "peers", HOST, "src", TR, None)
+    assert out["truncated"] is True and out["reported_total"] == 3
+
+
+def test_reported_total_is_the_larger_role_total_and_never_below_the_peers_read():
+    rows = [_dest("192.0.2.1", 1)]
+    client = FakeClient(
+        {("top-destinations", SRC): rows, ("top-sources", DST): [_src("192.0.2.2", 1)]},
+        totals={("top-destinations", SRC): 1, ("top-sources", DST): 1},
+    )
+    out = summarize(client, "peers", HOST, "either", TR, None)
+    assert out["total"] == 2 and out["reported_total"] == 2 and out["truncated"] is False
 
 
 def test_a_host_with_no_sessions_gives_empty_sections():

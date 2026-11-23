@@ -12,7 +12,7 @@ const src = fs.readFileSync(process.argv[2], 'utf8');
 vm.runInContext(src + `
 ;globalThis.__ct = { summarize, renderChart, renderCoverage, renderHeader, renderFilter,
   renderTopTable, renderPolicies, renderDetail, logSearchLinks, visibleLanes, renderPeerPath, peerPaths,
-  renderSummary, createSummaryLoader };`, ctx);
+  renderSummary, createSummaryLoader, clearSummary };`, ctx);
 const ct = ctx.__ct;
 
 // Scripted loader scenarios: every fetch is a promise the scenario resolves by hand.
@@ -58,6 +58,16 @@ async function runLoader(name) {
     pending.forEach((p) => p.resolve({ rows: [] }));
     await tick();
     return { updatesAfterStop: updates.length - marker };
+  }
+  if (name === 'reset') {
+    const panel = { innerHTML: 'host A', classes: new Set(), classList: { add(c) { panel.classes.add(c); } } };
+    loader.start({ tag: 'one' });
+    await tick();
+    ct.clearSummary(loader, panel);
+    const marker = updates.length;
+    pending.forEach((p) => p.resolve({ rows: [{ peer: 'OLD' }] }));
+    await tick();
+    return { hidden: panel.classes.has('hidden'), html: panel.innerHTML, updatesAfterReset: updates.length - marker };
   }
   if (name === 'outcomes') {
     loader.start({ tag: 'one' });
