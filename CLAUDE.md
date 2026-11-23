@@ -10,7 +10,8 @@ The main user-facing features are:
 
 - Dashboard health cards backed by a background cache
 - Log Search with FAZ-side filters and client-side export
-- Connection Timeline: one IP's traffic across firewalls, rolled up from paged raw logs
+- Connection Timeline: one IP's traffic across firewalls, rolled up from paged raw logs, with a
+  FortiView-based Quick summary (peers, policies, applications, countries in sessions) beside it
 - Admin pages for users, groups, targets, and logs
 
 The Flask app is the primary interface. The Ansible playbook in `ansible/` remains as a

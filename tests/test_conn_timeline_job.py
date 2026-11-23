@@ -2,6 +2,8 @@
 
 import datetime
 import itertools
+import re
+import threading
 
 import pytest
 
@@ -115,6 +117,8 @@ def _collect(client, **kw):
 def test_pages_everything_and_cleans_up():
     client = FakeFAZ(_rows(1234))
     cov, timeline = _collect(client)
+    assert cov.pop("diagnostics")["rows_kept"] == 1234
+    assert cov.pop("_resume") == [] and cov.pop("_burst") == []
     assert cov == {
         "matched": 1234,
         "matched_final": True,
@@ -381,3 +385,360 @@ def test_other_errors_are_not_retried():
     client.submit_log_search = lambda *a, **k: (_ for _ in ()).throw(FAZError("bad filter"))
     with pytest.raises(FAZError):
         _collect(client)
+
+
+# ── Diagnostics: where rows went, for an "incomplete" build ───────────────────
+
+
+def test_diagnostics_account_for_every_row_returned():
+    rows = _rows(2502, per_second=4)
+    cov, _ = _collect(FakeFAZ(rows, task_limit=1000))
+    diag = cov["diagnostics"]
+    assert diag["rows_boundary_skipped"] > 0  # 4 rows per second: the restart re-reads some
+    assert diag["rows_returned"] == diag["rows_kept"] + diag["rows_boundary_skipped"]
+    assert diag["rows_kept"] == cov["fetched"] == 2502
+    assert diag["rows_outside_slice"] == 0 and diag["rows_out_of_order"] == 0
+    # one entry per search: how it ended, the time it reached
+    ends = [s["ended"] for s in diag["searches"]]
+    assert ends == ["submit_limit", "submit_limit", "exhausted"]
+    assert all(s["rows"] > 0 and s["first_ts"] <= s["last_ts"] for s in diag["searches"])
+
+
+def test_diagnostics_count_rows_dropped_for_being_outside_their_slice():
+    # FortiAnalyzer matches on one clock, we slice on another: a row it returns
+    # for a slice can carry a receive time that is in a different slice.
+    base = int(START.timestamp())
+    rows = _rows(3000)
+
+    for i, r in enumerate(rows):
+        r["matched_at"] = str(base + i)  # the clock FortiAnalyzer filters on
+        if i % 10 == 0:
+            r["itime_t"] = str(base + i - 1200)  # receive time, 20 min before the match time
+
+    class SkewedFAZ(FakeFAZ):
+        def submit_log_search(self, logtype, device, filt, start, end, **k):
+            tid = super().submit_log_search(logtype, device, filt, start, end, **k)
+            lo = datetime.datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
+            hi = datetime.datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+            mine = [r for r in self.rows if lo <= int(r["matched_at"]) <= hi]
+            self.tasks[tid] = {"rows": mine, "matched": len(mine)}
+            return tid
+
+    client = SkewedFAZ(rows)
+    cov, _ = _parallel(client)
+    diag = cov["diagnostics"]
+    assert diag["rows_outside_slice"] > 0
+    assert diag["rows_kept"] == cov["fetched"]
+    assert cov["complete"] is False  # and the build says so rather than hiding it
+
+
+def test_diagnostics_flag_rows_arriving_out_of_time_order():
+    rows = _rows(50)
+    rows[10], rows[11] = rows[11], rows[10]
+    cov, _ = _collect(FakeFAZ(rows))
+    assert cov["diagnostics"]["rows_out_of_order"] == 1
+
+
+def test_diagnostics_record_a_short_page_ending_a_search_early():
+    client = FakeFAZ(_rows(900), max_fetch=500)
+    cov, _ = _collect(client, page_size=500)
+    s = cov["diagnostics"]["searches"][0]
+    assert s["rows"] == 900 and s["total"] == 900 and s["ended"] == "exhausted"
+
+
+# ── Bursts: more than 1,000 logs sharing one second ───────────────────────────
+
+
+class BurstFAZ(FakeFAZ):
+    """A FortiAnalyzer as measured on the lab appliance: a search returns at most
+    ``limit`` rows and nothing past them whatever the offset, ``total-count`` is
+    exact, and ``sessionid>=N`` / ``srcport<N`` filters narrow a search."""
+
+    def __init__(self, rows, **kw):
+        super().__init__(rows, **kw)
+        self.filters = []
+
+    def submit_log_search(self, logtype, device, filt, start, end, limit=1000, time_order="desc"):
+        assert time_order == "asc"
+        lo = datetime.datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
+        hi = datetime.datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+        rows = sorted(
+            (r for r in self.rows if lo <= int(r["itime_t"]) <= hi), key=lambda r: int(r["itime_t"])
+        )
+        for field, op, value in re.findall(r"(\w+)(>=|<)(\d+)", filt):
+            keep = (lambda v: v >= int(value)) if op == ">=" else (lambda v: v < int(value))
+            rows = [r for r in rows if field in r and keep(int(r[field]))]
+        self.filters.append(filt)
+        tid = next(self._ids)
+        self.tasks[tid] = {"rows": rows[:limit], "matched": len(rows)}
+        return tid
+
+
+def _burst(n, at, *, sessionid=None, srcport=None, tag="b"):
+    """n logs that all carry the receive time ``at`` (epoch seconds)."""
+    template = _rows(1)[0]
+    return [
+        {
+            **template,
+            "id": f"{tag}{at}-{i}",
+            "itime_t": str(at),
+            "sessionid": str(sessionid(i) if sessionid else 5000 + i * 3),
+            "srcport": str(srcport(i) if srcport else 1024 + i),
+        }
+        for i in range(n)
+    ]
+
+
+def _with_burst(burst_rows, background=600):
+    rows = _rows(background)
+    for i, r in enumerate(rows):
+        r["sessionid"], r["srcport"] = str(1 + i), str(100 + i)
+    return rows + burst_rows
+
+
+BURST_AT = int(START.timestamp()) + 1800
+
+
+@pytest.mark.parametrize("parallel", [False, True], ids=["single", "parallel"])
+def test_a_burst_in_one_second_is_read_in_full(parallel):
+    rows = _with_burst(_burst(5000, BURST_AT))
+    client = BurstFAZ(rows)
+    cov, timeline = (_parallel if parallel else _collect)(client)
+    assert cov["complete"] is True and cov["reason"] is None
+    assert cov["fetched"] == cov["matched"] == timeline.rows == 5600
+    assert cov["diagnostics"]["rows_burst"] > 0
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+@pytest.mark.parametrize("parallel", [False, True], ids=["single", "parallel"])
+def test_a_burst_at_the_start_of_the_window_is_read_in_full(parallel):
+    rows = _with_burst(_burst(3000, int(START.timestamp())))
+    cov, timeline = (_parallel if parallel else _collect)(BurstFAZ(rows))
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 3600
+
+
+def test_a_burst_over_two_seconds_is_read_in_full():
+    rows = _with_burst(_burst(2500, BURST_AT) + _burst(2500, BURST_AT + 1))
+    cov, timeline = _collect(BurstFAZ(rows))
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 5600
+
+
+def test_a_burst_with_one_session_id_is_split_on_the_source_port():
+    rows = _with_burst(_burst(1500, BURST_AT, sessionid=lambda i: 77))
+    client = BurstFAZ(rows)
+    cov, timeline = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 2100
+    assert any("srcport" in f for f in client.filters)
+
+
+def test_a_burst_that_cannot_be_split_is_reported_not_hidden():
+    same = _burst(1500, BURST_AT, sessionid=lambda i: 77, srcport=lambda i: 4242)
+    cov, timeline = _collect(BurstFAZ(_with_burst(same)))
+    assert cov["complete"] is False and cov["reason"] == "burst"
+    assert cov["matched"] == 2100 and cov["fetched"] == timeline.rows == 1600
+    assert cov["diagnostics"]["burst_unreached"] == 500
+    when = datetime.datetime.fromtimestamp(BURST_AT, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert cov["gaps"][0][0] == when
+
+
+def test_a_burst_that_has_no_split_fields_is_reported_not_hidden():
+    bare = [
+        {k: v for k, v in r.items() if k not in ("sessionid", "srcport")}
+        for r in _burst(1500, BURST_AT)
+    ]
+    cov, _ = _collect(BurstFAZ(_with_burst(bare)))
+    assert cov["complete"] is False and cov["reason"] == "burst"
+    assert cov["diagnostics"]["burst_unreached"] == 500
+
+
+# ── Big bursts: parallel splitting and a deadline that grows with the work ────
+
+
+class ThreadedBurstFAZ(BurstFAZ):
+    """A BurstFAZ that notes which threads ran its range-filtered searches."""
+
+    def __init__(self, rows, **kw):
+        super().__init__(rows, **kw)
+        self.split_threads = []
+        self.fail_on = None  # fail the Nth range-filtered search
+
+    def submit_log_search(self, logtype, device, filt, *a, **k):
+        if "sessionid" in filt or "srcport" in filt:
+            self.split_threads.append(threading.current_thread().name)
+            if self.fail_on is not None and len(self.split_threads) >= self.fail_on:
+                raise FAZError("boom")
+        return super().submit_log_search(logtype, device, filt, *a, **k)
+
+
+def test_a_big_burst_is_split_by_several_threads():
+    rows = _with_burst(_burst(9000, BURST_AT))
+    client = ThreadedBurstFAZ(rows)
+    cov, timeline = _parallel(client)
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 9600
+    assert any(n.startswith("conn-timeline-split") for n in client.split_threads)
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_one_worker_splits_a_burst_on_its_own_thread():
+    client = ThreadedBurstFAZ(_with_burst(_burst(5000, BURST_AT)))
+    cov, _ = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == 5600
+    assert not any(n.startswith("conn-timeline-split") for n in client.split_threads)
+
+
+def test_a_failing_split_search_is_raised_and_every_search_cleaned_up():
+    client = ThreadedBurstFAZ(_with_burst(_burst(9000, BURST_AT)))
+    client.fail_on = 4
+    with pytest.raises(FAZError, match="boom"):
+        _parallel(client)
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_the_deadline_grows_with_the_matched_count(monkeypatch):
+    from app.conn_timeline_job import _Shared
+
+    shared = _Shared(
+        None, 1000, None, None, deadline_at=220.0, started=100.0, per_1k=6, max_secs=900
+    )
+    shared.note_matched(5000)  # 30s of work: the 120s base stands
+    assert shared.deadline_at == 220.0
+    shared.note_matched(50000)  # 300s
+    assert shared.deadline_at == 400.0
+    shared.note_matched(10**7)  # capped at 900s
+    assert shared.deadline_at == 1000.0
+    shared.note_matched(1000)  # never shrinks
+    assert shared.deadline_at == 1000.0
+
+
+def test_a_build_given_more_time_for_a_big_window_finishes(monkeypatch):
+    clock = itertools.count(0, 1.0)
+    monkeypatch.setattr("time.monotonic", lambda: next(clock))
+    cov, _ = _collect(FakeFAZ(_rows(3000)), deadline_at=4, deadline_per_1k=100, deadline_max=10**6)
+    assert cov["complete"] is True and cov["fetched"] == 3000
+
+
+# ── Continue: read what a partial build left, into the same timeline ─────────
+
+
+def _prior(cov):
+    return {
+        "matched": cov["matched"],
+        "matched_final": cov["matched_final"],
+        "fetched": cov["fetched"],
+        "searches": cov["searches"],
+        "burst": list(cov["_burst"]),
+    }
+
+
+def _continue(client, timeline, cov, **kw):
+    from app.conn_timeline_job import continue_collect
+
+    args = {
+        "device": "All_FortiGate",
+        "filter_expression": f"(srcip=={HOST} or dstip=={HOST})",
+        "max_rows": 20000,
+        "page_size": 500,
+        "deadline_at": float("inf"),
+        "poll_interval": 0,
+    }
+    args.update(kw)
+    return continue_collect(client, timeline, cov["_resume"], _prior(cov), **args)
+
+
+@pytest.mark.parametrize("workers", [1, 4], ids=["single", "parallel"])
+def test_continue_after_the_row_cap_reads_the_rest_exactly_once(workers):
+    rows = _rows(3000)
+    full_cov, full = _collect(FakeFAZ(rows))
+    client = FakeFAZ(rows)
+    kw = {"workers": workers, "client_factory": lambda: client} if workers > 1 else {}
+    cov, timeline = _collect(client, max_rows=1200, **kw)
+    assert cov["complete"] is False and cov["reason"] == "cap" and cov["_resume"]
+    cov2 = _continue(client, timeline, cov, **kw)
+    assert cov2["complete"] is True and cov2["reason"] is None and cov2["gaps"] == []
+    assert cov2["fetched"] == timeline.rows == 3000 and cov2["matched"] == 3000
+    assert timeline.to_dict()["flows"] == full.to_dict()["flows"]
+
+
+def test_continue_can_be_chained_until_the_build_is_complete():
+    rows = _rows(3000)
+    _, full = _collect(FakeFAZ(rows))
+    client = FakeFAZ(rows)
+    cov, timeline = _collect(client, max_rows=700)
+    rounds = 0
+    while not cov["complete"]:
+        cov = _continue(client, timeline, cov, max_rows=700)
+        rounds += 1
+        assert rounds < 10
+    assert rounds >= 2 and cov["fetched"] == timeline.rows == 3000
+    assert timeline.to_dict()["flows"] == full.to_dict()["flows"]
+
+
+def test_continue_resumes_inside_a_burst_second_without_double_counting():
+    rows = _with_burst(_burst(5000, BURST_AT))
+    _, full = _collect(BurstFAZ(rows))
+    client = BurstFAZ(rows)
+    cov, timeline = _collect(client, max_rows=2500)
+    assert cov["reason"] == "cap" and 0 < timeline.rows <= 2500
+    cov2 = _continue(client, timeline, cov)
+    assert cov2["complete"] is True and cov2["fetched"] == timeline.rows == 5600
+    assert timeline.to_dict()["flows"] == full.to_dict()["flows"]
+
+
+def test_continue_leaves_an_unsplittable_burst_alone():
+    same = _burst(1500, BURST_AT, sessionid=lambda i: 77, srcport=lambda i: 4242)
+    client = BurstFAZ(_with_burst(same))
+    cov, timeline = _collect(client)
+    assert cov["reason"] == "burst" and cov["_resume"] == [] and cov["_burst"]
+    cov2 = _continue(client, timeline, cov)
+    assert cov2["reason"] == "burst" and cov2["complete"] is False
+    assert cov2["fetched"] == timeline.rows == 1600
+    assert cov2["gaps"] == cov["gaps"]
+
+
+def test_continue_that_stops_again_keeps_what_is_left():
+    client = FakeFAZ(_rows(3000))
+    cov, timeline = _collect(client, max_rows=500)
+    cov2 = _continue(client, timeline, cov, max_rows=500)
+    assert cov2["complete"] is False and cov2["reason"] == "cap"
+    assert cov2["fetched"] == timeline.rows == 1000 and cov2["_resume"] and cov2["gaps"]
+
+
+# ── An empty first search is checked again before it is believed ─────────────
+
+
+class FlakyEmptyFAZ(FakeFAZ):
+    """A FortiAnalyzer whose first ``empty`` searches come back finished and empty
+    (as a busy appliance was seen to do), then behave."""
+
+    def __init__(self, rows, empty=1, **kw):
+        super().__init__(rows, **kw)
+        self.empty = empty
+        self.submits = 0
+
+    def submit_log_search(self, *a, **k):
+        tid = super().submit_log_search(*a, **k)
+        self.submits += 1
+        if self.submits <= self.empty:
+            self.tasks[tid] = {"rows": [], "matched": 0}
+        return tid
+
+
+def test_an_empty_first_search_is_retried_before_it_is_believed():
+    client = FlakyEmptyFAZ(_rows(800), empty=1)
+    cov, timeline = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == cov["matched"] == timeline.rows == 800
+    assert sorted(client.deleted) == sorted(client.tasks)  # the empty one is cleaned up too
+
+
+def test_a_window_that_is_really_empty_is_still_empty_after_the_checks():
+    client = FakeFAZ([])
+    cov, timeline = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == cov["matched"] == timeline.rows == 0
+    assert len(client.tasks) == 3  # the first search and two checks, no more
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_a_cancel_during_the_empty_checks_stops_at_once():
+    client = FakeFAZ([])
+    cov, _ = _collect(client, is_cancelled=lambda: len(client.tasks) >= 1)
+    assert cov["reason"] == "cancelled" and len(client.tasks) == 1

@@ -1,5 +1,82 @@
 # Changelog
 
+## 2026-11-23
+
+### Fixed
+
+- **Connection Timeline no longer stops short on a burst of logs.** More than 1,000 logs can
+  share one receive second (a device uploading a delayed batch), and a FortiAnalyzer search
+  returns at most 1,000 rows however you page it, so a build used to get stuck re-reading the
+  same 1,000 rows and report "FortiAnalyzer returning fewer logs than it counted" (4,381 of
+  11,082 on the lab appliance). The build now splits such a second with `sessionid` (then
+  `srcport`) range filters, sized by FortiAnalyzer's exact `total-count`, until every part fits
+  in one search. A second that no field can split is reported as a `burst` gap with how many
+  logs were not reached, instead of a silent shortfall.
+- A parallel build that took over from the first search inside a busy second could count rows
+  of that second twice after a restart; it keeps the first search's rows counted.
+
+### Added (Quick summary)
+
+- **Quick summary panel** on the Connection Timeline: when you press Build, the page also asks
+  FortiAnalyzer's FortiView for the IP's top peers, policies (with allowed and denied totals and
+  per-firewall totals), applications and countries, and shows each as it arrives, usually within
+  3-12 s however many logs the IP wrote (the raw timeline needs a log search per 1,000 logs). The
+  counts are **sessions**, not logs, and are labelled so; ports and the time chart still come only
+  from the raw timeline. A view an appliance lacks shows "Not available" for that section only. A
+  partial raw timeline now points at the summary. `POST /api/conn-timeline/summary` returns one
+  section (`peers`, `policies`, `applications` or `countries`); `CONN_TIMELINE_SUMMARY_MAX_CONCURRENT`
+  (default 6, below the 8 gunicorn threads) limits summaries running at once. Demo mode derives the same FortiView rows from its
+  synthetic traffic logs. `FAZClient.run_fortiview_page` adds `offset` and the total count to FortiView
+  runs (`offset` must be in the submit). Verified on the lab FortiAnalyzer: policy totals equal
+  FortiView's own session total, each section in 3-12 s.
+
+### Fixed (empty answers)
+
+- **An empty first search is run again before it is believed.** A busy FortiAnalyzer was seen to
+  answer a finished search "0 logs" for a window that held about 14,000, which the page would show
+  as "Complete: built from all 0 logs". A first search that returns nothing is now repeated up to
+  twice (a window that really is empty costs two more fast searches).
+
+### Added (FortiView findings)
+
+- `scripts/check_fortiview_summary.py` and `docs/conn-timeline-fortiview.md`: what FortiView can
+  summarise for one IP on a FortiAnalyzer 8.0.2 (peers, policies, applications, countries in 3-8 s
+  whatever the volume) and what it cannot (ports, a time axis; it counts sessions, not logs).
+
+### Added (Continue)
+
+- **Continue on a partial Connection Timeline.** When a build stops short (the row cap, the time
+  limit, a cancel) the banner offers **Continue**: a new job reads only the stretches that were
+  not reached into the same timeline, skipping the rows already counted in the second each one
+  starts at, and merges the coverage. It can be repeated until the timeline is complete; each
+  Continue gets its own row cap and a time limit sized to what is left. A build can be continued
+  once (the click consumes it), by the user who started it, while the partial result is kept
+  (`CONN_TIMELINE_JOB_LIFETIME_SECS`). Seconds no search could split stay reported as a `burst`
+  gap: reading them again would give the same answer. Verified on the lab FortiAnalyzer: a
+  3-hour build capped at 4,000 rows was finished by two Continues at 13,912 rows, none counted
+  twice. `POST /api/conn-timeline/<job_id>/continue` returns the new `job_id`; a partial result's
+  coverage carries `resumable`.
+
+### Changed
+
+- **A burst is read in parallel, and the time limit grows with the work.** The parts of a split
+  second are searched by up to `CONN_TIMELINE_WORKERS` threads, each with its own connection
+  (the lab's 11,326-log hour took 113 s one search at a time). The build's time limit now
+  starts at `CONN_TIMELINE_DEADLINE_SECS` and, once the matched total is known, grows to
+  `CONN_TIMELINE_DEADLINE_SECS_PER_1K` (10) seconds per 1,000 matched logs, up to
+  `CONN_TIMELINE_DEADLINE_MAX_SECS` (1200), so a window of 100,000 logs is not cut off at 120 s.
+  On the lab FortiAnalyzer (a UTM VM) a search costs 2-7 s however small and concurrent searches
+  slow each other down, so the parallel split gained little there (86 s against 94 s for a
+  7,249-log burst); a faster appliance should gain more.
+
+### Added
+
+- **Build diagnostics** for the Connection Timeline, to find out why a build says "built from X of
+  Y matched": the coverage now carries `diagnostics` (rows FortiAnalyzer returned, rows each
+  filter dropped, rows out of time order, how every search ended and the time it reached), and
+  the build's audit log entry includes it. `scripts/check_timeline_coverage.py` runs the same
+  build against a real FortiAnalyzer and compares `itime_t` with `eventtime`. No behaviour change.
+
 ## 2026-11-22 (later)
 
 ### Added

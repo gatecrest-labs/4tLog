@@ -310,3 +310,211 @@ def test_running_build_shows_a_still_fetching_banner_and_no_grey():
     out = _render([{"name": "r", "result": _result(ROWS, coverage=coverage)}])["r"]
     assert "Still fetching: 1,200 of 5,000+ matched" in out["coverage"]
     assert "ct-not-fetched" not in out["chart"]
+
+
+def _partial(**extra):
+    return {
+        "matched": 54321,
+        "matched_final": True,
+        "fetched": 20000,
+        "complete": False,
+        "reason": "cap",
+        "through": "2026-11-22T11:30:00Z",
+        "searches": 20,
+        **extra,
+    }
+
+
+def test_a_resumable_partial_result_offers_continue():
+    out = _render([{"name": "r", "result": _result(ROWS, coverage=_partial(resumable=True))}])["r"]
+    assert 'id="ctContinue"' in out["coverage"] and "reads only what is missing" in out["coverage"]
+
+
+def test_continue_is_not_offered_when_there_is_nothing_to_continue():
+    cases = {
+        "not_resumable": _partial(resumable=False),
+        "unmarked": _partial(),
+        "complete": {**_partial(resumable=True), "complete": True, "reason": None},
+    }
+    out = _render([{"name": n, "result": _result(ROWS, coverage=c)} for n, c in cases.items()])
+    for name in cases:
+        assert "ctContinue" not in out[name]["coverage"], name
+
+
+def test_a_burst_reason_is_worded_for_the_user():
+    cov = _partial(reason="burst", resumable=False)
+    out = _render([{"name": "b", "result": _result(ROWS, coverage=cov)}])["b"]
+    assert "burst of logs in one second" in out["coverage"]
+
+
+# ── Quick summary panel ──────────────────────────────────────────────────────
+
+
+def _ok(data):
+    return {"status": "ok", "data": data}
+
+
+PEERS = _ok(
+    {
+        "rows": [
+            {"peer": "192.0.2.1", "allowed": 7, "denied": 1, "sessions": 8, "roles": ["src"]},
+            {"peer": "192.0.2.9", "allowed": 2, "denied": 0, "sessions": 2, "roles": ["src"]},
+        ],
+        "total": 2,
+        "truncated": False,
+    }
+)
+POLICIES = _ok(
+    {
+        "rows": [
+            {
+                "firewall": "FW-A",
+                "policy_id": "2",
+                "policy": "Wifi",
+                "allowed": 9,
+                "denied": 1,
+                "hits": 10,
+            }
+        ],
+        "totals": {"allowed": 9, "denied": 1},
+        "firewalls": [{"firewall": "FW-A", "allowed": 9, "denied": 1}],
+    }
+)
+APPS = _ok(
+    {
+        "rows": [
+            {
+                "app": "Microsoft.Teams",
+                "category": "Collaboration",
+                "allowed": 36,
+                "denied": 0,
+                "sessions": 36,
+            }
+        ]
+    }
+)
+COUNTRIES = _ok({"rows": [{"country": "Japan", "allowed": 5, "denied": 0, "sessions": 5}]})
+
+
+def _panel(**sections):
+    state = {"host": HOST, "direction": "either", "sections": sections}
+    return _render([{"name": "s", "summary": state}])["s"]["summary"]
+
+
+def test_summary_renders_totals_and_tables():
+    html = _panel(peers=PEERS, policies=POLICIES, applications=APPS, countries=COUNTRIES)
+    for text in ("192.0.2.1", "Wifi", "FW-A", "Microsoft.Teams", "Collaboration", "Japan"):
+        assert text in html, text
+    assert "Allowed" in html and "Denied" in html
+    assert ">9<" in html and ">1<" in html  # the allowed and denied totals
+
+
+def test_summary_states_loading_unavailable_and_error():
+    html = _panel(
+        peers={"status": "loading"},
+        policies={"status": "unavailable", "message": "Cannot find FortiView"},
+        applications={"status": "error", "message": "FortiAnalyzer said no"},
+        countries=COUNTRIES,
+    )
+    assert "Loading" in html
+    assert "Not available on this FortiAnalyzer" in html
+    assert "FortiAnalyzer said no" in html and "Japan" in html
+
+
+def test_summary_says_when_peers_are_cut_off():
+    cut = _ok({**PEERS["data"], "total": 5, "truncated": False})
+    assert "Showing the top 2 of 5 peers" in _panel(peers=cut)
+    more = _ok({**PEERS["data"], "total": 2000, "reported_total": 5000, "truncated": True})
+    assert "at least 5,000 peers" in _panel(peers=more)  # the FortiAnalyzer's own total
+    assert "Showing the top" not in _panel(peers=PEERS)
+
+
+def test_summary_says_when_a_section_has_no_sessions():
+    empty = _ok({"rows": [], "total": 0, "truncated": False})
+    assert "No sessions in this window" in _panel(peers=empty)
+
+
+def test_summary_escapes_strings_from_fortianalyzer():
+    evil_peers = _ok(
+        {
+            "rows": [{"peer": EVIL, "allowed": 1, "denied": 0, "sessions": 1, "roles": []}],
+            "total": 1,
+            "truncated": False,
+        }
+    )
+    evil_pol = _ok(
+        {
+            "rows": [
+                {
+                    "firewall": EVIL,
+                    "policy_id": EVIL,
+                    "policy": EVIL,
+                    "allowed": 1,
+                    "denied": 0,
+                    "hits": 1,
+                }
+            ],
+            "totals": {"allowed": 1, "denied": 0},
+            "firewalls": [{"firewall": EVIL, "allowed": 1, "denied": 0}],
+        }
+    )
+    evil_apps = _ok(
+        {"rows": [{"app": EVIL, "category": EVIL, "allowed": 1, "denied": 0, "sessions": 1}]}
+    )
+    evil_countries = _ok({"rows": [{"country": EVIL, "allowed": 1, "denied": 0, "sessions": 1}]})
+    html = _panel(
+        peers=evil_peers, policies=evil_pol, applications=evil_apps, countries=evil_countries
+    )
+    assert "<img" not in html and "&lt;img" in html
+    error = _panel(peers={"status": "error", "message": EVIL})
+    assert "<img" not in error
+
+
+def test_summary_always_states_its_unit():
+    for html in (_panel(), _panel(peers=PEERS), _panel(peers={"status": "loading"})):
+        assert "sessions" in html.lower() and "not logs" in html.lower()
+
+
+def test_partial_banner_points_at_the_summary():
+    out = _render([{"name": "p", "result": _result(ROWS, coverage=_partial())}])["p"]
+    assert "Quick summary" in out["coverage"]
+    done = _render([{"name": "c", "result": _result(ROWS)}])["c"]
+    assert "Quick summary" not in done["coverage"]
+
+
+def test_loader_keeps_three_requests_in_flight():
+    out = _render([{"name": "l", "loader": "concurrency"}])["l"]
+    assert out["firstWave"] == ["peers", "policies", "applications"]
+    assert out["afterOne"] == [
+        "peers",
+        "policies",
+        "applications",
+        "countries",
+    ]  # one finished, next starts
+
+
+def test_loader_reports_each_outcome_per_section():
+    out = _render([{"name": "o", "loader": "outcomes"}])["o"]
+    assert out["last"]["statuses"] == {
+        "peers": "ok",
+        "policies": "unavailable",
+        "applications": "error",
+        "countries": "loading",
+    }
+
+
+def test_loader_ignores_answers_from_an_older_run():
+    out = _render([{"name": "s", "loader": "stale"}])["s"]
+    assert out["updatesAfterOldAnswers"] == 0
+    assert out["tags"][-1] == "two"
+
+
+def test_loader_stop_ignores_late_answers():
+    out = _render([{"name": "s", "loader": "stop"}])["s"]
+    assert out["updatesAfterStop"] == 0
+
+
+def test_starting_a_new_build_clears_the_panel_and_drops_the_old_answers():
+    out = _render([{"name": "r", "loader": "reset"}])["r"]
+    assert out["hidden"] is True and out["html"] == ""
+    assert out["updatesAfterReset"] == 0

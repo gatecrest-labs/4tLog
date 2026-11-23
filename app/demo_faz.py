@@ -741,6 +741,66 @@ def _hour_rng(host: str, view: str, *extra):
     return _rng(host, view, int(_now().timestamp() // 3600), *extra)
 
 
+_HOST_VIEWS = (
+    "top-destinations",
+    "top-sources",
+    "policy-hits",
+    "top-applications",
+    "top-countries",
+)
+_SUMMARY_SCAN = 100_000  # traffic logs aggregated for one host-filtered FortiView run
+
+
+def _host_view_rows(site_host: str, view: str, params: dict, filt: str) -> list[dict]:
+    """FortiView rows for one host (``srcip==`` or ``dstip==`` in the filter), derived
+    from the same synthetic traffic logs the log search serves, so a summary agrees with
+    the raw Connection Timeline. One log is one session; every row is returned (the fetch
+    applies ``offset`` and ``limit``), values are strings like a real FortiAnalyzer's."""
+    from app.conn_timeline import ALLOWED, DENIED, verdict
+
+    start, end = _window(params)
+    devices = params.get("device") or [{"devid": "All_FortiGate"}]
+    devid = str(devices[0].get("devid") or "All_FortiGate")
+    logs = generate_logs(
+        site_host, "traffic", devid, compile_filter(filt), start, end, _SUMMARY_SCAN,
+        newest_first=False,
+    )  # fmt: skip
+    host_is_src = "srcip==" in filt
+    groups: dict[tuple, dict] = {}
+    for row in logs:
+        if view == "top-destinations":
+            key, fields = (row["dstip"],), {"dstip": row["dstip"]}
+        elif view == "top-sources":
+            key, fields = (row["srcip"],), {"srcip": row["srcip"]}
+        elif view == "policy-hits":
+            key = (row["devname"], row.get("policyid", ""), row.get("policyname", ""))
+            fields = {"agg_policyid": key[1], "policy": key[2]}
+        elif view == "top-applications":
+            key = (row.get("app") or row.get("service", ""), row.get("appcat", ""))
+            fields = {"app_group": key[0], "appcat": key[1]}
+        else:  # top-countries
+            name = "dstcountry" if host_is_src else "srccountry"
+            key, fields = (row.get(name, ""),), {name: row.get(name, "")}
+        group = groups.setdefault(
+            key, {"fields": fields, "pass": 0, "block": 0, "n": 0, "fw": row["devname"]}
+        )
+        group["n"] += 1
+        outcome = verdict(row.get("action"))
+        group["pass"] += outcome == ALLOWED
+        group["block"] += outcome == DENIED
+    rows = []
+    for key, g in sorted(groups.items(), key=lambda kv: (-kv[1]["n"], kv[0])):
+        out = {**g["fields"], "fortigate": g["fw"]}
+        if view == "policy-hits":
+            out.update(counts=str(g["n"]), count_pass=str(g["pass"]), count_block=str(g["block"]))
+        else:
+            out.update(
+                sessions=str(g["n"]), session_pass=str(g["pass"]), session_block=str(g["block"])
+            )
+        rows.append(out)
+    return rows
+
+
 def _fortiview_rows(site_host: str, view: str, params: dict) -> list[dict]:
     site = _SITES[site_host]
     start, end = _window(params)
@@ -750,6 +810,8 @@ def _fortiview_rows(site_host: str, view: str, params: dict) -> list[dict]:
     fleet = len(site.devices)
     limit = int(params.get("limit") or 1000)
     filt = str(params.get("filter") or "")
+    if view in _HOST_VIEWS and ("srcip==" in filt or "dstip==" in filt):
+        return _host_view_rows(site_host, view, params, filt)  # all rows: the fetch pages them
 
     if view == "top-type":
         ips = int(rng.randint(160, 220) * fleet * scale)
@@ -990,15 +1052,18 @@ class DemoFAZ:
                     "status": {"code": 0, "message": "succeeded"},
                 }
             rows = payload["rows"]
+            offset = max(int(params.get("offset") or 0), 0)
             if module == "logview":
                 # Paged like a FortiAnalyzer task: offset and limit pick the slice.
-                offset = max(int(params.get("offset") or 0), 0)
                 rows = rows[offset : offset + int(params.get("limit") or 50)]
+            elif offset or params.get("limit"):
+                rows = rows[offset : offset + int(params.get("limit") or len(rows))]
             return {
                 "data": rows,
                 "percentage": 100,
                 "return-lines": len(rows),
                 "total-count": payload["matched"],
+                "total-count-all": payload["matched"],
                 "status": {"code": 0, "message": "succeeded"},
             }
         raise _Error(-6, f"Invalid url: /{module}/adom/{self.site.adom}/{rest}")

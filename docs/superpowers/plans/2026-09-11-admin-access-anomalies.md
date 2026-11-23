@@ -489,7 +489,9 @@ def test_poll_all_targets_populates_admin_access_fields(targets_file, history_db
     cache_mod.poll_all_targets()
 
     cached = cache_mod.get_cached()
-    assert cached["failed_admin_logins_24h"] == 3  # sum of login_fail_num across admin-logins 24h rows
+    assert (
+        cached["failed_admin_logins_24h"] == 3
+    )  # sum of login_fail_num across admin-logins 24h rows
     assert cached["devices_with_failed_logins"] == 1  # only FGT-A has login_fail_num > 0
     assert cached["top_failed_sources"] == [
         {"source": "203.0.113.5", "count": 3},
@@ -606,7 +608,9 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
     # "total_num" for failed-authentication-attempts) trace to the vendored
     # spec's Filterable/Sortable-field appendix table (see this plan's
     # Global Constraints) — not yet confirmed live against real hardware.
-    admin_logins_24h_rows = client.run_fortiview(client.adom, "admin-logins", time_range, limit=1000)
+    admin_logins_24h_rows = client.run_fortiview(
+        client.adom, "admin-logins", time_range, limit=1000
+    )
     failed_auth_rows = client.run_fortiview(
         client.adom, "failed-authentication-attempts", time_range, limit=1000
     )
@@ -624,7 +628,9 @@ def _poll_one_target(client, now: datetime.datetime) -> dict:
 
     business_range = _business_hours_range(client, now)
     if business_range is not None:
-        business_rows = client.run_fortiview(client.adom, "admin-logins", business_range, limit=1000)
+        business_rows = client.run_fortiview(
+            client.adom, "admin-logins", business_range, limit=1000
+        )
         business_logins = sum(int(r.get("login_num", 0) or 0) for r in business_rows)
     else:
         business_logins = 0
@@ -709,9 +715,9 @@ def poll_all_targets() -> None:
 
     failed_admin_logins_24h = sum(r["failed_admin_logins_24h"] for r in results)
     admin_logins_outside_hours_24h = sum(r["admin_logins_outside_hours_24h"] for r in results)
-    devices_with_failed_logins = len(
-        set().union(*(r["devices_with_failed_login_names"] for r in results))
-    ) if results else 0
+    devices_with_failed_logins = (
+        len(set().union(*(r["devices_with_failed_login_names"] for r in results))) if results else 0
+    )
     top_failed_sources = _merge_top_lists([r["top_failed_sources"] for r in results], "source")
 
     collected_at = _now()

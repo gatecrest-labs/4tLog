@@ -113,10 +113,27 @@ class Config:
     CONN_TIMELINE_MAX_ROWS = int(os.environ.get("CONN_TIMELINE_MAX_ROWS", "100000"))
     CONN_TIMELINE_PAGE_SIZE = int(os.environ.get("CONN_TIMELINE_PAGE_SIZE", "1000"))
     CONN_TIMELINE_DEADLINE_SECS = float(os.environ.get("CONN_TIMELINE_DEADLINE_SECS", "120"))
+    # Once a build knows how many logs matched, its time limit grows to this many
+    # seconds per 1,000 of them (never below DEADLINE_SECS, never above
+    # DEADLINE_MAX_SECS), so a window of 100,000 logs is not cut off at the time that
+    # suits a small one. 0 turns the growth off.
+    CONN_TIMELINE_DEADLINE_SECS_PER_1K = float(
+        os.environ.get("CONN_TIMELINE_DEADLINE_SECS_PER_1K", "10")
+    )
+    CONN_TIMELINE_DEADLINE_MAX_SECS = float(
+        os.environ.get("CONN_TIMELINE_DEADLINE_MAX_SECS", "1200")
+    )
     # Time slices of one build searched at once. Each uses its own FortiAnalyzer
     # connection, so mind the appliance's limit on concurrent log searches
     # (1 = the old one-search-at-a-time behaviour).
     CONN_TIMELINE_WORKERS = int(os.environ.get("CONN_TIMELINE_WORKERS", "4"))
+    # Quick summary (FortiView) requests running at once, per process. Each holds a gunicorn
+    # thread (the image runs 8) while it waits on the FortiAnalyzer, so keep this well below
+    # the thread count or page loads, polls and logins queue behind summaries. A page asks
+    # for its four sections three at a time: 6 lets two pages fill in together.
+    CONN_TIMELINE_SUMMARY_MAX_CONCURRENT = int(
+        os.environ.get("CONN_TIMELINE_SUMMARY_MAX_CONCURRENT", "6")
+    )
     CONN_TIMELINE_MAX_JOBS = int(os.environ.get("CONN_TIMELINE_MAX_JOBS", "2"))
     CONN_TIMELINE_MAX_JOBS_PER_USER = int(os.environ.get("CONN_TIMELINE_MAX_JOBS_PER_USER", "1"))
     CONN_TIMELINE_JOB_LIFETIME_SECS = float(
