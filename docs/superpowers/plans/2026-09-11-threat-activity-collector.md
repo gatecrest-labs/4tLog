@@ -574,7 +574,12 @@ In `app/faz_targets.py`, update `_build_entry`, `create_target`, `update_target`
 
 ```python
 def _build_entry(
-    label: str, host: str, adom: str, token: str, snmp_overrides: dict | None, threat_poll_enabled: bool
+    label: str,
+    host: str,
+    adom: str,
+    token: str,
+    snmp_overrides: dict | None,
+    threat_poll_enabled: bool,
 ) -> dict:
     entry = {
         "label": label,
@@ -677,16 +682,14 @@ git commit -m "feat: add threat_poll_enabled flag to FAZ targets"
 In `app/config.py`, after the `LOG_STATS_POLL_DISABLED` block:
 
 ```python
-    # Threat activity polling (app/threat_stats_cache.py) — unacked alert
-    # counts and 24h IPS detection activity, independent cadence since it's
-    # a heavier FortiView run/poll call rather than a single cheap query.
-    THREAT_STATS_POLL_INTERVAL = int(os.environ.get("THREAT_STATS_POLL_INTERVAL", "900"))
+# Threat activity polling (app/threat_stats_cache.py) — unacked alert
+# counts and 24h IPS detection activity, independent cadence since it's
+# a heavier FortiView run/poll call rather than a single cheap query.
+THREAT_STATS_POLL_INTERVAL = int(os.environ.get("THREAT_STATS_POLL_INTERVAL", "900"))
 
-    # Set by tests/conftest.py to skip starting the background threat-stats
-    # poller (real network calls) during the test suite.
-    THREAT_STATS_POLL_DISABLED = (
-        os.environ.get("THREAT_STATS_POLL_DISABLED", "false").lower() == "true"
-    )
+# Set by tests/conftest.py to skip starting the background threat-stats
+# poller (real network calls) during the test suite.
+THREAT_STATS_POLL_DISABLED = os.environ.get("THREAT_STATS_POLL_DISABLED", "false").lower() == "true"
 ```
 
 - [ ] **Step 2: Add the conftest kill switch**
@@ -783,16 +786,16 @@ def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, histor
     assert rollup["ips_blocked_pct"] == 80.0
 
 
-def test_poll_all_targets_skips_target_with_threat_poll_disabled(
-    tmp_path, monkeypatch, history_db
-):
+def test_poll_all_targets_skips_target_with_threat_poll_disabled(tmp_path, monkeypatch, history_db):
     import app.faz_targets as faz_targets_mod
     import app.threat_stats_cache as cache_mod
 
     monkeypatch.setattr(faz_targets_mod, "FAZ_TARGETS_FILE", tmp_path / "faz_targets.json")
     from app.faz_targets import create_target
 
-    create_target("Primary", host="192.168.64.4", adom="root", token="tok", threat_poll_enabled=False)
+    create_target(
+        "Primary", host="192.168.64.4", adom="root", token="tok", threat_poll_enabled=False
+    )
 
     calls = []
 
@@ -946,9 +949,7 @@ def _poll_one_target(client) -> dict:
     time_range = _last_24h_range(now)
 
     type_rows = client.run_fortiview(client.adom, "top-type", time_range, limit=50)
-    ips_row = next(
-        (r for r in type_rows if str(r.get("type", "")).strip().lower() == "ips"), None
-    )
+    ips_row = next((r for r in type_rows if str(r.get("type", "")).strip().lower() == "ips"), None)
     ips_detections_24h = int(ips_row.get("count", 0) or 0) if ips_row else 0
     ips_blocked_24h = int(ips_row.get("blockedsessions", 0) or 0) if ips_row else 0
 
@@ -1027,9 +1028,7 @@ def poll_all_targets() -> None:
         round(ips_blocked_24h / ips_detections_24h * 100, 1) if ips_detections_24h else 0.0
     )
     top_signatures = _merge_top_lists([r["top_signatures"] for r in results], "signature")
-    top_source_countries = _merge_top_lists(
-        [r["top_source_countries"] for r in results], "country"
-    )
+    top_source_countries = _merge_top_lists([r["top_source_countries"] for r in results], "country")
 
     collected_at = _now()
     with _lock:
@@ -1353,7 +1352,12 @@ def test_threats_key_shape_from_cache(client, monkeypatch):
     assert resp.status_code == 200
     threats = resp.get_json()["threats"]
     assert threats["alerts_unacked_total"] == 5
-    assert threats["alerts_unacked_by_severity"] == {"critical": 1, "high": 2, "medium": 1, "low": 1}
+    assert threats["alerts_unacked_by_severity"] == {
+        "critical": 1,
+        "high": 2,
+        "medium": 1,
+        "low": 1,
+    }
     assert threats["ips_detections_24h"] == 100
     assert threats["ips_blocked_pct"] == 80.0
     assert threats["top_signatures"] == [{"signature": "Eicar.Test.Virus", "count": 40}]
@@ -1417,7 +1421,12 @@ def test_threats_key_all_zero_when_no_cache_and_no_history(client, monkeypatch):
     resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     threats = resp.get_json()["threats"]
     assert threats["alerts_unacked_total"] == 0
-    assert threats["alerts_unacked_by_severity"] == {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    assert threats["alerts_unacked_by_severity"] == {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+    }
     assert threats["ips_detections_24h"] == 0
     assert threats["ips_blocked_pct"] == 0.0
     assert threats["top_signatures"] == []

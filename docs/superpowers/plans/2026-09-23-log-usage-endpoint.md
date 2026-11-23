@@ -48,14 +48,20 @@ from app.routes.external_api_routes import _validate_log_usage_request
 
 
 def test_valid_request_normalizes():
-    req, err = _validate_log_usage_request({
-        "adom": " Enterprise Services ", "devices": ["FW-DC-01", " FW-DC-02 "],
-        "policyid": 123, "days": 30,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": " Enterprise Services ",
+            "devices": ["FW-DC-01", " FW-DC-02 "],
+            "policyid": 123,
+            "days": 30,
+        }
+    )
     assert err is None
     assert req == {
-        "adom": "Enterprise Services", "devices": ["FW-DC-01", "FW-DC-02"],
-        "policyid": 123, "days": 30,
+        "adom": "Enterprise Services",
+        "devices": ["FW-DC-01", "FW-DC-02"],
+        "policyid": 123,
+        "days": 30,
     }
 
 
@@ -66,9 +72,14 @@ def test_missing_adom_rejected():
 
 
 def test_blank_adom_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "   ", "devices": ["FW1"], "policyid": 1, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "   ",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": 1,
+        }
+    )
     assert req is None
     assert "adom" in err
 
@@ -80,17 +91,27 @@ def test_missing_devices_rejected():
 
 
 def test_empty_devices_list_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": [], "policyid": 1, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": [],
+            "policyid": 1,
+            "days": 1,
+        }
+    )
     assert req is None
     assert "devices" in err
 
 
 def test_non_string_device_entry_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1", 42], "policyid": 1, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1", 42],
+            "policyid": 1,
+            "days": 1,
+        }
+    )
     assert req is None
     assert "devices" in err
 
@@ -102,70 +123,115 @@ def test_missing_policyid_rejected():
 
 
 def test_zero_policyid_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 0, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 0,
+            "days": 1,
+        }
+    )
     assert req is None
     assert "policyid" in err
 
 
 def test_negative_policyid_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": -5, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": -5,
+            "days": 1,
+        }
+    )
     assert req is None
     assert "policyid" in err
 
 
 def test_boolean_policyid_rejected():
     """A JSON bool is a Python int subtype -- must not be silently accepted."""
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": True, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": True,
+            "days": 1,
+        }
+    )
     assert req is None
     assert "policyid" in err
 
 
 def test_days_zero_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 1, "days": 0,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": 0,
+        }
+    )
     assert req is None
     assert "days" in err
 
 
 def test_days_61_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 1, "days": 61,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": 61,
+        }
+    )
     assert req is None
     assert "days" in err
 
 
 def test_days_float_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 1, "days": 30.5,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": 30.5,
+        }
+    )
     assert req is None
     assert "days" in err
 
 
 def test_days_string_rejected():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 1, "days": "30",
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": "30",
+        }
+    )
     assert req is None
     assert "days" in err
 
 
 def test_days_boundaries_accepted():
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 1, "days": 1,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": 1,
+        }
+    )
     assert err is None
-    req, err = _validate_log_usage_request({
-        "adom": "A", "devices": ["FW1"], "policyid": 1, "days": 60,
-    })
+    req, err = _validate_log_usage_request(
+        {
+            "adom": "A",
+            "devices": ["FW1"],
+            "policyid": 1,
+            "days": 60,
+        }
+    )
     assert err is None
 ```
 
@@ -265,9 +331,7 @@ def test_match_targets_for_adom_case_insensitive(monkeypatch):
         {"label": "Primary", "host": "1.2.3.4", "adom": "Enterprise Services"},
         {"label": "Secondary", "host": "5.6.7.8", "adom": "root"},
     ]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     matched = _match_targets_for_adom("enterprise services")
     assert matched == [targets[0]]
 
@@ -285,9 +349,7 @@ def test_match_targets_for_adom_multiple_matches(monkeypatch):
         {"label": "A", "host": "1.1.1.1", "adom": "Shared"},
         {"label": "B", "host": "2.2.2.2", "adom": "shared"},
     ]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     assert _match_targets_for_adom("Shared") == targets
 
 
@@ -360,9 +422,7 @@ def _resolve_devices_for_target(client, requested_names: list[str]) -> tuple[dic
     [requested names not found on this target])."""
     devices = client.get_devices()
     by_name_lower = {
-        d["name"].lower(): d["devid"]
-        for d in devices
-        if d.get("name") and d.get("devid")
+        d["name"].lower(): d["devid"] for d in devices if d.get("name") and d.get("devid")
     }
     resolved: dict[str, str] = {}
     not_found: list[str] = []
@@ -429,11 +489,15 @@ def _client(rows, truncated=False, local_range=("2026-08-24T00:00:00", "2026-09-
 
 
 def test_search_one_device_aggregates_rows():
-    client = _client([
-        {"srcip": "10.1.1.5", "dstip": "10.2.2.10", "dstport": 443},
-        {"srcip": "10.1.1.6", "dstip": "10.2.2.10", "dstport": 8443},
-    ])
-    result = _search_one_device(client, "SN001", 123, "2026-08-24T00:00:00", "2026-09-23T00:00:00", 30)
+    client = _client(
+        [
+            {"srcip": "10.1.1.5", "dstip": "10.2.2.10", "dstport": 443},
+            {"srcip": "10.1.1.6", "dstip": "10.2.2.10", "dstport": 8443},
+        ]
+    )
+    result = _search_one_device(
+        client, "SN001", 123, "2026-08-24T00:00:00", "2026-09-23T00:00:00", 30
+    )
     assert result["srcips"] == {"10.1.1.5", "10.1.1.6"}
     assert result["dstips"] == {"10.2.2.10"}
     assert result["dstports"] == {443, 8443}
@@ -607,7 +671,9 @@ def _fake_client(devices, search_result=None, search_error=None):
         client.search_logs.side_effect = search_error
     else:
         client.search_logs.return_value = search_result or {
-            "rows": [], "fields": [], "truncated": False,
+            "rows": [],
+            "fields": [],
+            "truncated": False,
         }
     return client
 
@@ -621,9 +687,7 @@ def test_no_matching_target_returns_404(monkeypatch):
 
 
 def test_happy_path_single_target_single_device(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = _fake_client(
         devices=[{"devid": "SN001", "name": "FW-DC-01", "platform": "x"}],
         search_result={
@@ -648,9 +712,7 @@ def test_happy_path_single_target_single_device(monkeypatch):
 
 
 def test_device_not_found_on_only_target(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = _fake_client(devices=[])
     response, error, status = _run_log_usage_search(_REQ, faz_client_factory=lambda t: client)
     assert error is None
@@ -662,9 +724,7 @@ def test_device_not_found_on_only_target(monkeypatch):
 
 def test_device_found_on_second_target_not_first(monkeypatch):
     targets = [_target(host="1.1.1.1"), _target(host="2.2.2.2")]
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: targets
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: targets)
     client_miss = _fake_client(devices=[])
     client_hit = _fake_client(
         devices=[{"devid": "SN001", "name": "FW-DC-01", "platform": "x"}],
@@ -681,9 +741,7 @@ def test_device_found_on_second_target_not_first(monkeypatch):
 
 
 def test_one_device_faz_error_does_not_block_others(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     req = {**_REQ, "devices": ["FW-DC-01", "FW-DC-02"]}
     client = MagicMock()
     client.__enter__.return_value = client
@@ -709,9 +767,7 @@ def test_one_device_faz_error_does_not_block_others(monkeypatch):
 
 
 def test_all_devices_error_returns_502(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     client = MagicMock()
     client.__enter__.return_value = client
     client.__exit__.return_value = False
@@ -725,9 +781,7 @@ def test_all_devices_error_returns_502(monkeypatch):
 
 
 def test_truncated_true_if_any_device_truncated(monkeypatch):
-    monkeypatch.setattr(
-        "app.routes.external_api_routes.list_targets", lambda: [_target()]
-    )
+    monkeypatch.setattr("app.routes.external_api_routes.list_targets", lambda: [_target()])
     req = {**_REQ, "devices": ["FW-DC-01", "FW-DC-02"]}
     client = MagicMock()
     client.__enter__.return_value = client
@@ -947,7 +1001,9 @@ def test_returns_400_on_invalid_body(client):
 
 def test_returns_404_when_no_faz_target(client):
     token = _enable_and_token()
-    resp = _post(client, token, {"adom": "Nonexistent", "devices": ["FW1"], "policyid": 1, "days": 1})
+    resp = _post(
+        client, token, {"adom": "Nonexistent", "devices": ["FW1"], "policyid": 1, "days": 1}
+    )
     assert resp.status_code == 404
 
 
@@ -981,9 +1037,16 @@ def test_happy_path_end_to_end(client, monkeypatch):
 
     monkeypatch.setattr(route_mod, "FAZClient", lambda **kwargs: FakeClient())
 
-    resp = _post(client, token, {
-        "adom": "Enterprise Services", "devices": ["FW-DC-01"], "policyid": 123, "days": 30,
-    })
+    resp = _post(
+        client,
+        token,
+        {
+            "adom": "Enterprise Services",
+            "devices": ["FW-DC-01"],
+            "policyid": 123,
+            "days": 30,
+        },
+    )
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["srcips"] == ["10.1.1.5"]

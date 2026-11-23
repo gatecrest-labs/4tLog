@@ -392,35 +392,31 @@ _EMPTY_CACHE: dict = {
 In `_poll_one_target`, after the admin-access collection block (after `admin_logins_outside_hours_24h = max(total_logins_24h - business_logins, 0)`), add:
 
 ```python
-    # VPN coverage (P14): FortiView has no live "tunnel status" field —
-    # site-to-site-ipsec/ssl-dialup-ipsec are session-log views, so
-    # liveness is inferred from the trailing 24h window: a tunnel/user is
-    # "up"/"connected now" if at least one logged session has no end
-    # timestamp (e_time/end_time falsy means still open); a tunnel is
-    # "down" if it was seen at all in the last 24h but every session for
-    # it has since closed. Same "recent log presence = liveness"
-    # philosophy as log_stats_cache.py's silent-device detection — an
-    # approximation, not a live device-config query. Row field names
-    # ("vpnname", "e_time" for site-to-site-ipsec; "f_user", "end_time"
-    # for ssl-dialup-ipsec) trace to the vendored spec's Filterable/
-    # Sortable-field appendix table — not yet confirmed live.
-    site_to_site_rows = client.run_fortiview(
-        client.adom, "site-to-site-ipsec", time_range, limit=1000
-    )
-    ssl_dialup_rows = client.run_fortiview(client.adom, "ssl-dialup-ipsec", time_range, limit=1000)
+# VPN coverage (P14): FortiView has no live "tunnel status" field —
+# site-to-site-ipsec/ssl-dialup-ipsec are session-log views, so
+# liveness is inferred from the trailing 24h window: a tunnel/user is
+# "up"/"connected now" if at least one logged session has no end
+# timestamp (e_time/end_time falsy means still open); a tunnel is
+# "down" if it was seen at all in the last 24h but every session for
+# it has since closed. Same "recent log presence = liveness"
+# philosophy as log_stats_cache.py's silent-device detection — an
+# approximation, not a live device-config query. Row field names
+# ("vpnname", "e_time" for site-to-site-ipsec; "f_user", "end_time"
+# for ssl-dialup-ipsec) trace to the vendored spec's Filterable/
+# Sortable-field appendix table — not yet confirmed live.
+site_to_site_rows = client.run_fortiview(client.adom, "site-to-site-ipsec", time_range, limit=1000)
+ssl_dialup_rows = client.run_fortiview(client.adom, "ssl-dialup-ipsec", time_range, limit=1000)
 
-    tunnel_up: dict[str, bool] = {}
-    for row in site_to_site_rows:
-        name = row.get("vpnname") or row.get("tunnelid") or ""
-        if not name:
-            continue
-        is_open = not row.get("e_time")
-        tunnel_up[name] = tunnel_up.get(name, False) or is_open
+tunnel_up: dict[str, bool] = {}
+for row in site_to_site_rows:
+    name = row.get("vpnname") or row.get("tunnelid") or ""
+    if not name:
+        continue
+    is_open = not row.get("e_time")
+    tunnel_up[name] = tunnel_up.get(name, False) or is_open
 
-    ssl_users_now_names = {
-        row.get("f_user", "") for row in ssl_dialup_rows if not row.get("end_time")
-    }
-    ssl_users_now_names.discard("")
+ssl_users_now_names = {row.get("f_user", "") for row in ssl_dialup_rows if not row.get("end_time")}
+ssl_users_now_names.discard("")
 ```
 
 Add the new keys to `_poll_one_target`'s return dict:
@@ -436,15 +432,17 @@ Add the new keys to `_poll_one_target`'s return dict:
 In `poll_all_targets`, after the `top_failed_sources = _merge_top_lists(...)` line, add the fleet-wide aggregation:
 
 ```python
-    all_tunnel_names: set = set().union(*(r["ipsec_tunnel_names"] for r in results)) if results else set()
-    all_up_tunnel_names: set = (
-        set().union(*(r["ipsec_tunnel_up_names"] for r in results)) if results else set()
-    )
-    ipsec_tunnels_total = len(all_tunnel_names)
-    ipsec_tunnels_down = len(all_tunnel_names - all_up_tunnel_names)
-    ssl_vpn_users_now = (
-        len(set().union(*(r["ssl_vpn_users_now_names"] for r in results))) if results else 0
-    )
+all_tunnel_names: set = (
+    set().union(*(r["ipsec_tunnel_names"] for r in results)) if results else set()
+)
+all_up_tunnel_names: set = (
+    set().union(*(r["ipsec_tunnel_up_names"] for r in results)) if results else set()
+)
+ipsec_tunnels_total = len(all_tunnel_names)
+ipsec_tunnels_down = len(all_tunnel_names - all_up_tunnel_names)
+ssl_vpn_users_now = (
+    len(set().union(*(r["ssl_vpn_users_now_names"] for r in results))) if results else 0
+)
 ```
 
 Add the new keys to the cache-write block:

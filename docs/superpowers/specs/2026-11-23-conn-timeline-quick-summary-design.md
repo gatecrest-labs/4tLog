@@ -32,13 +32,14 @@ whatever the volume (`docs/conn-timeline-fortiview.md`). The Quick summary gives
 
 ## Design
 - `POST /api/conn-timeline/summary` with `{target, adom, host, direction, device, preset |
-  start_time/end_time, section}`; `section` is one of `totals`, `peers`, `policies`,
-  `applications`, `countries`. Same input parsing, ADOM access check and audit log as a build.
+  start_time/end_time, section}`; `section` is one of `peers`, `policies`,
+  `applications`, `countries` (allowed/denied totals and per-firewall totals ride on `policies`,
+  built from the same rows). Same input parsing, ADOM access check and audit log as a build.
   Returns `{section, rows, units: "sessions", unavailable?: reason, seconds}`.
 - Mapping (FortiView views, filters per the findings doc): peers are `top-destinations` with
   `srcip==HOST` and/or `top-sources` with `dstip==HOST` (both, merged by peer, for "either
   direction"); policies `policy-hits`; applications `top-applications`; countries
-  `top-countries`; totals from the session pass/block columns of a run. Peers are paged with
+  `top-countries`. Peers are paged with
   `count-total` and `offset` (sent on the submit) up to a cap, and the response says if rows
   were left out.
 - The firewall chosen in the form is passed as the FortiView device scope; otherwise

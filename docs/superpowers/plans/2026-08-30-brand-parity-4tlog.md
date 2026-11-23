@@ -221,19 +221,33 @@ def test_write_and_read_history_in_range(history_db):
     from app.host_metrics_history import get_history, write_snapshot
 
     write_snapshot(
-        cpu_percent=10.0, memory_percent=40.0, disk_percent=55.0,
+        cpu_percent=10.0,
+        memory_percent=40.0,
+        disk_percent=55.0,
         collected_at="2026-08-29T09:00:00Z",
     )
     write_snapshot(
-        cpu_percent=12.5, memory_percent=41.0, disk_percent=55.5,
+        cpu_percent=12.5,
+        memory_percent=41.0,
+        disk_percent=55.5,
         collected_at="2026-08-29T09:05:00Z",
     )
 
     rows = get_history("2026-08-29T09:00:00Z")
 
     assert rows == [
-        {"collected_at": "2026-08-29T09:00:00Z", "cpu_percent": 10.0, "memory_percent": 40.0, "disk_percent": 55.0},
-        {"collected_at": "2026-08-29T09:05:00Z", "cpu_percent": 12.5, "memory_percent": 41.0, "disk_percent": 55.5},
+        {
+            "collected_at": "2026-08-29T09:00:00Z",
+            "cpu_percent": 10.0,
+            "memory_percent": 40.0,
+            "disk_percent": 55.0,
+        },
+        {
+            "collected_at": "2026-08-29T09:05:00Z",
+            "cpu_percent": 12.5,
+            "memory_percent": 41.0,
+            "disk_percent": 55.5,
+        },
     ]
 
 
@@ -241,27 +255,36 @@ def test_get_history_excludes_rows_before_since(history_db):
     from app.host_metrics_history import get_history, write_snapshot
 
     write_snapshot(
-        cpu_percent=10.0, memory_percent=40.0, disk_percent=55.0,
+        cpu_percent=10.0,
+        memory_percent=40.0,
+        disk_percent=55.0,
         collected_at="2026-08-29T08:00:00Z",
     )
     write_snapshot(
-        cpu_percent=12.5, memory_percent=41.0, disk_percent=55.5,
+        cpu_percent=12.5,
+        memory_percent=41.0,
+        disk_percent=55.5,
         collected_at="2026-08-29T09:05:00Z",
     )
 
     rows = get_history("2026-08-29T09:00:00Z")
 
     assert rows == [
-        {"collected_at": "2026-08-29T09:05:00Z", "cpu_percent": 12.5, "memory_percent": 41.0, "disk_percent": 55.5},
+        {
+            "collected_at": "2026-08-29T09:05:00Z",
+            "cpu_percent": 12.5,
+            "memory_percent": 41.0,
+            "disk_percent": 55.5,
+        },
     ]
 
 
 def test_prune_old_rows_removes_rows_past_retention(history_db):
     from app.host_metrics_history import prune_old_rows, write_snapshot
 
-    old_ts = (
-        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=40)
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    old_ts = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=40)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     write_snapshot(cpu_percent=1.0, memory_percent=1.0, disk_percent=1.0, collected_at=old_ts)
     write_snapshot(cpu_percent=2.0, memory_percent=2.0, disk_percent=2.0, collected_at=recent_ts)
@@ -436,15 +459,14 @@ In `app/config.py`, after the existing block:
 add:
 
 ```python
+# Host CPU/Memory/Disk polling (app/host_metrics_cache.py) — local
+# psutil reads, independent cadence from the FAZ-facing pollers since
+# there's no network round-trip to amortize.
+HOST_METRICS_POLL_INTERVAL = int(os.environ.get("HOST_METRICS_POLL_INTERVAL", "60"))
 
-    # Host CPU/Memory/Disk polling (app/host_metrics_cache.py) — local
-    # psutil reads, independent cadence from the FAZ-facing pollers since
-    # there's no network round-trip to amortize.
-    HOST_METRICS_POLL_INTERVAL = int(os.environ.get("HOST_METRICS_POLL_INTERVAL", "60"))
-
-    # Set by tests/conftest.py to skip starting the background host-metrics
-    # poller during the test suite.
-    HOST_METRICS_POLL_DISABLED = os.environ.get("HOST_METRICS_POLL_DISABLED", "false").lower() == "true"
+# Set by tests/conftest.py to skip starting the background host-metrics
+# poller during the test suite.
+HOST_METRICS_POLL_DISABLED = os.environ.get("HOST_METRICS_POLL_DISABLED", "false").lower() == "true"
 ```
 
 - [ ] **Step 3: Add the test-suite env default**
@@ -480,12 +502,8 @@ def test_poll_host_metrics_writes_snapshot(history_db, monkeypatch):
     from app.host_metrics_history import get_history
 
     monkeypatch.setattr(psutil, "cpu_percent", lambda: 12.5)
-    monkeypatch.setattr(
-        psutil, "virtual_memory", lambda: type("_VM", (), {"percent": 40.0})()
-    )
-    monkeypatch.setattr(
-        psutil, "disk_usage", lambda path: type("_DU", (), {"percent": 55.0})()
-    )
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: type("_VM", (), {"percent": 40.0})())
+    monkeypatch.setattr(psutil, "disk_usage", lambda path: type("_DU", (), {"percent": 55.0})())
 
     cache_mod.poll_host_metrics()
 
@@ -674,7 +692,10 @@ def test_host_metrics_api_returns_shape(client, tmp_path, monkeypatch):
     # this plan's Global Constraints section).
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     history_mod.write_snapshot(
-        cpu_percent=12.5, memory_percent=40.0, disk_percent=55.0, collected_at=recent_ts,
+        cpu_percent=12.5,
+        memory_percent=40.0,
+        disk_percent=55.0,
+        collected_at=recent_ts,
     )
     expected_epoch = int(datetime.datetime.fromisoformat(recent_ts).timestamp())
 
@@ -697,7 +718,10 @@ def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
     history_mod.init_db()
     recent_ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     history_mod.write_snapshot(
-        cpu_percent=5.0, memory_percent=10.0, disk_percent=15.0, collected_at=recent_ts,
+        cpu_percent=5.0,
+        memory_percent=10.0,
+        disk_percent=15.0,
+        collected_at=recent_ts,
     )
 
     _login(client, "admin1")
@@ -705,7 +729,9 @@ def test_host_metrics_api_defaults_invalid_range(client, tmp_path, monkeypatch):
 
     assert resp.status_code == 200
     body = resp.get_json()
-    assert body["cpu"] == [{"ts": int(datetime.datetime.fromisoformat(recent_ts).timestamp()), "v": 5.0}]
+    assert body["cpu"] == [
+        {"ts": int(datetime.datetime.fromisoformat(recent_ts).timestamp()), "v": 5.0}
+    ]
 ```
 
 - [ ] **Step 3: Run tests to verify they fail**

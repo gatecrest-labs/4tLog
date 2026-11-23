@@ -132,12 +132,16 @@ def test_get_log_stats_empty_vdoms_yields_none_timestamp(monkeypatch):
             {
                 "jsonrpc": "2.0",
                 "id": 1,
-                "result": {"data": {"devs": [{"devid": "FGT003", "devname": "FGT-branch3", "vdoms": []}]}},
+                "result": {
+                    "data": {"devs": [{"devid": "FGT003", "devname": "FGT-branch3", "vdoms": []}]}
+                },
             }
         ],
     )
     stats = client.get_log_stats()
-    assert stats == [{"devid": "FGT003", "devname": "FGT-branch3", "last_log_timestamp": None, "lograte": 0.0}]
+    assert stats == [
+        {"devid": "FGT003", "devname": "FGT-branch3", "last_log_timestamp": None, "lograte": 0.0}
+    ]
 
 
 def test_get_log_stats_uses_explicit_adom_override(monkeypatch):
@@ -241,17 +245,15 @@ git commit -m "Add FAZClient.get_log_stats() for per-device log rate/last-log-ti
 In `app/config.py`, after the `LOG_SEARCH_*` block:
 
 ```python
-    # Log stats polling (app/log_stats_cache.py) — silent-device detection
-    # and log volume, independent cadence from the SNMP health poll since
-    # logstats is a cheap JSON-RPC call with no SNMP round-trip.
-    SILENT_DEVICE_THRESHOLD_MINUTES = int(os.environ.get("SILENT_DEVICE_THRESHOLD_MINUTES", "60"))
-    LOG_STATS_POLL_INTERVAL = int(os.environ.get("LOG_STATS_POLL_INTERVAL", "300"))
+# Log stats polling (app/log_stats_cache.py) — silent-device detection
+# and log volume, independent cadence from the SNMP health poll since
+# logstats is a cheap JSON-RPC call with no SNMP round-trip.
+SILENT_DEVICE_THRESHOLD_MINUTES = int(os.environ.get("SILENT_DEVICE_THRESHOLD_MINUTES", "60"))
+LOG_STATS_POLL_INTERVAL = int(os.environ.get("LOG_STATS_POLL_INTERVAL", "300"))
 
-    # Set by tests/conftest.py to skip starting the background log-stats
-    # poller (real network calls) during the test suite.
-    LOG_STATS_POLL_DISABLED = (
-        os.environ.get("LOG_STATS_POLL_DISABLED", "false").lower() == "true"
-    )
+# Set by tests/conftest.py to skip starting the background log-stats
+# poller (real network calls) during the test suite.
+LOG_STATS_POLL_DISABLED = os.environ.get("LOG_STATS_POLL_DISABLED", "false").lower() == "true"
 ```
 
 - [ ] **Step 2: Add the test-suite default**
@@ -275,8 +277,18 @@ def test_classify_devices_splits_logging_and_silent():
 
     now = 10_000.0
     stats = [
-        {"devid": "A", "devname": "a", "last_log_timestamp": 9_900, "lograte": 1.0},  # 100s ago: logging
-        {"devid": "B", "devname": "b", "last_log_timestamp": 6_000, "lograte": 0.0},  # ~66min ago: silent
+        {
+            "devid": "A",
+            "devname": "a",
+            "last_log_timestamp": 9_900,
+            "lograte": 1.0,
+        },  # 100s ago: logging
+        {
+            "devid": "B",
+            "devname": "b",
+            "last_log_timestamp": 6_000,
+            "lograte": 0.0,
+        },  # ~66min ago: silent
     ]
     logging_devices, silent_devices = classify_devices(stats, now, threshold_minutes=60)
     assert [d["devid"] for d in logging_devices] == ["A"]
@@ -414,8 +426,18 @@ def test_get_latest_rollup_none_when_empty(history_db):
 def test_write_and_read_latest_rollup(history_db):
     from app.log_stats_history import get_latest_rollup, write_rollup
 
-    write_rollup(devices_logging=10, devices_silent=1, total_lograte=42.5, collected_at="2026-08-29T09:00:00Z")
-    write_rollup(devices_logging=11, devices_silent=0, total_lograte=50.0, collected_at="2026-08-29T09:05:00Z")
+    write_rollup(
+        devices_logging=10,
+        devices_silent=1,
+        total_lograte=42.5,
+        collected_at="2026-08-29T09:00:00Z",
+    )
+    write_rollup(
+        devices_logging=11,
+        devices_silent=0,
+        total_lograte=50.0,
+        collected_at="2026-08-29T09:05:00Z",
+    )
 
     latest = get_latest_rollup()
     assert latest == {
@@ -606,7 +628,12 @@ def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, histor
 
     def fake_get_log_stats(self, adom=None):
         return [
-            {"devid": "A", "devname": "a", "last_log_timestamp": int(__import__("time").time()), "lograte": 4.0},
+            {
+                "devid": "A",
+                "devname": "a",
+                "last_log_timestamp": int(__import__("time").time()),
+                "lograte": 4.0,
+            },
             {"devid": "B", "devname": "b", "last_log_timestamp": 1, "lograte": 0.0},
         ]
 
@@ -626,7 +653,9 @@ def test_poll_all_targets_populates_cache_and_writes_rollup(targets_file, histor
     assert rollup["total_lograte"] == 4.0
 
 
-def test_poll_all_targets_skips_unreachable_target_without_aborting(targets_file, history_db, monkeypatch):
+def test_poll_all_targets_skips_unreachable_target_without_aborting(
+    targets_file, history_db, monkeypatch
+):
     import app.log_stats_cache as cache_mod
     from app.faz_client import FAZError
 
@@ -643,7 +672,9 @@ def test_poll_all_targets_skips_unreachable_target_without_aborting(targets_file
     assert cached["silent_devices"] == []
 
 
-def test_poll_all_targets_dedupes_devices_seen_across_multiple_targets(tmp_path, monkeypatch, history_db):
+def test_poll_all_targets_dedupes_devices_seen_across_multiple_targets(
+    tmp_path, monkeypatch, history_db
+):
     import app.faz_targets as faz_targets_mod
     import app.log_stats_cache as cache_mod
 
@@ -1302,9 +1333,7 @@ def test_returns_401_when_invalid_token(client):
     from app.app_settings import set_setting
 
     set_setting("external_api_enabled", True)
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": "Bearer wrong"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": "Bearer wrong"})
     assert resp.status_code == 401
 
 
@@ -1332,9 +1361,7 @@ def test_happy_path_shape(client, monkeypatch):
         },
     )
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["schema_version"] == 1
@@ -1365,9 +1392,7 @@ def test_falls_back_to_persisted_rollup_when_cache_empty(client, monkeypatch):
         devices_logging=7, devices_silent=1, total_lograte=12.5, collected_at="2026-08-29T17:00:00Z"
     )
 
-    resp = client.get(
-        "/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"}
-    )
+    resp = client.get("/external/api/executive/summary", headers={"Authorization": f"Bearer {raw}"})
     body = resp.get_json()
     assert body["devices_logging"] == 7
     assert body["devices_silent"] == 1
@@ -1428,7 +1453,7 @@ def _gate():
 
 
 def _parse_disk_used_pct(disk_used: str | None) -> float | None:
-    """"Free 40GB, Total 100GB" -> 60.0 (used percent). None if unparseable."""
+    """ "Free 40GB, Total 100GB" -> 60.0 (used percent). None if unparseable."""
     if not disk_used:
         return None
     match = _DISK_USAGE_RE.search(disk_used)
