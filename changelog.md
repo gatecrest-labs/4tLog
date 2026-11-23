@@ -15,6 +15,19 @@
 - A parallel build that took over from the first search inside a busy second could count rows
   of that second twice after a restart; it keeps the first search's rows counted.
 
+### Fixed (empty answers)
+
+- **An empty first search is run again before it is believed.** A busy FortiAnalyzer was seen to
+  answer a finished search "0 logs" for a window that held about 14,000, which the page would show
+  as "Complete: built from all 0 logs". A first search that returns nothing is now repeated up to
+  twice (a window that really is empty costs two more fast searches).
+
+### Added (FortiView findings)
+
+- `scripts/check_fortiview_summary.py` and `docs/conn-timeline-fortiview.md`: what FortiView can
+  summarise for one IP on a FortiAnalyzer 8.0.2 (peers, policies, applications, countries in 3-8 s
+  whatever the volume) and what it cannot (ports, a time axis; it counts sessions, not logs).
+
 ### Added (Continue)
 
 - **Continue on a partial Connection Timeline.** When a build stops short (the row cap, the time

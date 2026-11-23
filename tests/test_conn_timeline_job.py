@@ -701,3 +701,44 @@ def test_continue_that_stops_again_keeps_what_is_left():
     cov2 = _continue(client, timeline, cov, max_rows=500)
     assert cov2["complete"] is False and cov2["reason"] == "cap"
     assert cov2["fetched"] == timeline.rows == 1000 and cov2["_resume"] and cov2["gaps"]
+
+
+# ── An empty first search is checked again before it is believed ─────────────
+
+
+class FlakyEmptyFAZ(FakeFAZ):
+    """A FortiAnalyzer whose first ``empty`` searches come back finished and empty
+    (as a busy appliance was seen to do), then behave."""
+
+    def __init__(self, rows, empty=1, **kw):
+        super().__init__(rows, **kw)
+        self.empty = empty
+        self.submits = 0
+
+    def submit_log_search(self, *a, **k):
+        tid = super().submit_log_search(*a, **k)
+        self.submits += 1
+        if self.submits <= self.empty:
+            self.tasks[tid] = {"rows": [], "matched": 0}
+        return tid
+
+
+def test_an_empty_first_search_is_retried_before_it_is_believed():
+    client = FlakyEmptyFAZ(_rows(800), empty=1)
+    cov, timeline = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == cov["matched"] == timeline.rows == 800
+    assert sorted(client.deleted) == sorted(client.tasks)  # the empty one is cleaned up too
+
+
+def test_a_window_that_is_really_empty_is_still_empty_after_the_checks():
+    client = FakeFAZ([])
+    cov, timeline = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == cov["matched"] == timeline.rows == 0
+    assert len(client.tasks) == 3  # the first search and two checks, no more
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+def test_a_cancel_during_the_empty_checks_stops_at_once():
+    client = FakeFAZ([])
+    cov, _ = _collect(client, is_cancelled=lambda: len(client.tasks) >= 1)
+    assert cov["reason"] == "cancelled" and len(client.tasks) == 1

@@ -42,6 +42,7 @@ MIN_SLICE_SECS = 60  # ... but never thinner than this
 # share one second no time range narrows it, so the second is partitioned on these
 # numeric fields instead (see split_second in _run_slice).
 SPLIT_FIELDS = ("sessionid", "srcport")
+EMPTY_CHECKS = 2  # an empty first search is run again this many times before it is believed
 MAX_SPLIT_DEPTH = 200  # backstop; every cut shrinks the set, so this is not reached
 SNAPSHOT_SECS = 1.5  # how often a running build offers the page a partial picture
 
@@ -457,6 +458,7 @@ def _run_slice(
             shared.burst_gaps.append((ts, ts + 1))
         return st["added"], keys
 
+    empty_checks = 0
     try:
         while True:
             check_stop()
@@ -563,6 +565,18 @@ def _run_slice(
                     # from the last timestamp below is the same work without it.
                     break
 
+            if task_rows == 0 and sl["index"] == 0 and empty_checks < EMPTY_CHECKS:
+                # A search that finishes at once with nothing is not always true: a busy
+                # FortiAnalyzer was seen to answer a whole window "0 logs" and, minutes
+                # later, 14,000. Ask again (a window that is really empty costs two more
+                # searches of a fraction of a second) before showing "complete, 0 logs".
+                empty_checks += 1
+                with contextlib.suppress(Exception):
+                    client.delete_log_search(tids.pop())
+                sl["searches"] -= 1
+                sl["matched"], sl["matched_final"] = None, False
+                time.sleep(min(poll_interval, 2.0))
+                continue
             more_expected = sl["matched"] is None or sl["fetched"] + credit < sl["matched"]
             if not sl["matched_final"]:
                 read_count(wait=False)
