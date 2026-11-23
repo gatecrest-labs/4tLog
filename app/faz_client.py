@@ -698,6 +698,83 @@ class FAZClient:
 
         return last_result.get("data", [])
 
+    def run_fortiview_page(
+        self,
+        adom: str,
+        view: str,
+        time_range: tuple[str, str],
+        *,
+        filter: str | None = None,
+        devices: list[dict] | None = None,
+        limit: int = 1000,
+        offset: int = 0,
+        poll_interval: float = 1.0,
+        timeout: float = 60.0,
+    ) -> tuple[list[dict], int | None]:
+        """One page of a FortiView run, with the run's total: ``(rows, total-count-all)``.
+
+        ``run_fortiview`` returns the first ``limit`` rows only. This asks for the total
+        (``count-total``) and starts at ``offset``, so every row of a long result is
+        reachable. Measured on FortiAnalyzer 8.0.2: ``offset`` must be in the submit, not
+        only the fetch. The task is deleted afterwards, also when the run fails or times
+        out (best effort: FortiAnalyzer expires tasks on its own)."""
+        base = f"/fortiview/adom/{adom}/{view}/run"
+        submit_body = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "add",
+            "params": [
+                {
+                    "url": base,
+                    "apiver": 3,
+                    "time-range": {"start": time_range[0], "end": time_range[1]},
+                    "limit": limit,
+                    "offset": offset,
+                    "count-total": True,
+                    "device": devices or [{"devid": "All_FortiGate"}],
+                    **({"filter": filter} if filter else {}),
+                }
+            ],
+            "session": None,
+        }
+        tid = self._unwrap_result(self._post(submit_body)).get("tid")
+        if tid is None:
+            raise FAZError(f"FortiView run submit returned no task ID for '{view}'")
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                if time.monotonic() >= deadline:
+                    raise FAZError(f"FortiView '{view}' run did not complete within {timeout}s")
+                fetch_body = {
+                    "jsonrpc": "2.0",
+                    "id": self._next_id(),
+                    "method": "get",
+                    "params": [
+                        {"url": f"{base}/{tid}", "apiver": 3, "limit": limit, "offset": offset}
+                    ],
+                    "session": None,
+                }
+                result = self._unwrap_result(self._post(fetch_body))
+                if result.get("percentage", 0) >= 100:
+                    total = result.get("total-count-all")
+                    return result.get("data", []), (int(total) if total is not None else None)
+                time.sleep(poll_interval)
+        finally:
+            try:
+                self._unwrap_result(
+                    self._post(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": self._next_id(),
+                            "method": "delete",
+                            "params": [{"url": f"{base}/{tid}", "apiver": 3}],
+                            "session": None,
+                        }
+                    )
+                )
+            except Exception:
+                pass  # FortiAnalyzer expires FortiView tasks on its own
+
     @staticmethod
     def build_filter_expression(
         source_clauses: list[str],

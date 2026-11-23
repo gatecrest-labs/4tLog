@@ -681,3 +681,76 @@ def test_tzdata_package_is_installed():
     import importlib.util
 
     assert importlib.util.find_spec("tzdata") is not None
+
+
+# ── run_fortiview_page: offset, total count and clean-up for FortiView runs ──
+
+_TR = ("2026-09-10T00:00:00+00:00", "2026-09-11T00:00:00+00:00")
+
+
+def _ok(result, id_=1):
+    return {"jsonrpc": "2.0", "id": id_, "result": result}
+
+
+def test_run_fortiview_page_sends_offset_and_count_total_on_the_submit(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [_ok({"tid": 7}), _ok({"percentage": 100, "data": []}), _ok({"status": {"code": 0}})],
+    )
+    client.run_fortiview_page(
+        "root", "top-destinations", _TR, filter="srcip==10.1.1.2", offset=1000
+    )
+    submit = calls[0]["json"]["params"][0]
+    assert submit["offset"] == 1000 and submit["count-total"] is True
+    assert submit["device"] == [{"devid": "All_FortiGate"}]
+    assert submit["filter"] == "srcip==10.1.1.2" and submit["limit"] == 1000
+    assert calls[1]["json"]["params"][0]["offset"] == 1000
+
+
+def test_run_fortiview_page_returns_rows_and_total(monkeypatch):
+    rows = [{"dstip": "192.0.2.1", "sessions": "5"}]
+    client, _ = _client(
+        monkeypatch,
+        [
+            _ok({"tid": 7}),
+            _ok({"percentage": 40, "data": []}),
+            _ok({"percentage": 100, "data": rows, "total-count-all": 1054}),
+            _ok({"status": {"code": 0}}),
+        ],
+    )
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    assert client.run_fortiview_page("root", "top-destinations", _TR) == (rows, 1054)
+
+
+def test_run_fortiview_page_total_is_none_when_absent(monkeypatch):
+    client, _ = _client(
+        monkeypatch,
+        [_ok({"tid": 7}), _ok({"percentage": 100, "data": []}), _ok({"status": {"code": 0}})],
+    )
+    assert client.run_fortiview_page("root", "policy-hits", _TR) == ([], None)
+
+
+def test_run_fortiview_page_deletes_the_task_and_survives_a_failed_delete(monkeypatch):
+    client, calls = _client(
+        monkeypatch,
+        [
+            _ok({"tid": 7}),
+            _ok({"percentage": 100, "data": []}),
+            {"jsonrpc": "2.0", "id": 3, "error": {"code": -3, "message": "gone"}},
+        ],
+    )
+    assert client.run_fortiview_page("root", "policy-hits", _TR) == ([], None)
+    assert calls[2]["json"]["method"] == "delete"
+    assert calls[2]["json"]["params"][0]["url"] == "/fortiview/adom/root/policy-hits/run/7"
+
+
+def test_run_fortiview_page_times_out_naming_the_view(monkeypatch):
+    from app.faz_client import FAZError
+
+    client, calls = _client(
+        monkeypatch,
+        [_ok({"tid": 7}), _ok({"percentage": 10, "data": []}), _ok({"status": {"code": 0}})],
+    )
+    with pytest.raises(FAZError, match="top-sources"):
+        client.run_fortiview_page("root", "top-sources", _TR, timeout=0)
+    assert calls[-1]["json"]["method"] == "delete"  # a timed-out run is still cleaned up
