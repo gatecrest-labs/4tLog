@@ -149,3 +149,85 @@ def test_demo_fortianalyzer_lists_its_adom(app, no_network):  # noqa: F811
     client, _ = _login(app)
     body = client.get("/api/conn-timeline/adoms?target=Gatecrest HQ").get_json()
     assert body["default"] in [a["name"] for a in body["adoms"]]
+
+
+# ── Quick summary (FortiView) in demo mode ───────────────────────────────────
+
+
+def _window(hours=3):
+    end = datetime.datetime.now(datetime.timezone.utc).replace(second=0, microsecond=0)
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    return {
+        "start_time": (end - datetime.timedelta(hours=hours)).strftime(fmt),
+        "end_time": end.strftime(fmt),
+    }
+
+
+def _summary(client, headers, section, **payload):
+    body = {"target": "Gatecrest HQ", "host": "10.10.10.53", "section": section, **_window()}
+    body.update(payload)
+    resp = client.post("/api/conn-timeline/summary", json=body, headers=headers)
+    assert resp.status_code == 200, resp.get_json()
+    return resp.get_json()
+
+
+def test_demo_summary_peers_match_the_raw_timeline(app, no_network, inline_jobs):  # noqa: F811
+    client, headers = _login(app)
+    result = _build(client, headers, target="Gatecrest HQ", host="10.10.10.53", **_window())
+    raw: dict[str, int] = {}
+    for flow in result["flows"]:
+        raw[result["peers"][flow[3]]] = raw.get(result["peers"][flow[3]], 0) + flow[-1]
+    out = _summary(client, headers, "peers")
+    assert out["units"] == "sessions" and out["total"] == len(raw)
+    assert sum(raw.values()) == result["rows"]
+    for row in out["rows"]:
+        assert row["sessions"] == raw[row["peer"]]
+        assert row["allowed"] + row["denied"] <= row["sessions"]
+
+
+def test_demo_summary_sections_all_answer(app, no_network):  # noqa: F811
+    client, headers = _login(app)
+    for section in ("peers", "policies", "applications", "countries"):
+        out = _summary(client, headers, section, host="10.10.20.50", **_window(24))
+        assert out["rows"] and "unavailable" not in out, section
+    policies = _summary(client, headers, "policies", host="10.10.20.50", **_window(24))
+    assert policies["totals"]["allowed"] > 0 and policies["firewalls"]
+    assert sum(f["allowed"] + f["denied"] for f in policies["firewalls"]) == sum(
+        r["allowed"] + r["denied"] for r in policies["rows"]
+    )
+
+
+def test_demo_summary_for_a_quiet_host_is_empty(app, no_network):  # noqa: F811
+    client, headers = _login(app)
+    for section in ("peers", "policies", "applications", "countries"):
+        out = _summary(client, headers, section, host="10.99.99.99")
+        assert out["rows"] == [] and "unavailable" not in out, section
+
+
+def test_demo_fortiview_pages_with_offset_and_reports_the_total(demo_on, no_network):  # noqa: F811
+    client = FAZClient(host=HQ, token="demo")
+    end = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+    tr = (
+        (end - datetime.timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
+        end.strftime("%Y-%m-%dT%H:%M:%S"),
+    )
+    first, total = client.run_fortiview_page(
+        "root", "top-sources", tr, filter="dstip==10.10.10.53", limit=5, offset=0
+    )
+    second, total2 = client.run_fortiview_page(
+        "root", "top-sources", tr, filter="dstip==10.10.10.53", limit=5, offset=5
+    )
+    assert total == total2 and total > 10
+    assert len(first) == len(second) == 5
+    assert not {r["srcip"] for r in first} & {r["srcip"] for r in second}
+
+
+def test_demo_dashboard_top_countries_is_unchanged(demo_on, no_network):  # noqa: F811
+    client = FAZClient(host=HQ, token="demo")
+    end = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+    tr = (
+        (end - datetime.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S"),
+        end.strftime("%Y-%m-%dT%H:%M:%S"),
+    )
+    rows = client.run_fortiview("root", "top-countries", tr, limit=5)
+    assert rows and "srccountry" in rows[0] and "count" in rows[0]
