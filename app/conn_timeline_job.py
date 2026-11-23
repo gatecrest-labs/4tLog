@@ -172,6 +172,7 @@ def _new_slice(index: int, lo: int, hi: int, *, check_count: bool = True) -> dic
             "searches": [],
         },
         "unreached": 0,
+        "resume": None,
         "more": False,  # a probe that stopped with rows left, for the slices to take over
         "boundary": None,
     }
@@ -221,6 +222,8 @@ def _run_slice(
         boundary_ts, boundary_keys = sl["boundary"][0], set(sl["boundary"][1])
         # Rows at that second the probe counted stay counted if this slice restarts there.
         last_ts, last_keys = boundary_ts, set(boundary_keys)
+    credit = len(boundary_keys)  # rows at the start second that were counted before this slice
+    sl["credit"] = credit
     seg_start = datetime.datetime.fromtimestamp(sl["lo"], datetime.timezone.utc)
     last_slice = sl["hi"] >= end_ts
     # FortiAnalyzer's range includes both ends: stop a slice one second short so a
@@ -273,7 +276,7 @@ def _run_slice(
         The parts are independent, so they are a work queue: this thread and up to
         ``split_workers - 1`` helpers (each with its own connection) take parts off it
         and put the parts they cut in turn back."""
-        keys = set(seen)
+        keys = seen  # counted into in place: see the caller
         st = {"added": 0, "gave_up": False, "second_total": None, "active": 0}
         when = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc)
         with shared.lock:
@@ -560,10 +563,10 @@ def _run_slice(
                     # from the last timestamp below is the same work without it.
                     break
 
-            more_expected = sl["matched"] is None or sl["fetched"] < sl["matched"]
+            more_expected = sl["matched"] is None or sl["fetched"] + credit < sl["matched"]
             if not sl["matched_final"]:
                 read_count(wait=False)
-                more_expected = sl["matched"] is None or sl["fetched"] < sl["matched"]
+                more_expected = sl["matched"] is None or sl["fetched"] + credit < sl["matched"]
             if probe and task_rows >= submit_limit and more_expected and added and last_ts:
                 sl["more"], sl["boundary"] = True, (last_ts, set(last_keys))
                 break  # a big window: the rest is shared out between workers
@@ -576,13 +579,15 @@ def _run_slice(
                 # The restart returned only rows already counted: more than a search
                 # returns share the second the last one stopped in. Read that second
                 # by partitioning it, then carry on from the next one.
-                got, keys_now = split_second(boundary_ts, boundary_keys)
-                added += got
-                last_ts, last_keys = boundary_ts, set(keys_now)
+                # The rows of that second are counted into last_keys as they arrive, so a
+                # stop in the middle still leaves an exact picture to resume from.
+                last_ts, last_keys = boundary_ts, boundary_keys
                 sl["last_ts"] = last_ts
+                got, keys_now = split_second(boundary_ts, last_keys)
+                added += got
                 nxt = boundary_ts + 1
                 if nxt > int(seg_end.timestamp()) or (
-                    sl["matched"] is not None and sl["fetched"] >= sl["matched"]
+                    sl["matched"] is not None and sl["fetched"] + credit >= sl["matched"]
                 ):
                     break
                 boundary_ts, boundary_keys = last_ts, set(keys_now)
@@ -599,6 +604,9 @@ def _run_slice(
         reason = stop.reason
         shared.set_stop(reason)
     finally:
+        # Where to pick up if this slice stopped early: the last second reached and the
+        # rows of it already counted.
+        sl["resume"] = (last_ts, set(last_keys)) if last_ts is not None else None
         if reason != "cancelled":
             shared.report("counting")
             read_count(wait=True)
@@ -608,7 +616,8 @@ def _run_slice(
             except Exception:
                 pass  # FortiAnalyzer expires search tasks on its own
     counted = sl["check_count"] and not sl["more"]
-    if reason is None and counted and sl["matched"] is not None and sl["fetched"] < sl["matched"]:
+    short = sl["matched"] is not None and sl["fetched"] + credit < sl["matched"]
+    if reason is None and counted and short:
         reason = "burst" if sl["unreached"] else "incomplete"
     sl["reason"] = reason
     sl["done"] = True
@@ -634,6 +643,7 @@ def collect(
     on_snapshot=None,
     deadline_per_1k: float | None = None,
     deadline_max: float | None = None,
+    boundary: tuple[int, set] | None = None,
 ) -> dict:
     """Page the window's traffic logs into ``timeline``; return its coverage.
 
@@ -663,6 +673,8 @@ def collect(
     # The first slice is the whole window. Alone it is the build; with workers it is a
     # probe: one search that, if the window turns out big, hands the rest to the others.
     shared.slices = [_new_slice(0, lo, hi)]
+    if boundary is not None:  # picking up a stopped build: rows at ``lo`` are counted already
+        shared.slices[0]["boundary"] = (boundary[0], set(boundary[1]))
     kw = {
         "device": device,
         "filter_expression": filter_expression,
@@ -723,7 +735,80 @@ def collect(
             if exc is not None:
                 raise exc
 
-    return _coverage(shared, is_cancelled)
+    return _coverage(shared, is_cancelled, hi)
+
+
+def continue_collect(client, timeline: Timeline, resume: list[dict], prior: dict, **kw) -> dict:
+    """Read what an earlier build left (its coverage's ``_resume``) into the same
+    ``timeline`` and return the merged coverage, in the shape :func:`collect` returns.
+
+    ``prior`` carries that build's totals (``matched``, ``matched_final``, ``fetched``,
+    ``searches``, ``burst``). The windows are read one after the other, each a build in
+    its own right (so large ones are still shared out between workers); the first
+    second of each skips the rows already counted there. If one stops again, the
+    windows after it stay for the next Continue. Seconds that could not be split
+    stay reported: reading them again would give the same answer."""
+    keep = ("start", "end")
+    kw = {k: v for k, v in kw.items() if k not in keep}
+    fetched, searches = prior["fetched"], prior["searches"]
+    burst = [tuple(b) for b in prior["burst"]]
+    left: list[dict] = []
+    gaps: list[list[int]] = []
+    reason = None
+    pending = list(resume)
+    while pending:
+        entry = pending.pop(0)
+        part = collect(
+            client,
+            timeline,
+            start=datetime.datetime.fromtimestamp(entry["lo"], datetime.timezone.utc),
+            end=datetime.datetime.fromtimestamp(entry["hi"], datetime.timezone.utc),
+            boundary=(entry["lo"], entry["keys"]) if entry["keys"] else None,
+            **kw,
+        )
+        fetched += part["fetched"]
+        searches += part["searches"]
+        burst += [tuple(b) for b in part["_burst"]]
+        left += part["_resume"]
+        gaps += [
+            [_ts_of(a), _ts_of(b)] for a, b in part["gaps"] if (_ts_of(a), _ts_of(b)) not in burst
+        ]
+        if part["reason"] and part["reason"] not in ("burst",):
+            reason = reason or part["reason"]
+        if part["reason"] in ("cap", "deadline", "cancelled"):
+            left += pending  # not started: still to read
+            gaps += [[e["lo"], e["hi"] + 1] for e in pending]
+            break
+    burst = sorted(set(burst))
+    if reason is None and burst:
+        reason = "burst"
+    gaps += [list(b) for b in burst]
+    gaps.sort()
+    merged = []
+    for g in gaps:
+        if merged and merged[-1][1] >= g[0]:
+            merged[-1][1] = max(merged[-1][1], g[1])
+        else:
+            merged.append(g)
+    return {
+        "matched": prior["matched"],
+        "matched_final": prior["matched_final"],
+        "fetched": fetched,
+        "complete": reason is None,
+        "reason": reason,
+        "gaps": [[_iso_ts(a), _iso_ts(b)] for a, b in merged],
+        "through": _iso_ts(merged[0][0]) if merged else None,
+        "searches": searches,
+        "diagnostics": {},
+        "_resume": left,
+        "_burst": [list(b) for b in burst],
+    }
+
+
+def _ts_of(iso: str | int) -> int:
+    if isinstance(iso, int):
+        return iso
+    return int(datetime.datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp())
 
 
 class _RateLimited:
@@ -760,7 +845,7 @@ class _RateLimited:
         return call
 
 
-def _coverage(shared: _Shared, is_cancelled) -> dict:
+def _coverage(shared: _Shared, is_cancelled, end_ts: int) -> dict:
     slices = shared.slices
     matched = slices[0][
         "matched"
@@ -774,14 +859,15 @@ def _coverage(shared: _Shared, is_cancelled) -> dict:
             reason = "cancelled" if is_cancelled() else "deadline"
         elif any(s["reason"] for s in slices):
             reason = next(s["reason"] for s in slices if s["reason"])
-    if reason is None and matched is not None and shared.fetched < matched:
+    credit = slices[0].get("credit", 0)  # counted before a Continue began, in the same count
+    if reason is None and matched is not None and shared.fetched + credit < matched:
         reason = "burst" if shared.burst_gaps else "incomplete"
     complete = reason is None
     gaps: list[list[int]] = []
     if not complete:
         for s in slices:
-            if s["started"] and not s["reason"]:
-                continue
+            if s["started"] and (not s["reason"] or s["reason"] == "burst"):
+                continue  # a burst second is its own gap, below: the rest of the slice is read
             frm = s["last_ts"] if s["started"] and s["last_ts"] is not None else s["lo"]
             if gaps and gaps[-1][1] >= frm:
                 gaps[-1][1] = s["hi"]
@@ -800,7 +886,27 @@ def _coverage(shared: _Shared, is_cancelled) -> dict:
         "through": _iso_ts(gaps[0][0]) if gaps and (gaps[0][0] > slices[0]["lo"]) else None,
         "searches": sum(s["searches"] for s in slices),
         "diagnostics": _diagnostics(slices),
+        # Not for the page: what Continue needs. Where each unfinished stretch stands
+        # (its keys are the rows already counted at its first second), and the seconds
+        # no search could split, which reading again would not change.
+        "_resume": _resume(slices, hi=end_ts) if not complete else [],
+        "_burst": [list(b) for b in shared.burst_gaps],
     }
+
+
+def _resume(slices: list[dict], *, hi: int) -> list[dict]:
+    """The stretches a build left unread, as windows ``[lo, hi]`` (both ends inclusive,
+    so no two overlap) with the keys of the rows already counted at ``lo``."""
+    out = []
+    for s in slices:
+        if s["started"] and (not s["reason"] or s["reason"] == "burst"):
+            continue
+        state = s["resume"] if s["started"] else None
+        frm, keys = state if state else (s["lo"], set())
+        to = s["hi"] if s["hi"] >= hi else s["hi"] - 1  # a slice's end second belongs to the next
+        if frm <= to:
+            out.append({"lo": frm, "hi": to, "keys": set(keys)})
+    return out
 
 
 def _diagnostics(slices: list[dict]) -> dict:
@@ -876,6 +982,9 @@ class Job:
         }
         self.result: dict | None = None
         self.partial: dict | None = None  # what has been rolled up so far, while running
+        # What "Continue" needs once a build ends partial (its timeline, the stretches it
+        # left, its totals). Kept in memory only, until used or the job expires.
+        self.resume_state: dict | None = None
         self.error: str | None = None
         self._cancel = threading.Event()
 

@@ -274,3 +274,69 @@ def test_a_lost_session_says_so_instead_of_csrf_failed(app):
     )
     assert resp.status_code == 401
     assert "log in again" in resp.get_json()["error"]
+
+
+def _partial_job(client, headers, monkeypatch, rows=500):
+    import app.routes.conn_timeline_routes as routes
+
+    monkeypatch.setattr(routes.Config, "CONN_TIMELINE_MAX_ROWS", rows)
+    job_id = _start(client, headers).get_json()["job_id"]
+    job = client.get(f"/api/conn-timeline/{job_id}").get_json()
+    assert job["result"]["coverage"]["complete"] is False
+    return job_id, job
+
+
+def test_a_partial_build_can_be_continued_into_a_complete_one(app, faz, monkeypatch):
+    import app.routes.conn_timeline_routes as routes
+    from app.app_logger import clear_log_entries, get_log_entries
+
+    clear_log_entries()
+    client, headers = _login(app)
+    job_id, job = _partial_job(client, headers, monkeypatch)
+    cov = job["result"]["coverage"]
+    assert cov["resumable"] is True and cov["fetched"] == 500
+    assert not any(k.startswith("_") for k in cov)  # nothing private reaches the page
+
+    monkeypatch.setattr(routes.Config, "CONN_TIMELINE_MAX_ROWS", 100000)
+    resp = client.post(f"/api/conn-timeline/{job_id}/continue", headers=headers)
+    assert resp.status_code == 202
+    new_id = resp.get_json()["job_id"]
+    assert new_id != job_id
+    done = client.get(f"/api/conn-timeline/{new_id}").get_json()
+    assert done["status"] == "done"
+    cov2 = done["result"]["coverage"]
+    assert cov2["complete"] is True and cov2["resumable"] is False
+    assert cov2["fetched"] == cov2["matched"] == 1234
+    assert sum(f[-1] for f in done["result"]["flows"]) == 1234  # no row counted twice
+    assert faz.deleted == list(faz.tasks)
+    messages = [e["message"] for e in get_log_entries(component="conn_timeline")]
+    assert "Timeline continuing" in messages and messages[-1] == "Timeline completed"
+
+
+def test_a_build_can_only_be_continued_once(app, faz, monkeypatch):
+    client, headers = _login(app)
+    job_id, _ = _partial_job(client, headers, monkeypatch)
+    assert client.post(f"/api/conn-timeline/{job_id}/continue", headers=headers).status_code == 202
+    again = client.post(f"/api/conn-timeline/{job_id}/continue", headers=headers)
+    assert again.status_code == 409
+
+
+def test_a_complete_build_has_nothing_to_continue(app, faz):
+    client, headers = _login(app)
+    job_id = _start(client, headers).get_json()["job_id"]
+    resp = client.post(f"/api/conn-timeline/{job_id}/continue", headers=headers)
+    assert resp.status_code == 409
+
+
+def test_another_user_cannot_continue_a_build(app, faz, monkeypatch):
+    client, headers = _login(app, "alice")
+    job_id, _ = _partial_job(client, headers, monkeypatch)
+    other, other_headers = _login(app, "bob")
+    resp = other.post(f"/api/conn-timeline/{job_id}/continue", headers=other_headers)
+    assert resp.status_code == 404
+
+
+def test_continue_needs_csrf(app, faz, monkeypatch):
+    client, headers = _login(app)
+    job_id, _ = _partial_job(client, headers, monkeypatch)
+    assert client.post(f"/api/conn-timeline/{job_id}/continue").status_code in (400, 403)

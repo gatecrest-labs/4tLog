@@ -253,8 +253,11 @@ function renderCoverage(result) {
   const of = matched != null ? ` of ${fmtCount(matched)}${cov.matched_final ? '' : '+'} matched` : '';
   const through = cov.through ? ` (through ${escHtml(fmtTimeSec(Date.parse(cov.through)))})` : '';
   const why = REASONS[cov.reason] || 'a limit';
+  const more = cov.resumable
+    ? ' <button type="button" class="btn btn-sm btn-primary" id="ctContinue">Continue</button> reads only what is missing and adds it to this picture.'
+    : '';
   return `<div class="ct-coverage alert alert-warning">Partial: built from ${fmtCount(cov.fetched)}${of} log(s)${through}, stopped by ${escHtml(why)}. ` +
-    'Time not covered is greyed out. Narrow the window, pick one firewall, or show allowed or denied only to see all of it.</div>';
+    `Time not covered is greyed out.${more} You can also narrow the window, pick one firewall, or show allowed or denied only.</div>`;
 }
 
 function renderFilter(result, filter) {
@@ -661,6 +664,7 @@ function initPage() {
         return;
       }
       state.jobId = null;
+      state.doneJobId = body.id;  // what Continue refers to
       setBusy(false, '');
       if (body.status === 'failed') { showError(body.error || 'Timeline failed.'); return; }
       if (body.result) {
@@ -722,6 +726,26 @@ function initPage() {
     }
   }
 
+  // Reads what a partial build did not reach, into the same picture. The picture stays
+  // on screen and fills in; the new job's result replaces it when it ends.
+  async function continueBuild() {
+    showError('');
+    if (state.jobId || !state.doneJobId) return;
+    setBusy(true, 'Continuing…');
+    try {
+      const resp = await fetch(`/api/conn-timeline/${encodeURIComponent(state.doneJobId)}/continue`, {
+        method: 'POST',  // the page's fetch wrapper adds the CSRF header
+      });
+      const body = await resp.json();
+      if (!resp.ok) { setBusy(false, ''); showError(body.error || 'Could not continue the timeline.'); return; }
+      state.jobId = body.job_id;
+      poll();
+    } catch {
+      setBusy(false, '');
+      showError('Could not continue the timeline. Please try again.');
+    }
+  }
+
   async function cancel() {
     if (!state.jobId) return;
     try {
@@ -733,6 +757,7 @@ function initPage() {
 
   function onClick(ev) {
     const el = ev.target;
+    if (el.id === 'ctContinue') { continueBuild(); return; }
     if (el.id === 'ctShowAll') { state.showAll = true; render(); return; }
     if (el.id === 'ctClearFilter') { state.filter = { peer: null, port: null }; state.selected = null; render(); return; }
     if (el.id === 'ctCloseDetail') { state.selected = null; render(); return; }

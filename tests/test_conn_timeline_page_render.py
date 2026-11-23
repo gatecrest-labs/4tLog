@@ -310,3 +310,38 @@ def test_running_build_shows_a_still_fetching_banner_and_no_grey():
     out = _render([{"name": "r", "result": _result(ROWS, coverage=coverage)}])["r"]
     assert "Still fetching: 1,200 of 5,000+ matched" in out["coverage"]
     assert "ct-not-fetched" not in out["chart"]
+
+
+def _partial(**extra):
+    return {
+        "matched": 54321,
+        "matched_final": True,
+        "fetched": 20000,
+        "complete": False,
+        "reason": "cap",
+        "through": "2026-11-22T11:30:00Z",
+        "searches": 20,
+        **extra,
+    }
+
+
+def test_a_resumable_partial_result_offers_continue():
+    out = _render([{"name": "r", "result": _result(ROWS, coverage=_partial(resumable=True))}])["r"]
+    assert 'id="ctContinue"' in out["coverage"] and "reads only what is missing" in out["coverage"]
+
+
+def test_continue_is_not_offered_when_there_is_nothing_to_continue():
+    cases = {
+        "not_resumable": _partial(resumable=False),
+        "unmarked": _partial(),
+        "complete": {**_partial(resumable=True), "complete": True, "reason": None},
+    }
+    out = _render([{"name": n, "result": _result(ROWS, coverage=c)} for n, c in cases.items()])
+    for name in cases:
+        assert "ctContinue" not in out[name]["coverage"], name
+
+
+def test_a_burst_reason_is_worded_for_the_user():
+    cov = _partial(reason="burst", resumable=False)
+    out = _render([{"name": "b", "result": _result(ROWS, coverage=cov)}])["b"]
+    assert "burst of logs in one second" in out["coverage"]

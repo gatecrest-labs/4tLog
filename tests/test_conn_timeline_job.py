@@ -118,6 +118,7 @@ def test_pages_everything_and_cleans_up():
     client = FakeFAZ(_rows(1234))
     cov, timeline = _collect(client)
     assert cov.pop("diagnostics")["rows_kept"] == 1234
+    assert cov.pop("_resume") == [] and cov.pop("_burst") == []
     assert cov == {
         "matched": 1234,
         "matched_final": True,
@@ -614,3 +615,89 @@ def test_a_build_given_more_time_for_a_big_window_finishes(monkeypatch):
     monkeypatch.setattr("time.monotonic", lambda: next(clock))
     cov, _ = _collect(FakeFAZ(_rows(3000)), deadline_at=4, deadline_per_1k=100, deadline_max=10**6)
     assert cov["complete"] is True and cov["fetched"] == 3000
+
+
+# ── Continue: read what a partial build left, into the same timeline ─────────
+
+
+def _prior(cov):
+    return {
+        "matched": cov["matched"],
+        "matched_final": cov["matched_final"],
+        "fetched": cov["fetched"],
+        "searches": cov["searches"],
+        "burst": list(cov["_burst"]),
+    }
+
+
+def _continue(client, timeline, cov, **kw):
+    from app.conn_timeline_job import continue_collect
+
+    args = {
+        "device": "All_FortiGate",
+        "filter_expression": f"(srcip=={HOST} or dstip=={HOST})",
+        "max_rows": 20000,
+        "page_size": 500,
+        "deadline_at": float("inf"),
+        "poll_interval": 0,
+    }
+    args.update(kw)
+    return continue_collect(client, timeline, cov["_resume"], _prior(cov), **args)
+
+
+@pytest.mark.parametrize("workers", [1, 4], ids=["single", "parallel"])
+def test_continue_after_the_row_cap_reads_the_rest_exactly_once(workers):
+    rows = _rows(3000)
+    full_cov, full = _collect(FakeFAZ(rows))
+    client = FakeFAZ(rows)
+    kw = {"workers": workers, "client_factory": lambda: client} if workers > 1 else {}
+    cov, timeline = _collect(client, max_rows=1200, **kw)
+    assert cov["complete"] is False and cov["reason"] == "cap" and cov["_resume"]
+    cov2 = _continue(client, timeline, cov, **kw)
+    assert cov2["complete"] is True and cov2["reason"] is None and cov2["gaps"] == []
+    assert cov2["fetched"] == timeline.rows == 3000 and cov2["matched"] == 3000
+    assert timeline.to_dict()["flows"] == full.to_dict()["flows"]
+
+
+def test_continue_can_be_chained_until_the_build_is_complete():
+    rows = _rows(3000)
+    _, full = _collect(FakeFAZ(rows))
+    client = FakeFAZ(rows)
+    cov, timeline = _collect(client, max_rows=700)
+    rounds = 0
+    while not cov["complete"]:
+        cov = _continue(client, timeline, cov, max_rows=700)
+        rounds += 1
+        assert rounds < 10
+    assert rounds >= 2 and cov["fetched"] == timeline.rows == 3000
+    assert timeline.to_dict()["flows"] == full.to_dict()["flows"]
+
+
+def test_continue_resumes_inside_a_burst_second_without_double_counting():
+    rows = _with_burst(_burst(5000, BURST_AT))
+    _, full = _collect(BurstFAZ(rows))
+    client = BurstFAZ(rows)
+    cov, timeline = _collect(client, max_rows=2500)
+    assert cov["reason"] == "cap" and 0 < timeline.rows <= 2500
+    cov2 = _continue(client, timeline, cov)
+    assert cov2["complete"] is True and cov2["fetched"] == timeline.rows == 5600
+    assert timeline.to_dict()["flows"] == full.to_dict()["flows"]
+
+
+def test_continue_leaves_an_unsplittable_burst_alone():
+    same = _burst(1500, BURST_AT, sessionid=lambda i: 77, srcport=lambda i: 4242)
+    client = BurstFAZ(_with_burst(same))
+    cov, timeline = _collect(client)
+    assert cov["reason"] == "burst" and cov["_resume"] == [] and cov["_burst"]
+    cov2 = _continue(client, timeline, cov)
+    assert cov2["reason"] == "burst" and cov2["complete"] is False
+    assert cov2["fetched"] == timeline.rows == 1600
+    assert cov2["gaps"] == cov["gaps"]
+
+
+def test_continue_that_stops_again_keeps_what_is_left():
+    client = FakeFAZ(_rows(3000))
+    cov, timeline = _collect(client, max_rows=500)
+    cov2 = _continue(client, timeline, cov, max_rows=500)
+    assert cov2["complete"] is False and cov2["reason"] == "cap"
+    assert cov2["fetched"] == timeline.rows == 1000 and cov2["_resume"] and cov2["gaps"]

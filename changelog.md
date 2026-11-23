@@ -15,6 +15,20 @@
 - A parallel build that took over from the first search inside a busy second could count rows
   of that second twice after a restart; it keeps the first search's rows counted.
 
+### Added (Continue)
+
+- **Continue on a partial Connection Timeline.** When a build stops short (the row cap, the time
+  limit, a cancel) the banner offers **Continue**: a new job reads only the stretches that were
+  not reached into the same timeline, skipping the rows already counted in the second each one
+  starts at, and merges the coverage. It can be repeated until the timeline is complete; each
+  Continue gets its own row cap and a time limit sized to what is left. A build can be continued
+  once (the click consumes it), by the user who started it, while the partial result is kept
+  (`CONN_TIMELINE_JOB_LIFETIME_SECS`). Seconds no search could split stay reported as a `burst`
+  gap: reading them again would give the same answer. Verified on the lab FortiAnalyzer: a
+  3-hour build capped at 4,000 rows was finished by two Continues at 13,912 rows, none counted
+  twice. `POST /api/conn-timeline/<job_id>/continue` returns the new `job_id`; a partial result's
+  coverage carries `resumable`.
+
 ### Changed
 
 - **A burst is read in parallel, and the time limit grows with the work.** The parts of a split
