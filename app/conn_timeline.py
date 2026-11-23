@@ -27,7 +27,11 @@ import re
 ALLOWED, DENIED, OTHER = 0, 1, 2
 VERDICT_NAMES = ("allowed", "denied", "other")
 ALLOWED_ACTIONS = frozenset({"accept", "close", "timeout", "server-rst", "client-rst"})
-DENIED_ACTIONS = frozenset({"deny", "block", "dropped", "ip-conn"})
+# ``ip-conn`` is not here: FortiGate logs it with msg "Connection Failed" and zero bytes for a
+# connection a policy *allowed* that never completed (seen on a real FortiAnalyzer, under the
+# same policy that accepts the host's normal traffic). It is neither accepted nor denied, so it
+# falls to "other" and is shown as such.
+DENIED_ACTIONS = frozenset({"deny", "block", "dropped"})
 
 
 def verdict(action) -> int:
@@ -290,7 +294,8 @@ class Timeline:
                 "label": policy_label(policyid, policyname),
             },
         )
-        key = (lane, bucket, verdict(row.get("action")), p, o, y)
+        outcome = verdict(row.get("action"))
+        key = (lane, bucket, outcome, p, o, y)
         self.flows[key] = self.flows.get(key, 0) + 1
 
         if self.direction == "src":
@@ -302,11 +307,11 @@ class Timeline:
         pkey = (p, role, lane, o, bucket)
         seen = self.paths.get(pkey)
         if seen is None:
-            self.paths[pkey] = [1, ts, ts]
-        else:
-            seen[0] += 1
-            seen[1] = min(seen[1], ts)
-            seen[2] = max(seen[2], ts)
+            seen = self.paths[pkey] = [0, ts, ts, 0, 0, 0]  # count, first, last, then per verdict
+        seen[0] += 1
+        seen[1] = min(seen[1], ts)
+        seen[2] = max(seen[2], ts)
+        seen[3 + outcome] += 1
 
     def to_dict(self) -> dict:
         lanes = sorted(range(len(self.lanes)), key=lambda i: (self.lanes[i]["first_seen"], i))
@@ -327,9 +332,7 @@ class Timeline:
         flows = sorted(
             [order[k[0]], k[1], k[2], k[3], k[4], k[5], count] for k, count in self.flows.items()
         )
-        paths = sorted(
-            [k[0], k[1], order[k[2]], k[3], k[4], v[0], v[1], v[2]] for k, v in self.paths.items()
-        )
+        paths = sorted([k[0], k[1], order[k[2]], k[3], k[4], *v] for k, v in self.paths.items())
         return {
             "start": _iso(self.start_ts),
             "end": _iso(self.end_ts),
@@ -350,6 +353,9 @@ class Timeline:
                 "count",
                 "first_ts",
                 "last_ts",
+                "allowed",
+                "denied",
+                "other",
             ],  # fmt: skip
             "paths": paths,
             "rows": self.rows,
