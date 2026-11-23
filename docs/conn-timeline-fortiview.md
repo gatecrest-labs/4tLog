@@ -37,6 +37,12 @@ the same IP with FortiView instead, which aggregates on the appliance.
   logs. Totals differ (about 12,000 sessions against 14,900 logs) and so does the top-10 (6 of 10
   in common). A summary built on FortiView has to say "sessions".
 
+## Built
+
+The Quick summary panel (design: `docs/superpowers/specs/2026-11-23-conn-timeline-quick-summary-design.md`)
+implements the shape below: `app/conn_timeline_summary.py` builds the sections and
+`POST /api/conn-timeline/summary` serves them one at a time.
+
 ## Recommended shape
 
 A **Quick summary** from FortiView, shown in seconds, next to the raw timeline: peers (both

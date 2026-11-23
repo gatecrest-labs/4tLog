@@ -15,6 +15,21 @@
 - A parallel build that took over from the first search inside a busy second could count rows
   of that second twice after a restart; it keeps the first search's rows counted.
 
+### Added (Quick summary)
+
+- **Quick summary panel** on the Connection Timeline: when you press Build, the page also asks
+  FortiAnalyzer's FortiView for the IP's top peers, policies (with allowed and denied totals and
+  per-firewall totals), applications and countries, and shows each as it arrives, usually within
+  3-12 s however many logs the IP wrote (the raw timeline needs a log search per 1,000 logs). The
+  counts are **sessions**, not logs, and are labelled so; ports and the time chart still come only
+  from the raw timeline. A view an appliance lacks shows "Not available" for that section only. A
+  partial raw timeline now points at the summary. `POST /api/conn-timeline/summary` returns one
+  section (`peers`, `policies`, `applications` or `countries`); `CONN_TIMELINE_SUMMARY_MAX_CONCURRENT`
+  (default 8) limits summaries running at once. Demo mode derives the same FortiView rows from its
+  synthetic traffic logs. `FAZClient.run_fortiview_page` adds `offset` and the total count to FortiView
+  runs (`offset` must be in the submit). Verified on the lab FortiAnalyzer: policy totals equal
+  FortiView's own session total, each section in 3-12 s.
+
 ### Fixed (empty answers)
 
 - **An empty first search is run again before it is believed.** A busy FortiAnalyzer was seen to
