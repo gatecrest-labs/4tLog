@@ -20,6 +20,7 @@ const REASONS = {
   deadline: 'the time limit',
   cancelled: 'cancel',
   incomplete: 'FortiAnalyzer returning fewer logs than it counted',
+  burst: 'a burst of logs in one second that FortiAnalyzer would not hand over in full',
 };
 
 function escHtml(str) {
@@ -642,6 +643,7 @@ function initPage() {
     if (!p) return 'Starting…';
     const matched = p.matched != null ? ` of ${fmtCount(p.matched)}${p.matched_final ? '' : '+'} matched` : '';
     if (p.phase === 'counting') return `Fetched ${fmtCount(p.fetched)}${matched} logs, reading the final count…`;
+    if (p.phase === 'splitting') return `Fetched ${fmtCount(p.fetched)}${matched} logs, splitting a burst of logs that share one second…`;
     if (p.fetched) return `Fetched ${fmtCount(p.fetched)}${matched} logs…`;
     return 'Searching FortiAnalyzer…';
   }

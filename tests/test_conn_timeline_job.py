@@ -2,6 +2,7 @@
 
 import datetime
 import itertools
+import re
 
 import pytest
 
@@ -441,3 +442,108 @@ def test_diagnostics_record_a_short_page_ending_a_search_early():
     cov, _ = _collect(client, page_size=500)
     s = cov["diagnostics"]["searches"][0]
     assert s["rows"] == 900 and s["total"] == 900 and s["ended"] == "exhausted"
+
+
+# ── Bursts: more than 1,000 logs sharing one second ───────────────────────────
+
+
+class BurstFAZ(FakeFAZ):
+    """A FortiAnalyzer as measured on the lab appliance: a search returns at most
+    ``limit`` rows and nothing past them whatever the offset, ``total-count`` is
+    exact, and ``sessionid>=N`` / ``srcport<N`` filters narrow a search."""
+
+    def __init__(self, rows, **kw):
+        super().__init__(rows, **kw)
+        self.filters = []
+
+    def submit_log_search(self, logtype, device, filt, start, end, limit=1000, time_order="desc"):
+        assert time_order == "asc"
+        lo = datetime.datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
+        hi = datetime.datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+        rows = sorted(
+            (r for r in self.rows if lo <= int(r["itime_t"]) <= hi), key=lambda r: int(r["itime_t"])
+        )
+        for field, op, value in re.findall(r"(\w+)(>=|<)(\d+)", filt):
+            keep = (lambda v: v >= int(value)) if op == ">=" else (lambda v: v < int(value))
+            rows = [r for r in rows if field in r and keep(int(r[field]))]
+        self.filters.append(filt)
+        tid = next(self._ids)
+        self.tasks[tid] = {"rows": rows[:limit], "matched": len(rows)}
+        return tid
+
+
+def _burst(n, at, *, sessionid=None, srcport=None, tag="b"):
+    """n logs that all carry the receive time ``at`` (epoch seconds)."""
+    template = _rows(1)[0]
+    return [
+        {
+            **template,
+            "id": f"{tag}{at}-{i}",
+            "itime_t": str(at),
+            "sessionid": str(sessionid(i) if sessionid else 5000 + i * 3),
+            "srcport": str(srcport(i) if srcport else 1024 + i),
+        }
+        for i in range(n)
+    ]
+
+
+def _with_burst(burst_rows, background=600):
+    rows = _rows(background)
+    for i, r in enumerate(rows):
+        r["sessionid"], r["srcport"] = str(1 + i), str(100 + i)
+    return rows + burst_rows
+
+
+BURST_AT = int(START.timestamp()) + 1800
+
+
+@pytest.mark.parametrize("parallel", [False, True], ids=["single", "parallel"])
+def test_a_burst_in_one_second_is_read_in_full(parallel):
+    rows = _with_burst(_burst(5000, BURST_AT))
+    client = BurstFAZ(rows)
+    cov, timeline = (_parallel if parallel else _collect)(client)
+    assert cov["complete"] is True and cov["reason"] is None
+    assert cov["fetched"] == cov["matched"] == timeline.rows == 5600
+    assert cov["diagnostics"]["rows_burst"] > 0
+    assert sorted(client.deleted) == sorted(client.tasks)
+
+
+@pytest.mark.parametrize("parallel", [False, True], ids=["single", "parallel"])
+def test_a_burst_at_the_start_of_the_window_is_read_in_full(parallel):
+    rows = _with_burst(_burst(3000, int(START.timestamp())))
+    cov, timeline = (_parallel if parallel else _collect)(BurstFAZ(rows))
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 3600
+
+
+def test_a_burst_over_two_seconds_is_read_in_full():
+    rows = _with_burst(_burst(2500, BURST_AT) + _burst(2500, BURST_AT + 1))
+    cov, timeline = _collect(BurstFAZ(rows))
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 5600
+
+
+def test_a_burst_with_one_session_id_is_split_on_the_source_port():
+    rows = _with_burst(_burst(1500, BURST_AT, sessionid=lambda i: 77))
+    client = BurstFAZ(rows)
+    cov, timeline = _collect(client)
+    assert cov["complete"] is True and cov["fetched"] == timeline.rows == 2100
+    assert any("srcport" in f for f in client.filters)
+
+
+def test_a_burst_that_cannot_be_split_is_reported_not_hidden():
+    same = _burst(1500, BURST_AT, sessionid=lambda i: 77, srcport=lambda i: 4242)
+    cov, timeline = _collect(BurstFAZ(_with_burst(same)))
+    assert cov["complete"] is False and cov["reason"] == "burst"
+    assert cov["matched"] == 2100 and cov["fetched"] == timeline.rows == 1600
+    assert cov["diagnostics"]["burst_unreached"] == 500
+    when = datetime.datetime.fromtimestamp(BURST_AT, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert cov["gaps"][0][0] == when
+
+
+def test_a_burst_that_has_no_split_fields_is_reported_not_hidden():
+    bare = [
+        {k: v for k, v in r.items() if k not in ("sessionid", "srcport")}
+        for r in _burst(1500, BURST_AT)
+    ]
+    cov, _ = _collect(BurstFAZ(_with_burst(bare)))
+    assert cov["complete"] is False and cov["reason"] == "burst"
+    assert cov["diagnostics"]["burst_unreached"] == 500

@@ -2,6 +2,19 @@
 
 ## 2026-11-23
 
+### Fixed
+
+- **Connection Timeline no longer stops short on a burst of logs.** More than 1,000 logs can
+  share one receive second (a device uploading a delayed batch), and a FortiAnalyzer search
+  returns at most 1,000 rows however you page it, so a build used to get stuck re-reading the
+  same 1,000 rows and report "FortiAnalyzer returning fewer logs than it counted" (4,381 of
+  11,082 on the lab appliance). The build now splits such a second with `sessionid` (then
+  `srcport`) range filters, sized by FortiAnalyzer's exact `total-count`, until every part fits
+  in one search. A second that no field can split is reported as a `burst` gap with how many
+  logs were not reached, instead of a silent shortfall.
+- A parallel build that took over from the first search inside a busy second could count rows
+  of that second twice after a restart; it keeps the first search's rows counted.
+
 ### Added
 
 - **Build diagnostics** for the Connection Timeline, to find out why a build says "built from X of
